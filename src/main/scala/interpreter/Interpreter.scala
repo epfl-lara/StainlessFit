@@ -160,6 +160,7 @@ object Interpretor {
           case _ => BottomTree
         }
       }
+      case LetIn(tp, v, bind) => evaluate(replaceBind(bind, v), fuel - 1)
       case _ => e
     }
   }

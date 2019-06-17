@@ -3,7 +3,92 @@ import interpreter._
 import printer._
 
 object Main {
+
+  def list(l: List[Int]): Tree = l match {
+    case Nil => Left(UnitLiteral)
+    case h::t => Right(Tuple(Seq(NatLiteral(h), list(t))))
+  }
+
   def main(args: Array[String]): Unit = {
+
+    val nil = list(List())
+
+    val cons = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "x")),
+        Lambda(
+          None,
+          Bind(
+            Some(Var(1, "l")),
+            Right(Tuple(Seq(Var(1, "x"), Var(1, "l"))))
+          )
+        )
+      )
+    )
+
+    val tail = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "l")),
+        TupleSelect(Var(1, "l"), 1)
+      )
+    )
+
+    val head = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "l")),
+        TupleSelect(Var(1, "l"), 0)
+      )
+    )
+
+    val lenBody = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "l")),
+        EitherMatch(
+          Var(1, "l"),
+          Bind(None, NatLiteral(0)),
+          Bind(
+            Some(Var(1, "l")),
+            Add(
+              NatLiteral(1),
+              App(
+                App(Var(1, "len"), UnitLiteral),
+                App(tail, Var(1, "l"))
+              )
+            )
+          )
+        )
+      )
+    )
+
+    val len = Fix(Bind(Some(Var(1, "len")), lenBody))
+
+    val map2Body = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "l")),
+        EitherMatch(
+          Var(1, "l"),
+          Bind(None, nil),
+          Bind(
+            Some(Var(1, "l")),
+            App(
+              App(cons, App(Var(1, "f"), App(head, Var(1, "l")))),
+              App(
+                App(Var(1, "map"), UnitLiteral),
+                App(tail, Var(1, "l"))
+              )
+            )
+          )
+        )
+      )
+    )
+
+    val map2 = Fix(Bind(Some(Var(1, "map")), map2Body))
+    val map = Lambda(None, Bind(Some(Var(1, "f")), map2))
 
     val lam = Lambda(
       None,
@@ -57,62 +142,6 @@ object Main {
       App(appTest, NatLiteral(4)),
       App(App(lambdaBind, NatLiteral(2)), NatLiteral(4))
     )
-
-    /*val mFac = Fix(
-      Bind(
-        Var(3, "mFac"),
-        Lambda(
-          None,
-          Bind(
-            Var(2, "y"),
-            Match(
-              Var(2, "y"),
-              NatLiteral(1),
-              Bind(
-                Var(1, "n"),
-                App(
-                  App(
-                    mMul,
-                    S(Var(1, "n"))
-                  ),
-                  App(
-                    Var(3, "mFac"),
-                    Var(1, "n")
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-
-    val facFun = Lambda(None,
-      Bind(
-        Var(1, "x"),
-        IfThenElse(
-          NatEq(Var(1, "x"), NatLiteral(0)),
-          NatLiteral(1),
-          App(
-            App(
-              mul,
-              Var(1, "x")
-            ),
-            App(
-              Var(2, "fac"),
-              P(Var(1, "x"))
-            )
-          )
-        )
-      )
-    )
-
-    val fac = Fix(
-      Bind(
-        Var(2, "fac"),
-        facFun
-      )
-    )*/
 
     val EitherMatchTest = EitherMatch(
       Right(NatLiteral(0)),
@@ -178,7 +207,13 @@ object Main {
       3
     )
 
-    val n = Interpretor.evaluate(t, 100000)
+    val m = LetIn(None, NatLiteral(3), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
+
+    val l = list(List(1, 2, 3, 4, 5, 6))
+
+    val inc = Lambda(None, Bind(Some(Var(1, "x")), Add(NatLiteral(1), Var(1, "x"))))
+
+    val n = Interpretor.evaluate(App(App(map, inc), l), 100000)
     println(n)
   }
 }
