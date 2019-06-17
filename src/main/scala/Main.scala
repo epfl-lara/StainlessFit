@@ -4,6 +4,14 @@ import printer._
 
 object ListTree {
 
+  def toScalaList(l: Tree): List[BigInt] = l match {
+    case Left(UnitLiteral) => List()
+    case Right(Tuple(t)) =>
+      val NatLiteral(n) = t.head
+      n::toScalaList(t.tail.head)
+    case _ => List()
+  }
+
   def list(l: List[Int]): Tree = l match {
     case Nil => Left(UnitLiteral)
     case h::t => Right(Tuple(Seq(NatLiteral(h), list(t))))
@@ -272,7 +280,8 @@ object Main {
     val l1 = Interpreter.evaluate(App(App(ListTree.map, inc), l), 100000)
     val l2 = Interpreter.evaluate(App(App(ListTree.filter, filterTest), l), 100000)
 
-    println(s"${l1}\n\n${l2}")
+    println(ListTree.toScalaList(l1))
+    println(ListTree.toScalaList(l2))
 
   }
 }

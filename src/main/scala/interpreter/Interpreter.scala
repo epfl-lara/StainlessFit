@@ -10,6 +10,12 @@ final case class InvalidExpressionException(private val message: String = "") ex
 
 object Interpreter {
 
+  def isValue(e: Tree) = e match {
+    case BottomTree | UnitLiteral| NatLiteral(_) |
+         BoolLiteral(_) | Var(_, _) | Lambda(_, _) => true
+    case _ => false
+  }
+
   def replaceBind(bind: Bind, v: Tree): Tree = {
     bind match {
       case Bind(None, body) => body
@@ -21,7 +27,7 @@ object Interpreter {
     val Var(id, x): Var = xvar
     body match {
       case BottomTree => body
-      case UnitLiteral => UnitLiteral
+      case UnitLiteral => body
       case NatLiteral(n) => body
       case BoolLiteral(b) => body
       case Var(id1, y) if (x == y && id1 == id) => v
@@ -75,15 +81,9 @@ object Interpreter {
   }
 
   def evaluate(e: Tree, fuel: BigInt): Tree = {
-    if(fuel == BigInt(0))
-      return BottomTree
+    if(isValue(e)) return e
+    if(fuel == BigInt(0)) return BottomTree
     e match {
-      case BottomTree => e
-      case UnitLiteral => e
-      case NatLiteral(n) => e
-      case BoolLiteral(b) => e
-      case Var(id, name) => e
-      case Lambda(tp, b) => e
       case IfThenElse(c, t1, t2) => {
         val c1: Tree = evaluate(c, fuel - 1)
         c1 match {
