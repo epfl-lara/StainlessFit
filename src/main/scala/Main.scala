@@ -4,20 +4,20 @@ import printer._
 
 object ListTree {
 
-  def toScalaList(l: Tree): List[BigInt] = l match {
+  def listToTree(l: List[Int]): Tree = l match {
+    case Nil => Left(UnitLiteral)
+    case h::t => Right(Tuple(Seq(NatLiteral(h), listToTree(t))))
+  }
+
+  def treeToList(l: Tree): List[BigInt] = l match {
     case Left(UnitLiteral) => List()
     case Right(Tuple(t)) =>
       val NatLiteral(n) = t.head
-      n::toScalaList(t.tail.head)
+      n::treeToList(t.tail.head)
     case _ => List()
   }
 
-  def list(l: List[Int]): Tree = l match {
-    case Nil => Left(UnitLiteral)
-    case h::t => Right(Tuple(Seq(NatLiteral(h), list(t))))
-  }
-
-  val nil = list(List())
+  val nil = listToTree(List())
 
   val cons = Lambda(
     None,
@@ -37,7 +37,11 @@ object ListTree {
     None,
     Bind(
       Some(Var(1, "l")),
-      TupleSelect(Var(1, "l"), 1)
+      EitherMatch(
+        Var(1, "l"),
+        Bind(None, BottomTree),
+        Bind(Some(Var(1, "t")), TupleSelect(Var(1, "t"), 1))
+      )
     )
   )
 
@@ -45,7 +49,11 @@ object ListTree {
     None,
     Bind(
       Some(Var(1, "l")),
-      TupleSelect(Var(1, "l"), 0)
+      EitherMatch(
+        Var(1, "l"),
+        Bind(None, BottomTree),
+        Bind(Some(Var(1, "t")), TupleSelect(Var(1, "t"), 0))
+      )
     )
   )
 
@@ -61,7 +69,7 @@ object ListTree {
     )
   )
 
-  val lenBody = Lambda(
+  private val lenBody = Lambda(
     None,
     Bind(
       Some(Var(1, "l")),
@@ -69,7 +77,7 @@ object ListTree {
         Var(1, "l"),
         Bind(None, NatLiteral(0)),
         Bind(
-          Some(Var(1, "l")),
+          Some(Var(1, "t")),
           Add(
             NatLiteral(1),
             App(
@@ -84,7 +92,7 @@ object ListTree {
 
   val len = Fix(Bind(Some(Var(1, "len")), lenBody))
 
-  val map2Body = Lambda(
+  private val map2Body = Lambda(
     None,
     Bind(
       Some(Var(1, "l")),
@@ -92,7 +100,7 @@ object ListTree {
         Var(1, "l"),
         Bind(None, nil),
         Bind(
-          Some(Var(1, "l")),
+          Some(Var(1, "t")),
           App(
             App(cons, App(Var(1, "f"), App(head, Var(1, "l")))),
             App(
@@ -105,15 +113,15 @@ object ListTree {
     )
   )
 
-  val map2 = Fix(Bind(Some(Var(1, "map")), map2Body))
+  private val map2 = Fix(Bind(Some(Var(1, "map")), map2Body))
   val map = Lambda(None, Bind(Some(Var(1, "f")), map2))
 
-  val filterTail = App(
+  private val filterTail = App(
     App(Var(1, "filter"), UnitLiteral),
     App(tail, Var(1, "l"))
   )
 
-  val filter2Body = Lambda(
+  private val filter2Body = Lambda(
     None,
     Bind(
       Some(Var(1, "l")),
@@ -121,7 +129,7 @@ object ListTree {
         Var(1, "l"),
         Bind(None, nil),
         Bind(
-          Some(Var(1, "l")),
+          Some(Var(1, "t")),
           IfThenElse(
             App(Var(1, "f"), App(head, Var(1, "l"))),
             App(
@@ -138,18 +146,122 @@ object ListTree {
     )
   )
 
-  val filter2 = Fix(Bind(Some(Var(1, "filter")), filter2Body))
+  private val filter2 = Fix(Bind(Some(Var(1, "filter")), filter2Body))
   val filter = Lambda(None, Bind(Some(Var(1, "f")), filter2))
-
 }
 
-object Main {
+object ListTreeTest {
+  import ListTree._
+  import Interpreter._
 
-  def main(args: Array[String]): Unit = {
-    val lam = Lambda(
+  val l1 = List(1, 2, 3)
+  val l2 = List(3, -6, 9, -1, -5)
+
+  val t1 = listToTree(l1)
+  val t2 = listToTree(l2)
+
+
+  val cons3 = App(cons, NatLiteral(3))
+  val successor = Lambda(None,
+    Bind(Some(Var(1, "x")), Add(NatLiteral(1), Var(1, "x")))
+  )
+  val isPositive = Lambda(None,
+    Bind(Some(Var(1, "x")), NatLeq(NatLiteral(0), Var(1, "x")))
+  )
+
+  val mapSuccessor = App(map, successor)
+  val filterIsPositive = App(filter, isPositive)
+
+  def run: Unit = {
+    testHead
+    testTail
+    testCons
+    testLen
+    testMap
+    testFilter
+  }
+
+  def testHead: Unit = {
+    assert(evaluate(App(head, t1), 1000) == NatLiteral(l1.head))
+    assert(evaluate(App(head, t2), 1000) == NatLiteral(l2.head))
+    assert(evaluate(App(head, nil), 1000) == BottomTree)
+  }
+
+  def testTail: Unit = {
+    assert(evaluate(App(tail, t1), 1000) == listToTree(l1.tail))
+    assert(evaluate(App(tail, t2), 1000) == listToTree(l2.tail))
+    assert(evaluate(App(tail, nil), 1000) == BottomTree)
+  }
+
+  def testCons: Unit = {
+    assert(evaluate(App(cons3, t1), 1000) == listToTree(3::l1))
+    assert(evaluate(App(cons3, t2), 1000) == listToTree(3::l2))
+    assert(evaluate(App(cons3, nil), 1000) == listToTree(3::Nil))
+  }
+
+  def testIsEmpty: Unit = {
+    assert(evaluate(App(isEmpty, t1), 1000) == BoolLiteral(l1.isEmpty))
+    assert(evaluate(App(isEmpty, t2), 1000) == BoolLiteral(l2.isEmpty))
+    assert(evaluate(App(isEmpty, nil), 1000) == BoolLiteral(true))
+  }
+
+  def testLen: Unit = {
+    assert(evaluate(App(len, t1), 1000) == NatLiteral(l1.size))
+    assert(evaluate(App(len, t2), 1000) == NatLiteral(l2.size))
+    assert(evaluate(App(len, nil), 1000) == NatLiteral(0))
+  }
+
+  def testMap: Unit = {
+    val f = mapSuccessor
+    assert(evaluate(App(f, t1), 1000) == listToTree(l1.map(_ + 1)))
+    assert(evaluate(App(f, t2), 1000) == listToTree(l2.map(_ + 1)))
+    assert(evaluate(App(f, nil), 1000) == nil)
+  }
+
+  def testFilter: Unit = {
+    val f = filterIsPositive
+    assert(evaluate(App(f, t1), 1000) == listToTree(l1.filter(_ >= 0)))
+    assert(evaluate(App(f, t2), 1000) == listToTree(l2.filter(_ >= 0)))
+    assert(evaluate(App(f, nil), 1000) == nil)
+  }
+}
+
+object InterpreterTest {
+  import Interpreter._
+
+  val facBody = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "n")),
+      Match(
+        Var(1, "n"),
+        NatLiteral(1),
+        Bind(
+          Some(Var(1, "m")),
+          Mul(
+            Var(1, "n"),
+            App(
+              App(Var(1, "fac"), UnitLiteral),
+              Var(1, "m")
+            )
+          )
+        )
+      )
+    )
+  )
+  val fac = Fix(Bind(Some(Var(1, "fac")), facBody))
+
+  def run: Unit = {
+    testReplacement
+    testCondition
+    testTuple
+  }
+
+  def testReplacement: Unit = {
+    val f = Lambda(
       None,
       Bind(
-        Some(Var(0, "x")),
+        Some(Var(1, "x")),
         Lambda(
           None,
           Bind(
@@ -159,98 +271,23 @@ object Main {
         )
       )
     )
+    val x = evaluate(App(App(f, NatLiteral(2)), NatLiteral(3)), 1000)
+    assert(x == NatLiteral(3))
+  }
 
-    val appResult = App(App(lam, NatLiteral(3)), NatLiteral(4))
+  def testCondition: Unit = {
+    val c1 = IfThenElse(BoolLiteral(true), NatLiteral(2), NatLiteral(3))
+    val c2 = IfThenElse(BoolLiteral(false), NatLiteral(2), NatLiteral(3))
+    assert(evaluate(c1, 1000) == NatLiteral(2))
+    assert(evaluate(c2, 1000) == NatLiteral(3))
+  }
 
-    val ifthenelse = IfThenElse(
-      BoolLiteral(true),
-      NatLiteral(2),
-      NatLiteral(3)
-    )
-
-    val tupleSelect = TupleSelect(
-      Tuple(
-        Seq(
-          BoolLiteral(true),
-          BoolLiteral(false),
-          NatLiteral(3))
-      ),
+  def testTuple: Unit = {
+    val e1 = TupleSelect(
+      Tuple(Seq(BoolLiteral(true), BoolLiteral(false), NatLiteral(3))),
       2
     )
-
-    val lambdaBind = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "x")),
-        Lambda(
-          None,
-          Bind(
-            Some(Var(2, "y")),
-            Var(2, "y")
-          )
-        )
-      )
-    )
-
-    val appTest = App(lambdaBind, NatLiteral(2))
-
-    val eqNatTest = NatEq(
-      App(appTest, NatLiteral(4)),
-      App(App(lambdaBind, NatLiteral(2)), NatLiteral(4))
-    )
-
-    val EitherMatchTest = EitherMatch(
-      Right(NatLiteral(0)),
-      Bind(Some(Var(0, "x")), Var(0, "x")),
-      Bind(Some(Var(0, "x")), BoolLiteral(true))
-    )
-
-    val facBody = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "n")),
-        Match(
-          Var(1, "n"),
-          NatLiteral(1),
-          Bind(
-            Some(Var(1, "m")),
-            Mul(
-              Var(1, "n"),
-              App(
-                App(Var(1, "fac"), UnitLiteral),
-                Var(1, "m")
-              )
-            )
-          )
-        )
-      )
-    )
-
-    val fac = Fix(
-      Bind(
-        Some(Var(1, "fac")),
-        facBody
-      )
-    )
-
-    val f = Fix(
-      Bind(
-        Some(Var(1, "f")),
-        App(Var(1, "f"), NatLiteral(2))
-      )
-    )
-
-    //val xf = App(mFac, NatLiteral(3))
-    //val yf = App(fac, NatLiteral(5))
-    //println(Interpretor.evaluate(xf, 10000000))
-    //println(Interpretor.evaluate(xf, 100000000))
-
-    //println(Printer.pprint(ifthenelse))
-    //println(Printer.pprint(fac))
-
-    val e = App(fac, NatLiteral(18))
-
-    val t = TupleSelect(
+    val e2 = TupleSelect(
       Tuple(
         Seq(
           App(fac, NatLiteral(1)),
@@ -262,26 +299,20 @@ object Main {
       ),
       3
     )
+    assert(evaluate(e1, 1000) == NatLiteral(3))
+    assert(evaluate(e2, 1000) == evaluate(App(fac, NatLiteral(4)), 1000))
+  }
 
-    val filterTest = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "x")),
-        NatLeq(NatLiteral(0), Var(1, "x"))
-      )
-    )
+  def testLetIn: Unit = {
+    val e = LetIn(None, NatLiteral(4), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
+    assert(evaluate(e, 1000) == evaluate(App(fac, NatLiteral(4)), 1000))
+  }
 
-    val inc = Lambda(None, Bind(Some(Var(1, "x")), Add(NatLiteral(1), Var(1, "x"))))
 
-    val m = LetIn(None, NatLiteral(3), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
-
-    val l = ListTree.list(List(5, -2, -3, 2, -5, 1, 3, 6, -8))
-
-    val l1 = Interpreter.evaluate(App(App(ListTree.map, inc), l), 100000)
-    val l2 = Interpreter.evaluate(App(App(ListTree.filter, filterTest), l), 100000)
-
-    println(ListTree.toScalaList(l1))
-    println(ListTree.toScalaList(l2))
-
+}
+object Main {
+  def main(args: Array[String]): Unit = {
+    ListTreeTest.run
+    InterpreterTest.run
   }
 }
