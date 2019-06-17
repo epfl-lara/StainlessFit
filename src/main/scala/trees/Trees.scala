@@ -38,15 +38,17 @@ case class Left(t: Tree) extends Tree
 
 case class Right(t: Tree) extends Tree
 
+case class LetIn(tp: Option[Tree], v: Tree, bind: Bind) extends Tree
+
 case class Because(t1: Tree, t2: Tree) extends Tree
 
 case class NatEq(n: Tree, m: Tree) extends Tree
 
+case class NatLeq(n: Tree, m: Tree) extends Tree
+
 case class Add(n: Tree, m: Tree) extends Tree
 
 case class Mul(n: Tree, m: Tree) extends Tree
-
-case class LetIn(tp: Option[Tree], v: Tree, bind: Bind) extends Tree
 
 
 case object BottomType extends Tree

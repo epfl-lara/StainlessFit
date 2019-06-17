@@ -2,94 +2,142 @@ import trees._
 import interpreter._
 import printer._
 
-object Main {
+object ListTree {
 
   def list(l: List[Int]): Tree = l match {
     case Nil => Left(UnitLiteral)
     case h::t => Right(Tuple(Seq(NatLiteral(h), list(t))))
   }
 
-  def main(args: Array[String]): Unit = {
+  val nil = list(List())
 
-    val nil = list(List())
-
-    val cons = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "x")),
-        Lambda(
-          None,
-          Bind(
-            Some(Var(1, "l")),
-            Right(Tuple(Seq(Var(1, "x"), Var(1, "l"))))
-          )
+  val cons = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "x")),
+      Lambda(
+        None,
+        Bind(
+          Some(Var(1, "l")),
+          Right(Tuple(Seq(Var(1, "x"), Var(1, "l"))))
         )
       )
     )
+  )
 
-    val tail = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "l")),
-        TupleSelect(Var(1, "l"), 1)
+  val tail = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "l")),
+      TupleSelect(Var(1, "l"), 1)
+    )
+  )
+
+  val head = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "l")),
+      TupleSelect(Var(1, "l"), 0)
+    )
+  )
+
+  val isEmpty = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "l")),
+      EitherMatch(
+        Var(1, "l"),
+        Bind(None, BoolLiteral(true)),
+        Bind(None, BoolLiteral(false))
       )
     )
+  )
 
-    val head = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "l")),
-        TupleSelect(Var(1, "l"), 0)
-      )
-    )
-
-    val lenBody = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "l")),
-        EitherMatch(
-          Var(1, "l"),
-          Bind(None, NatLiteral(0)),
-          Bind(
-            Some(Var(1, "l")),
-            Add(
-              NatLiteral(1),
-              App(
-                App(Var(1, "len"), UnitLiteral),
-                App(tail, Var(1, "l"))
-              )
-            )
-          )
-        )
-      )
-    )
-
-    val len = Fix(Bind(Some(Var(1, "len")), lenBody))
-
-    val map2Body = Lambda(
-      None,
-      Bind(
-        Some(Var(1, "l")),
-        EitherMatch(
-          Var(1, "l"),
-          Bind(None, nil),
-          Bind(
-            Some(Var(1, "l")),
+  val lenBody = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "l")),
+      EitherMatch(
+        Var(1, "l"),
+        Bind(None, NatLiteral(0)),
+        Bind(
+          Some(Var(1, "l")),
+          Add(
+            NatLiteral(1),
             App(
-              App(cons, App(Var(1, "f"), App(head, Var(1, "l")))),
-              App(
-                App(Var(1, "map"), UnitLiteral),
-                App(tail, Var(1, "l"))
-              )
+              App(Var(1, "len"), UnitLiteral),
+              App(tail, Var(1, "l"))
             )
           )
         )
       )
     )
+  )
 
-    val map2 = Fix(Bind(Some(Var(1, "map")), map2Body))
-    val map = Lambda(None, Bind(Some(Var(1, "f")), map2))
+  val len = Fix(Bind(Some(Var(1, "len")), lenBody))
 
+  val map2Body = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "l")),
+      EitherMatch(
+        Var(1, "l"),
+        Bind(None, nil),
+        Bind(
+          Some(Var(1, "l")),
+          App(
+            App(cons, App(Var(1, "f"), App(head, Var(1, "l")))),
+            App(
+              App(Var(1, "map"), UnitLiteral),
+              App(tail, Var(1, "l"))
+            )
+          )
+        )
+      )
+    )
+  )
+
+  val map2 = Fix(Bind(Some(Var(1, "map")), map2Body))
+  val map = Lambda(None, Bind(Some(Var(1, "f")), map2))
+
+  val filterTail = App(
+    App(Var(1, "filter"), UnitLiteral),
+    App(tail, Var(1, "l"))
+  )
+
+  val filter2Body = Lambda(
+    None,
+    Bind(
+      Some(Var(1, "l")),
+      EitherMatch(
+        Var(1, "l"),
+        Bind(None, nil),
+        Bind(
+          Some(Var(1, "l")),
+          IfThenElse(
+            App(Var(1, "f"), App(head, Var(1, "l"))),
+            App(
+              App(cons, App(head, Var(1, "l"))),
+              filterTail
+            ),
+            App(
+              App(Var(1, "filter"), UnitLiteral),
+              filterTail
+            )
+          )
+        )
+      )
+    )
+  )
+
+  val filter2 = Fix(Bind(Some(Var(1, "filter")), filter2Body))
+  val filter = Lambda(None, Bind(Some(Var(1, "f")), filter2))
+
+}
+
+object Main {
+
+  def main(args: Array[String]): Unit = {
     val lam = Lambda(
       None,
       Bind(
@@ -207,13 +255,24 @@ object Main {
       3
     )
 
-    val m = LetIn(None, NatLiteral(3), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
-
-    val l = list(List(1, 2, 3, 4, 5, 6))
+    val filterTest = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "x")),
+        NatLeq(NatLiteral(0), Var(1, "x"))
+      )
+    )
 
     val inc = Lambda(None, Bind(Some(Var(1, "x")), Add(NatLiteral(1), Var(1, "x"))))
 
-    val n = Interpretor.evaluate(App(App(map, inc), l), 100000)
-    println(n)
+    val m = LetIn(None, NatLiteral(3), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
+
+    val l = ListTree.list(List(5, -2, -3, 2, -5, 1, 3, 6, -8))
+
+    val l1 = Interpreter.evaluate(App(App(ListTree.map, inc), l), 100000)
+    val l2 = Interpreter.evaluate(App(App(ListTree.filter, filterTest), l), 100000)
+
+    println(s"${l1}\n\n${l2}")
+
   }
 }

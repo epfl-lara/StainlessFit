@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.LongAdder
 final case class InvalidExpressionException(private val message: String = "") extends Exception(message)
 
 
-object Interpretor {
+object Interpreter {
 
   def replaceBind(bind: Bind, v: Tree): Tree = {
     bind match {
@@ -40,6 +40,7 @@ object Interpretor {
       case Right(t) => Right(replace(xvar, v, t))
       case Because(t1, t2) => Because(replace(xvar, v, t1), replace(xvar, v, t2))
       case NatEq(t1, t2) => NatEq(replace(xvar, v, t1), replace(xvar, v, t2))
+      case NatLeq(t1, t2) => NatLeq(replace(xvar, v, t1), replace(xvar, v, t2))
       case Add(t1, t2) => Add(replace(xvar, v, t1), replace(xvar, v, t2))
       case Mul(t1, t2) => Mul(replace(xvar, v, t1), replace(xvar, v, t2))
 
@@ -121,6 +122,14 @@ object Interpretor {
         val y: Tree = evaluate(e2, fuel - 1)
         (x, y) match {
           case (NatLiteral(n), NatLiteral(m)) => BoolLiteral(n == m)
+          case (_, _) => BottomTree
+        }
+      }
+      case NatLeq(e1, e2) => {
+        val x: Tree = evaluate(e1, fuel - 1)
+        val y: Tree = evaluate(e2, fuel - 1)
+        (x, y) match {
+          case (NatLiteral(n), NatLiteral(m)) => BoolLiteral(n <= m)
           case (_, _) => BottomTree
         }
       }
