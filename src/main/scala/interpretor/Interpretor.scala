@@ -1,6 +1,7 @@
 package interpretor
 
 import _root_.trees._
+import java.util.concurrent.atomic.LongAdder
 
 //import scala.collection.immutable.HashMap // for environment */
 
@@ -140,6 +141,26 @@ object Interpretor {
         if(fuel2 == 0) return (e, 0)
         (x, y) match {
           case (NatLiteral(n), NatLiteral(m)) => (BoolLiteral(n == m), fuel2 - 1)
+          case (_, _) => throw new InvalidExpressionException
+        }
+      }
+      case LongAdder(e1, e2) => {
+        val (x, fuel1): (Tree, BigInt) = evaluate(e1, fuel)
+        if(fuel1 == 0) return (e, 0)
+        val (y, fuel2): (Tree, BigInt) = evaluate(e2, fuel1)
+        if(fuel2 == 0) return (e, 0)
+        (x, y) match {
+          case (NatLiteral(n), NatLiteral(m)) => (NatLiteral(n + m), fuel2 - 1)
+          case (_, _) => throw new InvalidExpressionException
+        }
+      }
+      case Mul(e1, e2) => {
+        val (x, fuel1): (Tree, BigInt) = evaluate(e1, fuel)
+        if(fuel1 == 0) return (e, 0)
+        val (y, fuel2): (Tree, BigInt) = evaluate(e2, fuel1)
+        if(fuel2 == 0) return (e, 0)
+        (x, y) match {
+          case (NatLiteral(n), NatLiteral(m)) => (NatLiteral(n * m), fuel2 - 1)
           case (_, _) => throw new InvalidExpressionException
         }
       }
