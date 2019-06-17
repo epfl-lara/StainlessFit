@@ -41,6 +41,11 @@ case class P(n: Tree) extends Tree
 
 case class NatEq(n: Tree, m: Tree) extends Tree
 
+case class Add(n: Tree, m: Tree) extends Tree
+
+case class Mul(n: Tree, m: Tree) extends Tree
+
+case class Bottom extends Tree
 
 case object BoolType extends Tree
 
