@@ -1,5 +1,5 @@
 import trees._
-import interpretor._
+import interpreter._
 import printer._
 
 object Main {
@@ -8,11 +8,11 @@ object Main {
     val lam = Lambda(
       None,
       Bind(
-        Var(0, "x"),
+        Some(Var(0, "x")),
         Lambda(
           None,
           Bind(
-            Var(1, "y"),
+            Some(Var(1, "y")),
             Var(1, "y")
           )
         )
@@ -40,11 +40,11 @@ object Main {
     val lambdaBind = Lambda(
       None,
       Bind(
-        Var(1, "x"),
+        Some(Var(1, "x")),
         Lambda(
           None,
           Bind(
-            Var(2, "y"),
+            Some(Var(2, "y")),
             Var(2, "y")
           )
         )
@@ -58,92 +58,7 @@ object Main {
       App(App(lambdaBind, NatLiteral(2)), NatLiteral(4))
     )
 
-    val add = Lambda(None,
-      Bind(
-        Var(1, "x"),
-        Fix(
-          Bind(
-            Var(3, "add"),
-            Lambda(
-              None,
-              Bind(
-                Var(2, "y"),
-                IfThenElse(
-                  NatEq(Var(2, "y"), NatLiteral(0)),
-                  Var(1, "x"),
-                  S(App(
-                    Var(3, "add"),
-                    P(Var(2, "y"))
-                  )
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-
-    val mAdd = Lambda(None,
-    Bind(
-      Var(1, "x"),
-        Fix(
-          Bind(
-            Var(3, "mAdd"),
-            Lambda(
-              None,
-              Bind(
-                Var(2, "y"),
-                Match(
-                  Var(2, "y"),
-                  Var(1, "x"),
-                  Bind(
-                    Var(1, "n"),
-                    S(App(Var(3, "mAdd"), Var(1, "n")))
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-
-    val mMul = Lambda(None,
-      Bind(
-        Var(1, "x"),
-        Fix(
-          Bind(
-            Var(3, "mMul"),
-            Lambda(
-              None,
-              Bind(
-                Var(2, "y"),
-                Match(
-                  Var(2, "y"),
-                  NatLiteral(0),
-                  Bind(
-                    Var(1, "n"),
-                    App(
-                      App(
-                        mAdd,
-                        Var(1, "x")
-                      ),
-                      App(
-                        Var(3, "mMul"),
-                        Var(1, "n")
-                      )
-                    )
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-
-    val mFac = Fix(
+    /*val mFac = Fix(
       Bind(
         Var(3, "mFac"),
         Lambda(
@@ -172,60 +87,6 @@ object Main {
       )
     )
 
-
-    val mul2 = Lambda(
-      None,
-      Bind(
-        Var(1, "x"),
-        IfThenElse(
-          NatEq(Var(1, "x"), NatLiteral(0)),
-          NatLiteral(0),
-          App(App(
-            add,
-            NatLiteral(2)
-          ),
-            App(
-              Var(2, "mul2"),
-              P(Var(1, "x"))
-            )
-          )
-        )
-      )
-    )
-
-    val f = Fix(Bind(Var(2, "mul2"), mul2))
-
-    val mul = Lambda(None,
-      Bind(
-        Var(1, "x"),
-        Fix(
-          Bind(
-            Var(3, "mul"),
-            Lambda(
-              None,
-              Bind(
-                Var(2, "y"),
-                IfThenElse(
-                  NatEq(Var(2, "y"), NatLiteral(0)),
-                  NatLiteral(0),
-                  App(
-                    App(
-                      add,
-                      Var(1, "x")
-                    ),
-                    App(
-                      Var(3, "mul"),
-                      P(Var(2, "y"))
-                    )
-                  )
-                  )
-                )
-              )
-            )
-          )
-        )
-      )
-
     val facFun = Lambda(None,
       Bind(
         Var(1, "x"),
@@ -251,25 +112,73 @@ object Main {
         Var(2, "fac"),
         facFun
       )
-    )
+    )*/
 
     val EitherMatchTest = EitherMatch(
       Right(NatLiteral(0)),
-      Bind(Var(0, "x"), Var(0, "x")),
-      Bind(Var(0, "x"), BoolLiteral(true))
+      Bind(Some(Var(0, "x")), Var(0, "x")),
+      Bind(Some(Var(0, "x")), BoolLiteral(true))
     )
 
+    val facBody = Lambda(
+      None,
+      Bind(
+        Some(Var(1, "n")),
+        Match(
+          Var(1, "n"),
+          NatLiteral(1),
+          Bind(
+            Some(Var(1, "m")),
+            Mul(
+              Var(1, "n"),
+              App(
+                App(Var(1, "fac"), UnitLiteral),
+                Var(1, "m")
+              )
+            )
+          )
+        )
+      )
+    )
 
-    val x = App(App(mMul, NatLiteral(2)), NatLiteral(3))
+    val fac = Fix(
+      Bind(
+        Some(Var(1, "fac")),
+        facBody
+      )
+    )
 
-    val y = App(App(mul, NatLiteral(2)), NatLiteral(3))
+    val f = Fix(
+      Bind(
+        Some(Var(1, "f")),
+        App(Var(1, "f"), NatLiteral(2))
+      )
+    )
 
-    val xf = App(mFac, NatLiteral(3))
-    val yf = App(fac, NatLiteral(5))
+    //val xf = App(mFac, NatLiteral(3))
+    //val yf = App(fac, NatLiteral(5))
     //println(Interpretor.evaluate(xf, 10000000))
-    println(Interpretor.evaluate(xf, 100000000))
+    //println(Interpretor.evaluate(xf, 100000000))
 
     //println(Printer.pprint(ifthenelse))
     //println(Printer.pprint(fac))
+
+    val e = App(fac, NatLiteral(18))
+
+    val t = TupleSelect(
+      Tuple(
+        Seq(
+          App(fac, NatLiteral(1)),
+          App(fac, NatLiteral(2)),
+          App(fac, NatLiteral(3)),
+          App(fac, NatLiteral(4)),
+          App(fac, NatLiteral(5))
+        ),
+      ),
+      3
+    )
+
+    val n = Interpretor.evaluate(t, 100000)
+    println(n)
   }
 }

@@ -29,7 +29,7 @@ object Printer {
         |  case Left() => ${t1s}
         |  case Right() => ${t2s}
         |}""".stripMargin
-      case Bind(Var(id, x), b) =>
+      case Bind(Some(Var(id, x)), b) =>
         s"""${x} : {
         |  ${pprint(b)}
         |}""".stripMargin

@@ -1,5 +1,5 @@
 package object trees
 
-package object interpretor
+package object interpreter
 
 package object printer
