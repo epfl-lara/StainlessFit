@@ -1,17 +1,21 @@
 import trees._
 import interpreter._
 import printer._
+import stainless.annotation._
+import stainless.collection._
+import stainless.lang._
+
 
 object ListTree {
 
-  def listToTree(l: List[Int]): Tree = l match {
-    case Nil => Left(UnitLiteral)
-    case h::t => Right(Tuple(Seq(NatLiteral(h), listToTree(t))))
+  def listToTree(l: List[BigInt]): Tree = l match {
+    case Nil() => LeftTree(UnitLiteral)
+    case h::t => RightTree(Tuple(List(NatLiteral(h), listToTree(t))))
   }
 
   def treeToList(l: Tree): List[BigInt] = l match {
-    case Left(UnitLiteral) => List()
-    case Right(Tuple(t)) =>
+    case LeftTree(UnitLiteral) => List()
+    case RightTree(Tuple(t)) =>
       val NatLiteral(n) = t.head
       n::treeToList(t.tail.head)
     case _ => List()
@@ -20,62 +24,62 @@ object ListTree {
   val nil = listToTree(List())
 
   val cons = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "x")),
       Lambda(
-        None,
+        None(),
         Bind(
           Some(Var(1, "l")),
-          Right(Tuple(Seq(Var(1, "x"), Var(1, "l"))))
+          RightTree(Tuple(List(Var(1, "x"), Var(1, "l"))))
         )
       )
     )
   )
 
   val tail = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "l")),
       EitherMatch(
         Var(1, "l"),
-        Bind(None, BottomTree),
+        Bind(None(), BottomTree),
         Bind(Some(Var(1, "t")), TupleSelect(Var(1, "t"), 1))
       )
     )
   )
 
   val head = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "l")),
       EitherMatch(
         Var(1, "l"),
-        Bind(None, BottomTree),
+        Bind(None(), BottomTree),
         Bind(Some(Var(1, "t")), TupleSelect(Var(1, "t"), 0))
       )
     )
   )
 
   val isEmpty = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "l")),
       EitherMatch(
         Var(1, "l"),
-        Bind(None, BoolLiteral(true)),
-        Bind(None, BoolLiteral(false))
+        Bind(None(), BoolLiteral(true)),
+        Bind(None(), BoolLiteral(false))
       )
     )
   )
 
   private val lenBody = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "l")),
       EitherMatch(
         Var(1, "l"),
-        Bind(None, NatLiteral(0)),
+        Bind(None(), NatLiteral(0)),
         Bind(
           Some(Var(1, "t")),
           Add(
@@ -93,12 +97,12 @@ object ListTree {
   val len = Fix(Bind(Some(Var(1, "len")), lenBody))
 
   private val map2Body = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "l")),
       EitherMatch(
         Var(1, "l"),
-        Bind(None, nil),
+        Bind(None(), nil),
         Bind(
           Some(Var(1, "t")),
           App(
@@ -114,7 +118,7 @@ object ListTree {
   )
 
   private val map2 = Fix(Bind(Some(Var(1, "map")), map2Body))
-  val map = Lambda(None, Bind(Some(Var(1, "f")), map2))
+  val map = Lambda(None(), Bind(Some(Var(1, "f")), map2))
 
   private val filterTail = App(
     App(Var(1, "filter"), UnitLiteral),
@@ -122,12 +126,12 @@ object ListTree {
   )
 
   private val filter2Body = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "l")),
       EitherMatch(
         Var(1, "l"),
-        Bind(None, nil),
+        Bind(None(), nil),
         Bind(
           Some(Var(1, "t")),
           IfThenElse(
@@ -147,25 +151,25 @@ object ListTree {
   )
 
   private val filter2 = Fix(Bind(Some(Var(1, "filter")), filter2Body))
-  val filter = Lambda(None, Bind(Some(Var(1, "f")), filter2))
+  val filter = Lambda(None(), Bind(Some(Var(1, "f")), filter2))
 }
 
 object ListTreeTest {
   import ListTree._
   import Interpreter._
 
-  val l1 = List(1, 2, 3)
-  val l2 = List(3, -6, 9, -1, -5)
+  val l1: List[BigInt] = List(1, 2, 3)
+  val l2: List[BigInt] = List(3, -6, 9, -1, -5)
 
   val t1 = listToTree(l1)
   val t2 = listToTree(l2)
 
 
   val cons3 = App(cons, NatLiteral(3))
-  val successor = Lambda(None,
+  val successor = Lambda(None(),
     Bind(Some(Var(1, "x")), Add(NatLiteral(1), Var(1, "x")))
   )
-  val isPositive = Lambda(None,
+  val isPositive = Lambda(None(),
     Bind(Some(Var(1, "x")), NatLeq(NatLiteral(0), Var(1, "x")))
   )
 
@@ -194,9 +198,9 @@ object ListTreeTest {
   }
 
   def testCons: Unit = {
-    assert(evaluate(App(cons3, t1), 1000) == listToTree(3::l1))
-    assert(evaluate(App(cons3, t2), 1000) == listToTree(3::l2))
-    assert(evaluate(App(cons3, nil), 1000) == listToTree(3::Nil))
+    assert(evaluate(App(cons3, t1), 1000) == listToTree(BigInt(3)::l1))
+    assert(evaluate(App(cons3, t2), 1000) == listToTree(BigInt(3)::l2))
+    assert(evaluate(App(cons3, nil), 1000) == listToTree(BigInt(3)::Nil()))
   }
 
   def testIsEmpty: Unit = {
@@ -230,7 +234,7 @@ object InterpreterTest {
   import Interpreter._
 
   val facBody = Lambda(
-    None,
+    None(),
     Bind(
       Some(Var(1, "n")),
       Match(
@@ -255,15 +259,17 @@ object InterpreterTest {
     testReplacement
     testCondition
     testTuple
+    testLetIn
+    testBindingReplacement
   }
 
   def testReplacement: Unit = {
     val f = Lambda(
-      None,
+      None(),
       Bind(
         Some(Var(1, "x")),
         Lambda(
-          None,
+          None(),
           Bind(
             Some(Var(1, "y")),
             Var(1, "y")
@@ -284,12 +290,12 @@ object InterpreterTest {
 
   def testTuple: Unit = {
     val e1 = TupleSelect(
-      Tuple(Seq(BoolLiteral(true), BoolLiteral(false), NatLiteral(3))),
+      Tuple(List(BoolLiteral(true), BoolLiteral(false), NatLiteral(3))),
       2
     )
     val e2 = TupleSelect(
       Tuple(
-        Seq(
+        List(
           App(fac, NatLiteral(1)),
           App(fac, NatLiteral(2)),
           App(fac, NatLiteral(3)),
@@ -304,11 +310,28 @@ object InterpreterTest {
   }
 
   def testLetIn: Unit = {
-    val e = LetIn(None, NatLiteral(4), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
+    val e = LetIn(None(), NatLiteral(4), Bind(Some(Var(1, "x")), App(fac, Var(1, "x"))))
     assert(evaluate(e, 1000) == evaluate(App(fac, NatLiteral(4)), 1000))
   }
 
-
+  def testBindingReplacement: Unit = {
+    val f = Lambda(
+      None(),
+      Bind(
+        Some(Var(1, "x")),
+        Lambda(
+          None(),
+          Bind(
+            Some(Var(1, "x")),
+            Var(1, "x")
+          )
+        )
+      )
+    )
+    val g = App(f, NatLiteral(2))
+    val n = App(g, NatLiteral(3))
+    assert(evaluate(n, 1000) == NatLiteral(3))
+  }
 }
 object Main {
   def main(args: Array[String]): Unit = {

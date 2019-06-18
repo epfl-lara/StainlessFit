@@ -1,6 +1,8 @@
 package trees
 
-//import stainless.lang._
+import stainless.annotation._
+import stainless.collection._
+import stainless.lang._
 
 sealed abstract class Tree
 
@@ -24,9 +26,9 @@ case class Lambda(tp: Option[Tree], body: Bind) extends Tree
 
 case class App(t1: Tree, t2: Tree) extends Tree
 
-case class Tuple(s: Seq[Tree]) extends Tree
+case class Tuple(s: List[Tree]) extends Tree
 
-case class TupleSelect(t: Tree, i: Int) extends Tree
+case class TupleSelect(t: Tree, i: BigInt) extends Tree
 
 case class Fix(body: Bind) extends Tree
 
@@ -34,9 +36,9 @@ case class Match(t: Tree, t1: Tree, t2: Bind) extends Tree
 
 case class EitherMatch(t: Tree, t1: Bind, t2: Bind) extends Tree
 
-case class Left(t: Tree) extends Tree
+case class LeftTree(t: Tree) extends Tree
 
-case class Right(t: Tree) extends Tree
+case class RightTree(t: Tree) extends Tree
 
 case class LetIn(tp: Option[Tree], v: Tree, bind: Bind) extends Tree
 
@@ -61,7 +63,7 @@ case object BoolType extends Tree
 
 case object NatType extends Tree
 
-case class TupleType(tp: Seq[Bind]) extends Tree
+case class TupleType(tp: List[Bind]) extends Tree
 
 case class ArrowType(t1: Tree, t2: Bind) extends Tree
 
