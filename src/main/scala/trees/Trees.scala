@@ -6,7 +6,7 @@ import stainless.lang._
 
 sealed abstract class Tree
 
-case class Var(id: Int, name: String) extends Tree
+case class Var(id: Option[Int], name: String) extends Tree
 
 case class Bind(x: Option[Var], body: Tree) extends Tree
 

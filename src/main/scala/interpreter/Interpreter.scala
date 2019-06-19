@@ -26,6 +26,7 @@ object Interpreter {
   }
 
   def replace(xvar: Var, v: Tree, body: Tree): Tree = {
+    decreases(body)
     val Var(id, x): Var = xvar
     body match {
       case BottomTree => body
@@ -83,6 +84,8 @@ object Interpreter {
   }
 
   def evaluate(e: Tree, fuel: BigInt): Tree = {
+    require(fuel >= 0)
+    decreases(fuel)
     if(isValue(e)) e
     else if(fuel == 0) BottomTree
     else {
@@ -161,7 +164,7 @@ object Interpreter {
           }
         }
         case EitherMatch(t, bind1, bind2) => {
-          val e1: Tree = evaluate(t, fuel)
+          val e1: Tree = evaluate(t, fuel - 1)
           val (e, v): (Tree, Tree) = e1 match {
               case LeftTree(v) => (bind1, evaluate(v, fuel - 1))
               case RightTree(v) => (bind2, evaluate(v, fuel - 1))
