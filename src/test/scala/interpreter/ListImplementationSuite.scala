@@ -153,9 +153,8 @@ object ListTree {
   val filter = Lambda(None(), Bind(Some(Var(None(), "f")), filter2))
 }
 
-object ListTreeTest {
+object ListTreeTest extends FunSuite  {
   import ListTree._
-  import Interpreter._
 
   val l1: List[BigInt] = List(1, 2, 3)
   val l2: List[BigInt] = List(3, -6, 9, -1, -5)
@@ -175,53 +174,45 @@ object ListTreeTest {
   val mapSuccessor = App(map, successor)
   val filterIsPositive = App(filter, isPositive)
 
-  def run: Unit = {
-    testHead
-    testTail
-    testCons
-    testLen
-    testMap
-    testFilter
-  }
 
-  def testHead: Unit = {
+  test("evaluate head of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(head, t1), 1000) == NatLiteral(l1.head))
     assert(evaluate(App(head, t2), 1000) == NatLiteral(l2.head))
     assert(evaluate(App(head, nil), 1000) == BottomTree)
   }
 
-  def testTail: Unit = {
+  test("evaluate head of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(tail, t1), 1000) == listToTree(l1.tail))
     assert(evaluate(App(tail, t2), 1000) == listToTree(l2.tail))
     assert(evaluate(App(tail, nil), 1000) == BottomTree)
   }
 
-  def testCons: Unit = {
+  test("cons of list...") {
     assert(evaluate(App(cons3, t1), 1000) == listToTree(BigInt(3)::l1))
     assert(evaluate(App(cons3, t2), 1000) == listToTree(BigInt(3)::l2))
     assert(evaluate(App(cons3, nil), 1000) == listToTree(BigInt(3)::Nil()))
   }
 
-  def testIsEmpty: Unit = {
+  test("test is empty..."){
     assert(evaluate(App(isEmpty, t1), 1000) == BoolLiteral(l1.isEmpty))
     assert(evaluate(App(isEmpty, t2), 1000) == BoolLiteral(l2.isEmpty))
     assert(evaluate(App(isEmpty, nil), 1000) == BoolLiteral(true))
   }
 
-  def testLen: Unit = {
+  test("test len") {
     assert(evaluate(App(len, t1), 1000) == NatLiteral(l1.size))
     assert(evaluate(App(len, t2), 1000) == NatLiteral(l2.size))
     assert(evaluate(App(len, nil), 1000) == NatLiteral(0))
   }
 
-  def testMap: Unit = {
+  test("test len") {
     val f = mapSuccessor
     assert(evaluate(App(f, t1), 1000) == listToTree(l1.map(_ + 1)))
     assert(evaluate(App(f, t2), 1000) == listToTree(l2.map(_ + 1)))
     assert(evaluate(App(f, nil), 1000) == nil)
   }
 
-  def testFilter: Unit = {
+  test("test filter") {
     val f = filterIsPositive
     assert(evaluate(App(f, t1), 1000) == listToTree(l1.filter(_ >= 0)))
     assert(evaluate(App(f, t2), 1000) == listToTree(l2.filter(_ >= 0)))
