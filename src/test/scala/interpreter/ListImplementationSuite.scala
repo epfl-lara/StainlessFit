@@ -153,7 +153,7 @@ object ListTree {
   val filter = Lambda(None(), Bind(Some(Var(None(), "f")), filter2))
 }
 
-object ListTreeTest extends FunSuite  {
+class ListTreeTest extends FunSuite  {
   import ListTree._
 
   val l1: List[BigInt] = List(1, 2, 3)
@@ -181,7 +181,7 @@ object ListTreeTest extends FunSuite  {
     assert(evaluate(App(head, nil), 1000) == BottomTree)
   }
 
-  test("evaluate head of a list is correct and leads to bottom if empty list") {
+  test("evaluate tail of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(tail, t1), 1000) == listToTree(l1.tail))
     assert(evaluate(App(tail, t2), 1000) == listToTree(l2.tail))
     assert(evaluate(App(tail, nil), 1000) == BottomTree)
@@ -205,7 +205,7 @@ object ListTreeTest extends FunSuite  {
     assert(evaluate(App(len, nil), 1000) == NatLiteral(0))
   }
 
-  test("test len") {
+  test("test map") {
     val f = mapSuccessor
     assert(evaluate(App(f, t1), 1000) == listToTree(l1.map(_ + 1)))
     assert(evaluate(App(f, t2), 1000) == listToTree(l2.map(_ + 1)))
