@@ -20,8 +20,8 @@ object Interpreter {
 
   def replaceBind(bind: Bind, v: Tree): Tree = {
     bind match {
-      case Bind(None(), body) => body
       case Bind(Some(x), body) => replace(x, v, body)
+      case Bind(_, body) => body
     }
   }
 
@@ -52,7 +52,6 @@ object Interpreter {
       case NatLeq(t1, t2) => NatLeq(replace(xvar, v, t1), replace(xvar, v, t2))
       case Add(t1, t2) => Add(replace(xvar, v, t1), replace(xvar, v, t2))
       case Mul(t1, t2) => Mul(replace(xvar, v, t1), replace(xvar, v, t2))
-
 
       case Bind(None(), e) => body
       case Bind(Some(Var(id1, y)), e) if (x == y && id1 == id) => body
@@ -102,7 +101,11 @@ object Interpreter {
           val f: Tree = evaluate(t1, fuel - 1)
           val v: Tree = evaluate(t2, fuel - 1)
           f match {
-            case Lambda(_, bind) => evaluate(replaceBind(bind, v), fuel - 1)
+            case Lambda(_, bind) => 
+              bind match {
+                case b: Bind => evaluate(replaceBind(b, v), fuel - 1)
+                case _       => BottomTree
+              }
             case _ => BottomTree
           }
         }
@@ -115,7 +118,12 @@ object Interpreter {
         case TupleSelect(t, i) => { // Check if it is a tuple before => lazy evaluation
           val v: Tree = evaluate(t, fuel - 1)
           v match {
-            case Tuple(s) => s(i)
+            case Tuple(s) => 
+              if(i >= 0 && i < s.size) {
+                i >= 0 && i < s.size
+                s(i)
+              }
+              else BottomTree
             case _ => BottomTree
           }
         }
@@ -159,7 +167,11 @@ object Interpreter {
           val nat : Tree = evaluate(t, fuel - 1)
           nat match {
             case NatLiteral(n) if(n == 0) => evaluate(t0, fuel - 1)
-            case NatLiteral(n) => evaluate(replaceBind(bind, NatLiteral(n - 1)), fuel - 1)
+            case NatLiteral(n) => 
+              bind match {
+                case b: Bind => evaluate(replaceBind(b, NatLiteral(n - 1)), fuel - 1)
+                case _       => BottomTree
+              }
             case _ => BottomTree
           }
         }
