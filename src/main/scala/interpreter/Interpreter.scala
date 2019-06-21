@@ -101,11 +101,7 @@ object Interpreter {
           val f: Tree = evaluate(t1, fuel - 1)
           val v: Tree = evaluate(t2, fuel - 1)
           f match {
-            case Lambda(_, bind) => 
-              bind match {
-                case b: Bind => evaluate(replaceBind(b, v), fuel - 1)
-                case _       => BottomTree
-              }
+            case Lambda(_, bind: Bind) => evaluate(replaceBind(bind, v), fuel - 1)
             case _ => BottomTree
           }
         }
@@ -118,7 +114,7 @@ object Interpreter {
         case TupleSelect(t, i) => { // Check if it is a tuple before => lazy evaluation
           val v: Tree = evaluate(t, fuel - 1)
           v match {
-            case Tuple(s) => 
+            case Tuple(s) =>
               if(i >= 0 && i < s.size) {
                 i >= 0 && i < s.size
                 s(i)
@@ -149,9 +145,10 @@ object Interpreter {
         }
         case Add(e1, e2) => {
           val x: Tree = evaluate(e1, fuel - 1)
-          val y: Tree =evaluate(e2, fuel - 1)
+          val y: Tree = evaluate(e2, fuel - 1)
           (x, y) match {
-            case (NatLiteral(n), NatLiteral(m)) => NatLiteral(n + m)
+            case (NatLiteral(n), NatLiteral(m)) => 
+               NatLiteral(n + m)
             case (_, _) => BottomTree
           }
         }
@@ -159,19 +156,17 @@ object Interpreter {
           val x: Tree = evaluate(e1, fuel - 1)
           val y: Tree = evaluate(e2, fuel - 1)
           (x, y) match {
-            case (NatLiteral(n), NatLiteral(m)) => NatLiteral(n * m)
+            case (NatLiteral(n), NatLiteral(m)) => 
+               NatLiteral(n * m)
             case (_, _) => BottomTree
           }
         }
-        case Match(t, t0, bind) => {
+        case Match(t, t0, bind: Bind) => {
           val nat : Tree = evaluate(t, fuel - 1)
           nat match {
             case NatLiteral(n) if(n == 0) => evaluate(t0, fuel - 1)
             case NatLiteral(n) => 
-              bind match {
-                case b: Bind => evaluate(replaceBind(b, NatLiteral(n - 1)), fuel - 1)
-                case _       => BottomTree
-              }
+               evaluate(replaceBind(bind, NatLiteral(n - 1)), fuel - 1)
             case _ => BottomTree
           }
         }
