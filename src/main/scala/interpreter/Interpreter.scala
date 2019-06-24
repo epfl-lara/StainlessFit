@@ -53,8 +53,7 @@ object Interpreter {
       case Add(t1, t2) => Add(replace(xvar, v, t1), replace(xvar, v, t2))
       case Mul(t1, t2) => Mul(replace(xvar, v, t1), replace(xvar, v, t2))
 
-      case Bind(None(), e) => body
-      case Bind(Some(Var(id1, y)), e) if (x == y && id1 == id) => body
+      case Bind(Some(yvar), e) if (xvar == yvar) => body
       case Bind(yvar, e) => Bind(yvar, replace(xvar, v, e))
 
       case Lambda(tp, bind) => replace(xvar, v, bind) match {
@@ -106,12 +105,13 @@ object Interpreter {
           }
         }
         case Tuple(s) => {
-          val s1 = s.foldRight(List(): List[Tree]) {
+          val s1: List[Tree] = s.foldRight(List(): List[Tree]) {
             case (t, r) => evaluate(t, fuel - 1)::r
           }
-          Tuple(s1)
+          if(s1.contains(BottomTree)) BottomTree
+          else Tuple(s1)
         }
-        case TupleSelect(t, i) => { // Check if it is a tuple before => lazy evaluation
+        case TupleSelect(t, i) => {
           val v: Tree = evaluate(t, fuel - 1)
           v match {
             case Tuple(s) =>
@@ -124,7 +124,7 @@ object Interpreter {
           }
         }
         case Fix(bind) => {
-          val ret = replaceBind(bind, Lambda(None(), Bind(None(), e)))
+          val ret: Tree = replaceBind(bind, Lambda(None(), Bind(None(), e)))
           evaluate(ret, fuel - 1)
         }
         case NatEq(e1, e2) => {
@@ -147,7 +147,7 @@ object Interpreter {
           val x: Tree = evaluate(e1, fuel - 1)
           val y: Tree = evaluate(e2, fuel - 1)
           (x, y) match {
-            case (NatLiteral(n), NatLiteral(m)) => 
+            case (NatLiteral(n), NatLiteral(m)) =>
                NatLiteral(n + m)
             case (_, _) => BottomTree
           }
@@ -156,7 +156,7 @@ object Interpreter {
           val x: Tree = evaluate(e1, fuel - 1)
           val y: Tree = evaluate(e2, fuel - 1)
           (x, y) match {
-            case (NatLiteral(n), NatLiteral(m)) => 
+            case (NatLiteral(n), NatLiteral(m)) =>
                NatLiteral(n * m)
             case (_, _) => BottomTree
           }
@@ -165,7 +165,7 @@ object Interpreter {
           val nat : Tree = evaluate(t, fuel - 1)
           nat match {
             case NatLiteral(n) if(n == 0) => evaluate(t0, fuel - 1)
-            case NatLiteral(n) => 
+            case NatLiteral(n) =>
                evaluate(replaceBind(bind, NatLiteral(n - 1)), fuel - 1)
             case _ => BottomTree
           }

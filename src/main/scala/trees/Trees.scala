@@ -52,6 +52,20 @@ case class Add(n: Tree, m: Tree) extends Tree
 
 case class Mul(n: Tree, m: Tree) extends Tree
 
+case class Fold(t: Tree)
+
+case class Unfold(tp: Option[Tree], t: Tree)
+
+case class  Err(t: Option[Tree])
+
+case class Abs(a: Tree, t: Tree)
+
+case class Primitive(op: String)
+
+case class Inst(t1: Tree, t2: Tree)
+
+case class Refl(t1: Tree, t2: Tree)
+
 
 case object BottomType extends Tree
 
@@ -63,9 +77,9 @@ case object BoolType extends Tree
 
 case object NatType extends Tree
 
-case class TupleType(tp: List[Bind]) extends Tree
+case class SigmaType(t1: Tree, t2: Bind) extends Tree
 
-case class ArrowType(t1: Tree, t2: Bind) extends Tree
+case class PiType(t1: Tree, t2: Bind) extends Tree
 
 case class SumType(t1: Tree, t2: Tree) extends Tree
 
@@ -73,6 +87,14 @@ case class IntersectionType(t1: Tree, t2: Bind) extends Tree
 
 case class UnionType(t1: Tree, t2: Bind) extends Tree
 
-case class Refinement(t: Tree, cond: Bind) extends Tree
+case class RefinementType(t1: Tree, t2: Bind) extends Tree
 
-case class RefinementByType(t: Tree, cond: Bind) extends Tree
+case class PolyForallType(t: Bind) extends Tree
+
+case class EqualityType(t1: Tree, t2: Tree) extends Tree
+
+case class SingletonType(t: Tree) extends Tree
+
+case class RecType(t: Type)
+
+//case class RefinementByType(t: Tree, cond: Bind) extends Tree
