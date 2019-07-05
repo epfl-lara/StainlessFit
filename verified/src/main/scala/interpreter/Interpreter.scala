@@ -21,7 +21,7 @@ object Interpreter {
     case _ => false
   }
 
-  def replace(xvar: Var, v: Tree, body: Tree): Tree = BottomTree /*{
+  def replace(xvar: Var, v: Tree, body: Tree): Tree = {
     decreases(body)
     body match {
       case BottomTree => body
@@ -67,7 +67,7 @@ object Interpreter {
       case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
       case _ => body
     }
-  }*/
+  }
 
   def replaceBind(bind: Bind, v: Tree): Tree = {
     bind match {
