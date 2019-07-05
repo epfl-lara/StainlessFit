@@ -334,7 +334,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
 
   lazy val expr: Parser[Tree] = recursive {
-    oneOf(operator | app | condition | let | tuple | function | fixpoint | leftT | rightT | matchE)
+    oneOf(operator | app | condition | let | tuple | function | fixpoint | leftT | rightT | matchE | openP)
   }
 
   lazy val condition: Parser[Tree] = recursive {

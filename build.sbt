@@ -1,10 +1,10 @@
 ThisBuild / scalaVersion := "2.12.8"
 
-resolvers ++= Seq(
+ThisBuild / resolvers ++= Seq(
     Resolver.bintrayRepo("epfl-lara", "maven")
 )
 
-libraryDependencies ++= Seq(
+ThisBuild / libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.8" % "test",
   "ch.epfl.lara" %% "scallion" % "0.1"
 )
@@ -18,7 +18,6 @@ lazy val core = project
 
 lazy val verified = project
   .in(file("verified"))
-  .enablePlugins(StainlessPlugin)
   .settings(
     name := "stainlesscore-verified"
   )

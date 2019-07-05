@@ -5,7 +5,7 @@ import stainless.lang._
 import _root_.trees._
 import _root_.interpreter.Interpreter._
 
-/*class InterpreterSuite extends FunSuite {
+class InterpreterSuite extends FunSuite {
 
   def asVar(x: String): Var = {
     Var(None(), x)
@@ -22,9 +22,12 @@ import _root_.interpreter.Interpreter._
         NatLiteral(1),
         Bind(
           Some(asVar("m")),
-          Mul(
-            asVar("n"),
-            App(App(asVar("fac"), UnitLiteral), asVar("m"))
+          Primitive(
+            Mul,
+            List(
+              asVar("n"),
+              App(App(asVar("fac"), UnitLiteral), asVar("m"))
+            )
           )
         )
       )
@@ -56,10 +59,10 @@ import _root_.interpreter.Interpreter._
   test("replaceBind replace...") {
     val f = Bind(
       Some(asVar("x")),
-      IfThenElse(NatLeq(asVar("x"), asVar("y")), asVar("x"), asVar("y"))
+      IfThenElse(Primitive(Lteq, List(asVar("x"), asVar("y"))), asVar("x"), asVar("y"))
     )
     val f1 = IfThenElse(
-      NatLeq(NatLiteral(2), asVar("y")),
+      Primitive(Lteq, List(NatLiteral(2), asVar("y"))),
       NatLiteral(2),
       asVar("y")
     )
@@ -120,4 +123,4 @@ import _root_.interpreter.Interpreter._
     val tupleOfFac = Pair(facApp(0), Pair(facApp(1), facApp(2)))
     assert(evaluate(First(Second(tupleOfFac)), 1000) === evaluate(facApp(1), 1000))
   }
-}*/
+}

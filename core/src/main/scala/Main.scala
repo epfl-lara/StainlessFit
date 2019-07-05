@@ -42,7 +42,7 @@ object Main {
         //println(value)
         //val v = App(App(App(value, RightTree(NatLiteral(1))), RightTree(NatLiteral(3))), LeftTree(UnitLiteral))
         //println(Printer.pprint(Interpreter.evaluate(v, 1000), 0))
-        println(Interpreter.evaluate(value, 1000), 0)
+        println(Interpreter.evaluate(value, 1000))
       case t => println(t)
     }
   }

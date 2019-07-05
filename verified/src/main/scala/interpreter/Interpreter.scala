@@ -21,15 +21,16 @@ object Interpreter {
     case _ => false
   }
 
+  def replaceBind(bind: Bind, v: Tree): Tree = {
+    bind match {
+      case Bind(None(), body) => body
+      case Bind(Some(xvar), body) => replace(xvar, v, body)
+    }
+  }
+
   def replace(xvar: Var, v: Tree, body: Tree): Tree = {
-    decreases(body)
     body match {
-      case BottomTree => body
-      case UnitLiteral => body
-      case NatLiteral(n) => body
-      case BoolLiteral(b) => body
-      case Var(id, y) if Var(id, y) == xvar => v
-      case Var(id1, y) => body
+      case yvar: Var if yvar == xvar => v
       case IfThenElse(cond, t1, t2) =>
         IfThenElse(replace(xvar, v, cond), replace(xvar, v, t1), replace(xvar, v, t2))
       case App(t1, t2) =>
@@ -63,31 +64,17 @@ object Interpreter {
         case (b1: Bind, b2: Bind) => EitherMatch(replace(xvar, v, t), b1, b2)
         case _ => BottomTree
       }
-
       case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
       case _ => body
     }
   }
 
-  def replaceBind(bind: Bind, v: Tree): Tree = {
-    bind match {
-      case Bind(None(), body) => body
-      case Bind(Some(xvar: Var), body) => replace(xvar, v, body)
-    }
-  }
-
   def smallStep(e: Tree): Tree = {
-    decreases(e)
     e match {
       case IfThenElse(BoolLiteral(true), t1, t2) => t1
       case IfThenElse(BoolLiteral(false), t1, t2) => t2
       case IfThenElse(t, _, _) if isValue(t) => BottomTree
       case IfThenElse(t, tt, tf) => IfThenElse(smallStep(t), tt, tf)
-
-      case App(Lambda(_, bind: Bind), v) if isValue(v) => replaceBind(bind, v)
-      case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
-      case App(f, _) if isValue(f) => BottomTree /* f is a value and not a lambda */
-      case App(f, v) => App(smallStep(f), v)
 
       case Pair(t1, t2) if isValue(t1) => Pair(t1, smallStep(t2))
       case Pair(t1, t2) => Pair(smallStep(t1), t2)
@@ -100,6 +87,10 @@ object Interpreter {
       case Second(t) if isValue(t) => BottomTree
       case Second(t) => Second(smallStep(t))
 
+      case App(Lambda(_, bind: Bind), v) if isValue(v) => replaceBind(bind, v)
+      case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
+      case App(f, _) if isValue(f) => BottomTree // f is a value and not a lambda
+      case App(f, v) => App(smallStep(f), v)
       case Fix(bind: Bind) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
 
       case Match(NatLiteral(BigInt(0)), t0, _) => t0
@@ -115,24 +106,25 @@ object Interpreter {
       case LetIn(tp, v, bind: Bind) => replaceBind(bind, v)
 
       case Primitive(Not, BoolLiteral(b)::Nil()) => BoolLiteral(!b)
-
       case Primitive(And, BoolLiteral(b1)::BoolLiteral(b2)::Nil()) => BoolLiteral(b1 && b2)
       case Primitive(Or, BoolLiteral(b1)::BoolLiteral(b2)::Nil()) => BoolLiteral(b1 || b2)
-      case Primitive(Neq, NatLiteral(b1)::NatLiteral(b2)::Nil()) => BoolLiteral(b1 != b2)
-      case Primitive(Eq, NatLiteral(b1)::NatLiteral(b2)::Nil()) => BoolLiteral(b1 == b2)
-      case Primitive(Lt, NatLiteral(b1)::NatLiteral(b2)::Nil()) => BoolLiteral(b1 < b2)
-      case Primitive(Gt, NatLiteral(b1)::NatLiteral(b2)::Nil()) => BoolLiteral(b1 > b2)
-      case Primitive(Lteq, NatLiteral(b1)::NatLiteral(b2)::Nil()) => BoolLiteral(b1 <= b2)
-      case Primitive(Gteq, NatLiteral(b1)::NatLiteral(b2)::Nil()) => BoolLiteral(b1 >= b2)
-      case Primitive(Plus, NatLiteral(b1)::NatLiteral(b2)::Nil()) => NatLiteral(b1 + b2)
-      case Primitive(Minus, NatLiteral(b1)::NatLiteral(b2)::Nil()) => NatLiteral(b1 - b2)
-      case Primitive(Mul, NatLiteral(b1)::NatLiteral(b2)::Nil()) => NatLiteral(b1 * b2)
-      case Primitive(Div, NatLiteral(b1)::NatLiteral(b2)::Nil()) if b2 != 0 => NatLiteral(b1 / b2)
 
-      case Primitive(p, x::Nil())    if !isValue(x) => Primitive(p, smallStep(x)::Nil())
+      case Primitive(Neq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 != n2)
+      case Primitive(Eq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 == n2)
+      case Primitive(Lt, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 < n2)
+      case Primitive(Gt, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 > n2)
+      case Primitive(Lteq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 <= n2)
+      case Primitive(Gteq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 >= n2)
+
+      case Primitive(Plus, NatLiteral(n1)::NatLiteral(n2)::Nil()) => NatLiteral(n1 + n2)
+      case Primitive(Minus, NatLiteral(n1)::NatLiteral(n2)::Nil()) => NatLiteral(n1 - n2)
+      case Primitive(Mul, NatLiteral(n1)::NatLiteral(n2)::Nil()) => NatLiteral(n1 * n2)
+      case Primitive(Div, NatLiteral(n1)::NatLiteral(n2)::Nil()) if n2 != 0 => NatLiteral(n1 / n2)
+
+      case Primitive(p, (x: Tree)::Nil())    if !isValue(x) => Primitive(p, smallStep(x)::Nil())
       case Primitive(p, x::y::Nil()) if !isValue(x) => Primitive(p, smallStep(x)::y::Nil())
       case Primitive(p, x::y::Nil()) if !isValue(y) => Primitive(p, x::smallStep(y)::Nil())
-      case Primitive(_, _) => BottomTree /* Bad primitive or bad arguments */
+      case Primitive(_, _) => BottomTree
 
       case _ => e
     }

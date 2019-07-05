@@ -54,7 +54,7 @@ case class First(t: Tree) extends Tree
 
 case class Second(t: Tree) extends Tree
 
-case class Fix(body: Bind) extends Tree
+case class Fix(tp, Option[Bind], body: Bind) extends Tree
 
 case class Match(t: Tree, t1: Tree, t2: Bind) extends Tree
 

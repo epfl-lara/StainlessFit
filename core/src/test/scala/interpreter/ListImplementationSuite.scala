@@ -5,7 +5,7 @@ import stainless.lang._
 import _root_.trees._
 import _root_.interpreter.Interpreter._
 
-/*object ListTree {
+object ListTree {
 
   def listToTree(l: List[BigInt]): Tree = l match {
     case Nil() => LeftTree(UnitLiteral)
@@ -81,11 +81,14 @@ import _root_.interpreter.Interpreter._
         Bind(None(), NatLiteral(0)),
         Bind(
           Some(Var(None(), "t")),
-          Add(
-            NatLiteral(1),
-            App(
-              App(Var(None(), "len"), UnitLiteral),
-              App(tail, Var(None(), "l"))
+          Primitive(
+            Plus,
+            List(
+              NatLiteral(1),
+              App(
+                App(Var(None(), "len"), UnitLiteral),
+                App(tail, Var(None(), "l"))
+              )
             )
           )
         )
@@ -165,10 +168,10 @@ class ListTreeTest extends FunSuite  {
 
   val cons3 = App(cons, NatLiteral(3))
   val successor = Lambda(None(),
-    Bind(Some(Var(None(), "x")), Add(NatLiteral(1), Var(None(), "x")))
+    Bind(Some(Var(None(), "x")), Primitive(Plus, List(NatLiteral(1), Var(None(), "x"))))
   )
   val isPositive = Lambda(None(),
-    Bind(Some(Var(None(), "x")), NatLeq(NatLiteral(0), Var(None(), "x")))
+    Bind(Some(Var(None(), "x")), Primitive(Lteq, List(NatLiteral(0), Var(None(), "x"))))
   )
 
   val mapSuccessor = App(map, successor)
@@ -218,4 +221,4 @@ class ListTreeTest extends FunSuite  {
     assert(evaluate(App(f, t2), 1000) == listToTree(l2.filter(_ >= 0)))
     assert(evaluate(App(f, nil), 1000) == nil)
   }
-}*/
+}
