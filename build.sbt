@@ -1,4 +1,4 @@
-scalaVersion := "2.12.7"
+ThisBuild / scalaVersion := "2.12.8"
 
 resolvers ++= Seq(
     Resolver.bintrayRepo("epfl-lara", "maven")
@@ -6,6 +6,19 @@ resolvers ++= Seq(
 
 libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.8" % "test",
-  "ch.epfl.lara" % "scallion_2.12" % "0.1"
+  "ch.epfl.lara" %% "scallion" % "0.1"
 )
 
+lazy val core = project
+  .in(file("core"))
+  .settings(
+    name := "stainlesscore",
+  )
+  .dependsOn(verified)
+
+lazy val verified = project
+  .in(file("verified"))
+  .enablePlugins(StainlessPlugin)
+  .settings(
+    name := "stainlesscore-verified"
+  )
