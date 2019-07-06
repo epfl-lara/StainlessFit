@@ -26,7 +26,7 @@ object Printer {
       case Lambda(tp, bind) =>
         s"""fun ${pprint(bind)}"""
       case App(e1, e2) => s"${pprint(e1)}(${pprint(e2)})"
-      case Fix(body) =>
+      case Fix(_, Bind(_, body)) =>
       s"""Fix(
        |  ${pprint(body).replaceAll("\n", "\n  ")}
        |)""".stripMargin

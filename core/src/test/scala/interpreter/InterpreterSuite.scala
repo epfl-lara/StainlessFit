@@ -33,7 +33,7 @@ class InterpreterSuite extends FunSuite {
       )
     )
   )
-  val fac = Fix(Bind(Some(asVar("fac")), facBody))
+  val fac = Fix(None(), Bind(None(), Bind(Some(asVar("fac")), facBody)))
 
   def facApp(n: BigInt): Tree = {
     App(fac, NatLiteral(n))

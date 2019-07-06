@@ -96,7 +96,7 @@ object ListTree {
     )
   )
 
-  val len = Fix(Bind(Some(Var(None(), "len")), lenBody))
+  val len = Fix(None(), Bind(None(), Bind(Some(Var(None(), "len")), lenBody)))
 
   private val map2Body = Lambda(
     None(),
@@ -119,7 +119,7 @@ object ListTree {
     )
   )
 
-  private val map2 = Fix(Bind(Some(Var(None(), "map")), map2Body))
+  private val map2 = Fix(None(), Bind(None(), Bind(Some(Var(None(), "map")), map2Body)))
   val map = Lambda(None(), Bind(Some(Var(None(), "f")), map2))
 
   private val filterTail = App(
@@ -152,7 +152,7 @@ object ListTree {
     )
   )
 
-  private val filter2 = Fix(Bind(Some(Var(None(), "filter")), filter2Body))
+  private val filter2 = Fix(None(), Bind(None(), Bind(Some(Var(None(), "filter")), filter2Body)))
   val filter = Lambda(None(), Bind(Some(Var(None(), "f")), filter2))
 }
 

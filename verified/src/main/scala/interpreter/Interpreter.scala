@@ -48,8 +48,8 @@ object Interpreter {
         case b: Bind => Lambda(tp, b)
         case _ => BottomTree
       }
-      case Fix(bind) => replace(xvar, v, bind) match {
-        case b: Bind => Fix(b)
+      case Fix(tp, Bind(n, bind)) => replace(xvar, v, bind) match {
+        case b: Bind => Fix(tp, Bind(n, b))
         case _ => BottomTree
       }
       case LetIn(tp, v1, bind) => replace(xvar, v, bind) match {
@@ -91,7 +91,7 @@ object Interpreter {
       case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
       case App(f, _) if isValue(f) => BottomTree // f is a value and not a lambda
       case App(f, v) => App(smallStep(f), v)
-      case Fix(bind: Bind) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
+      case Fix(_, Bind(_, bind: Bind)) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
 
       case Match(NatLiteral(BigInt(0)), t0, _) => t0
       case Match(NatLiteral(n), _, bind: Bind) => replaceBind(bind, NatLiteral(n - 1))

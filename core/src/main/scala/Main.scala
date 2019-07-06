@@ -28,7 +28,7 @@ object Main {
     val sum = \s(0)
     val y = \sum(Right(2), Right(7), Left(2))
     val z = \\\sum(Right(2))(Right(7))(Left(2))
-    val ret = ((y + z == 2 * z) && !true || true)
+    ((y + z == 2 * z) && !true || true)
   """.toIterator
 
     apply(ScalaLexer.apply(it)) match  {
