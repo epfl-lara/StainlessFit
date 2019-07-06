@@ -78,7 +78,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
 
 
     // Separator
-    oneOf("{},().\\") | word("=>")
+    oneOf("{},().\\:") | word("=>")
       |> { (cs, r) => SeparatorToken(cs.mkString, r) },
 
     // Space
@@ -170,6 +170,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val lbra = elem(SeparatorClass("{"))
   val rbra = elem(SeparatorClass("}"))
   val comma = elem(SeparatorClass(","))
+  val colon = elem(SeparatorClass(":"))
   val appK = elem(SeparatorClass("\\"))
   val dot = elem(SeparatorClass("."))
   val arrow = elem(SeparatorClass("=>"))
@@ -252,8 +253,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
 
   lazy val function: Parser[Tree] = recursive {
-    (funK ~ variable ~ arrow ~ lbra ~ expression ~ rbra).map {
-      case _ ~ x ~ _ ~  _ ~ e ~ _ => Lambda(None(), Bind(Some(x), e))
+    (funK ~ variable ~ colon ~ expression /* type */ ~ arrow ~ lbra ~ expression ~ rbra).map {
+      case _ ~ x ~ _ ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(None(), Bind(Some(x), e))
     }
   }
 

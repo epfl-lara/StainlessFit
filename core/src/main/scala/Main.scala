@@ -16,8 +16,8 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     val it = """val s = fix(sumAcc =>
-      fun acc => {
-        fun v => {
+      fun acc : Int => {
+        fun v : Unit + Int => {
           match v {
             case Left(x) => acc
             case Right(n) => \\sumAcc()(n + acc)
