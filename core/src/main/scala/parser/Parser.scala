@@ -264,8 +264,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val letIn: Parser[Tree] = recursive {
-    (valK ~ variable ~ assignation ~ expression ~ inK ~ expression).map {
-      case _ ~ x ~ _ ~ e ~ _ ~ e2 => LetIn(None(), e, Bind(Some(x), e2))
+    (valK ~ variable ~ assignation ~ expression ~ expression).map {
+      case _ ~ x ~ _ ~ e ~ e2 => LetIn(None(), e, Bind(Some(x), e2))
     }
   }
 

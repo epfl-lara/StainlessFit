@@ -25,12 +25,11 @@ object Main {
         }
       }
     )
-    in
-    val sum = \s(0) in
-    val y = \sum(Right(2), Right(7), Left(2)) in
-    val z = \\\sum(Right(2))(Right(7))(Left(2)) in
-    (y + z == 2 * z) && !true || true
-    """.toIterator
+    val sum = \s(0)
+    val y = \sum(Right(2), Right(7), Left(2))
+    val z = \\\sum(Right(2))(Right(7))(Left(2))
+    val ret = ((y + z == 2 * z) && !true || true)
+  """.toIterator
 
     apply(ScalaLexer.apply(it)) match  {
       case Parsed(value, _) =>
