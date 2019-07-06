@@ -14,7 +14,6 @@ import parser.ScalaLexer
 
 object Main {
 
-
   def main(args: Array[String]): Unit = {
     val it = """val s = fix(sumAcc =>
       fun acc => {
@@ -29,16 +28,15 @@ object Main {
     in
     val sum = \s(0) in
     val y = \sum(Right(2), Right(7), Left(2)) in
-    (22)
+    val z = \\\sum(Right(2))(Right(7))(Left(2)) in
+    (y + z == 2 * z) && !true || true
     """.toIterator
 
     apply(ScalaLexer.apply(it)) match  {
       case Parsed(value, _) =>
         println(Printer.pprint(value))
-        //println(value)
-        //val v = App(App(App(value, RightTree(NatLiteral(1))), RightTree(NatLiteral(3))), LeftTree(UnitLiteral))
-        //println(Printer.pprint(Interpreter.evaluate(v, 1000), 0))
-        println(Interpreter.evaluate(value, 1000))
+        println("\nIs evaluated to...\n")
+        println(Printer.pprint(Interpreter.evaluate(value, 1000)))
       case t => println(t)
     }
   }

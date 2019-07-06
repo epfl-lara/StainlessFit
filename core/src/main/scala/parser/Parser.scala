@@ -164,7 +164,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case _ => NoClass
   }
 
-  val eq = elem(AssignationClass)
+  val assignation = elem(AssignationClass)
   val lpar = elem(SeparatorClass("("))
   val rpar = elem(SeparatorClass(")"))
   val lbra = elem(SeparatorClass("{"))
@@ -209,7 +209,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   val mul = accept(OperatorClass(Mul)) {
     case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Div, List(x, y))
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Mul, List(x, y))
       f
   }
 
@@ -219,12 +219,36 @@ object ScalaParser extends Parsers[Token, TokenClass]
       f
   }
 
+  val and = accept(OperatorClass(And)) {
+    case _ =>
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(And, List(x, y))
+      f
+  }
+
+  val or = accept(OperatorClass(Or)) {
+    case _ =>
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Or, List(x, y))
+      f
+  }
+
+  val eq = accept(OperatorClass(Eq)) {
+    case _ =>
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Eq, List(x, y))
+      f
+  }
+
+  val not = accept(OperatorClass(Not)) {
+    case _ => val f: Tree => Tree = (x: Tree) => Primitive(Not, List(x))
+    f
+  }
+
   lazy val basic: Parser[Tree] = literal | lpar ~>~ expression ~<~ rpar
 
   lazy val operator: Parser[Tree] = recursive {
-    operators(basic)(
-      mul | div is LeftAssociative,
-      plus | minus is LeftAssociative)
+    operators(prefixes(not, basic))(
+      mul | div | and is LeftAssociative,
+      plus | minus | or is LeftAssociative,
+      eq is LeftAssociative)
     }
 
   lazy val function: Parser[Tree] = recursive {
@@ -240,7 +264,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val letIn: Parser[Tree] = recursive {
-    (valK ~ variable ~ eq ~ expression ~ inK ~ expression).map {
+    (valK ~ variable ~ assignation ~ expression ~ inK ~ expression).map {
       case _ ~ x ~ _ ~ e ~ _ ~ e2 => LetIn(None(), e, Bind(Some(x), e2))
     }
   }

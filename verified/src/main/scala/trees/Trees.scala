@@ -7,23 +7,51 @@ import stainless.lang._
 
 sealed abstract class Operator
 
-case object Not extends Operator
-case object And extends Operator
-case object Or extends Operator
+case object Not extends Operator {
+  override def toString = "!"
+}
+case object And extends Operator {
+  override def toString = "&&"
+}
+case object Or extends Operator {
+  override def toString = "||"
+}
 
-case object Plus extends Operator
-case object Minus extends Operator
-case object Mul extends Operator
-case object Div extends Operator
+case object Plus extends Operator {
+  override def toString = "+"
+}
+case object Minus extends Operator {
+  override def toString = "-"
+}
+case object Mul extends Operator {
+  override def toString = "*"
+}
+case object Div extends Operator {
+  override def toString = "/"
+}
 
-case object Eq extends Operator
-case object Neq extends Operator
-case object Lteq extends Operator
-case object Gteq extends Operator
-case object Lt extends Operator
-case object Gt extends Operator
+case object Eq extends Operator {
+  override def toString = "=="
+}
+case object Neq extends Operator {
+  override def toString = "!="
+}
+case object Lteq extends Operator {
+  override def toString = "<="
+}
+case object Gteq extends Operator {
+  override def toString = ">="
+}
+case object Lt extends Operator {
+  override def toString = "<"
+}
+case object Gt extends Operator {
+  override def toString = ">"
+}
 
-case object Nop extends Operator
+case object Nop extends Operator {
+  override def toString = "-"
+}
 
 
 sealed abstract class Tree
