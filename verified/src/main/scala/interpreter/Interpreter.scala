@@ -8,17 +8,20 @@ import stainless.lang._
 
 object Interpreter {
 
-  def isValue(e: Tree): Boolean = e match {
-    case BottomTree => true
-    case UnitLiteral => true
-    case NatLiteral(_) => true
-    case BoolLiteral(_) => true
-    case Var(_, _) => true
-    case Lambda(_, _) => true
-    case Pair(t1, t2) => isValue(t1) && isValue(t2)
-    case RightTree(t) => isValue(t)
-    case LeftTree(t) => isValue(t)
-    case _ => false
+  def isValue(e: Tree): Boolean = {
+    decreases(e)
+    e match {
+      case BottomTree => true
+      case UnitLiteral => true
+      case NatLiteral(_) => true
+      case BoolLiteral(_) => true
+      case Var(_, _) => true
+      case Lambda(_, _) => true
+      case Pair(t1, t2) => isValue(t1) && isValue(t2)
+      case RightTree(t) => isValue(t)
+      case LeftTree(t) => isValue(t)
+      case _ => false
+    }
   }
 
   def replaceBind(bind: Bind, v: Tree): Tree = {
