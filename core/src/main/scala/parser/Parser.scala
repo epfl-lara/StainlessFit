@@ -168,11 +168,6 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
-  def scalaToStainlessList(l: scala.collection.immutable.List[Tree]): List[Tree] = {
-    if(l.isEmpty) Nil()
-    else Cons(l.head, scalaToStainlessList(l.tail))
-  }
-
   override def getKind(token: Token): TokenClass = token match {
     case SeparatorToken(value, range) => SeparatorClass(value)
     case BooleanToken(value, range) => BooleanClass
@@ -338,7 +333,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         else {
           val h = args.reverse.head
           val l = args.reverse.tail
-          App(l.foldLeft(f) { case (acc, e) => App(acc, e) }, h)
+          App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
         }
     }
   }
@@ -384,7 +379,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
       case _ ~ e1 ~ _ ~ vs ~ _ =>
         val h = vs.reverse.head
         val l = vs.reverse.tail
-        Pair(e1, l.foldLeft(h) { case (acc, e) => Pair(e, acc) } )
+        Pair(e1, l.foldLeft(h) { case (e, acc) => Pair(acc, e) } )
     }
   }
 

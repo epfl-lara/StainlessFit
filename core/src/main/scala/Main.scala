@@ -15,7 +15,7 @@ import parser.ScalaLexer
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val ii = """def f(x: Int, y: Int) = { 4 }""".toIterator
+    val ii = """\(x, y, z, t)""".toIterator
     val it = """def f(x: Int) = { 4 }
 
     def fac(n: Int) = {
@@ -54,13 +54,18 @@ object Main {
     val z = \\\sum(Right(2))(Right(7))(Left(2))
     val t = ((y + z == 2 * z) && !true || true)
     val z = \fac(4)
-    t
+
+    def g(x: Int, y: Int, z: Int, t: Bool, n: Int) = {
+      if(t) { x + z}
+      else { y}
+    }
+    \g(1, 2, 3, false, 4)
   """.toIterator
 
-    apply(ScalaLexer.apply(it)) match  {
+    apply(ScalaLexer.apply(it)) match {
       case Parsed(value, _) =>
         println(Printer.pprint(value))
-        println("\nIs evaluated to...\n")
+        println("\nIs evaluated into...\n")
         println(Printer.pprint(Interpreter.evaluate(value, 1000)))
       case t => println(t)
     }
