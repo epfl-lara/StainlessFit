@@ -8,8 +8,11 @@ import scala.language.implicitConversions
 package object lang {
   import stainless.proof._
 
-  @inline @library
+  @library
   def ghost[A](@ghost value: A): Unit = ()
+
+  @library
+  def indexedAt[T](n: BigInt, t: T): T = (??? : T)
 
   @ignore
   implicit class BooleanDecorations(val underlying: Boolean) {
@@ -78,6 +81,9 @@ package object lang {
   @ignore
   def old[T](value: T): T = value
 
+  @ignore @ghost
+  def snapshot[T](value: T): T = value
+
   @library
   @partialEval
   def partialEval[A](x: A): A = x
@@ -125,5 +131,4 @@ package object lang {
   def print(x: String): Unit = {
     scala.Predef.print(x)
   }
-
 }

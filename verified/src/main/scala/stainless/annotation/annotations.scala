@@ -3,9 +3,8 @@
 package stainless
 package annotation
 
-import scala.annotation.Annotation
-import scala.annotation.StaticAnnotation
 import scala.annotation.meta._
+import scala.annotation.{Annotation, StaticAnnotation}
 
 /** The annotated symbols is not extracted at all. For internal usage only. */
 class ignore extends Annotation
@@ -21,7 +20,7 @@ class library      extends Annotation
 class induct       extends Annotation
 
 /** Only extract the contracts and replace the annotated function's body with a choose. */
-@ignore
+@ignore @field @getter @setter @param
 class extern       extends Annotation
 
 /** Don't unfold the function's body during verification. */
@@ -29,7 +28,7 @@ class extern       extends Annotation
 class opaque       extends Annotation
 
 /** Specify that the annotated function is pure, which will be checked. */
-@ignore
+@ignore @field @getter @setter @param
 class pure         extends Annotation
 
 /** Inline this function, but only once.
@@ -55,6 +54,19 @@ class law          extends Annotation
 @ignore
 class mutable          extends Annotation
 
+/** Can be used to mark a library function/class/object so that it is not
+  * filtered out by the keep objects. Use the command-line option `--keep=g` to
+  * keep all objects marked by `@keep(g)`
+  */
+@ignore
+class keep(g: String)      extends Annotation
+
+@ignore
+class erasable extends Annotation
+
+@ignore
+class indexedAt(n: BigInt) extends Annotation
+
 /**
  * Code annotated with @ghost is removed after stainless extraction.
  *
@@ -64,4 +76,3 @@ class mutable          extends Annotation
  */
 @ignore @field @getter @setter @param
 class ghost extends StaticAnnotation
-
