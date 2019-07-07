@@ -15,7 +15,23 @@ import parser.ScalaLexer
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val it = """val s = fix(sumAcc =>
+    val it = """
+    def f(x: Int) = { 4 }
+
+    def fac(n: Int) = {
+      if(n == 0) { 1 } else { (\fac(n - 1)) * n }
+    }
+
+    def sumAcc(acc: Int) = {
+      fun y: Unit + Nat => {
+        match y {
+          case Left(x) => acc
+          case Right(v) => \sumAcc(v + acc)
+        }
+      }
+    }
+
+    val s = fix(sumAcc =>
       fun acc : Int => {
         fun v : Unit + Int => {
           match v {
@@ -25,10 +41,13 @@ object Main {
         }
       }
     )
-    val sum = \s(0)
+
+    val sum = \sumAcc(0)
     val y = \sum(Right(2), Right(7), Left(2))
     val z = \\\sum(Right(2))(Right(7))(Left(2))
-    ((y + z == 2 * z) && !true || true)
+    val t = ((y + z == 2 * z) && !true || true)
+    val z = \fac(4)
+    t
   """.toIterator
 
     apply(ScalaLexer.apply(it)) match  {
