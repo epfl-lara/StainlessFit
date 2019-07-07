@@ -278,7 +278,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
-  def buildFix(name: Var, body: Tree) = {
+  def buildFix(name: Var, body: Tree, bodyType: Tree) = {
     Fix(
       stainless.lang.None(),
       Bind(
@@ -291,19 +291,21 @@ object ScalaParser extends Parsers[Token, TokenClass]
     )
   }
 
-  def foldArgs(args: Seq[(Var, Tree)], body: Tree): Tree = {
-    args.foldRight(body) {
-      case ((x, ty), acc)  =>
-        Lambda(stainless.lang.Some(ty), Bind(stainless.lang.Some(x), acc))
+  def foldArgs(args: Seq[(Var, Tree)], body: Tree, bodyType: Tree): (Tree, Tree) = {
+    args.foldRight((body, bodyType)) {
+      case ((x, ty1), (acc, ty2))  =>
+        val lType = PiType(ty1, Bind(stainless.lang.Some(x), ty2))
+        (Lambda(stainless.lang.Some(ty1), Bind(stainless.lang.Some(x), acc)), lType)
     }
   }
 
   lazy val defFunction: Parser[Tree] = recursive {
-    (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpression, comma) ~ rpar ~ assignation ~ lbra ~ expression ~ rbra ~ opt(expression)).map {
-      case _ ~ f ~ _ ~ argsT ~ _ ~ _ ~ _ ~ e1 ~ _ ~ e2 =>
+    (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpression, comma) ~ rpar ~
+    colon ~ typeExpression ~ assignation ~ lbra ~ expression ~ rbra ~ opt(expression)).map {
+      case _ ~ f ~ _ ~ argsT ~ _ ~ _ ~ rt ~ _ ~ _ ~ e1 ~ _ ~ e2 =>
         val args = argsT.map { case (x ~ _ ~ t) => (x, t) }
-        val body = if(args.isEmpty) e1 else foldArgs(args, e1)
-        val funExpr = if(appearFreeIn(f, body)) buildFix(f, body) else body
+        val (body, bType) = if(args.isEmpty) (e1, rt) else foldArgs(args, e1, rt)
+        val funExpr = if(appearFreeIn(f, body)) buildFix(f, body, bType) else body
         e2 match {
           case None => LetIn(stainless.lang.None(), funExpr, Bind(stainless.lang.Some(f), f))
           case Some(e) => LetIn(stainless.lang.None(), funExpr, Bind(stainless.lang.Some(f), e))

@@ -16,13 +16,12 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     val ii = """\(x, y, z, t)""".toIterator
-    val it = """def f(x: Int) = { 4 }
-
-    def fac(n: Int) = {
+    val it = """def f(x: Int): Int = { 4 }
+    def fac(n: Int): Int = {
       if(n == 0) { 1 } else { (\fac(n - 1)) * n }
     }
 
-    def sumAcc(acc: Int) = {
+    def sumAcc(acc: Int): Int = {
       fun y: Unit + Nat => {
         match y {
           case Left(x) => acc
@@ -42,7 +41,7 @@ object Main {
       }
     )
 
-    def sumAcc_(acc: Int, y: Unit + Nat) = {
+    def sumAcc_(acc: Int, y: Unit + Nat): Int = {
       match y {
         case Left(x) => acc
         case Right(v) => \sumAcc_(v + acc)
@@ -55,11 +54,12 @@ object Main {
     val t = ((y + z == 2 * z) && !true || true)
     val z = \fac(4)
 
-    def g(x: Int, y: Int, z: Int, t: Bool, n: Int) = {
+    def g(x: Int, y: Int, z: Int, t: Bool, n: Int): Int = {
       if(t) { x + z}
       else { y}
     }
     \g(1, 2, 3, false, 4)
+
   """.toIterator
 
     apply(ScalaLexer.apply(it)) match {

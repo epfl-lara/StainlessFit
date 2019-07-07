@@ -44,6 +44,7 @@ object Printer {
         |    ${t2s}
         |}""".stripMargin
       case Bind(Some(Var(_, x)), b) =>
+
         s"""${x} => {
         |  ${pprint(b).replaceAll("\n", "\n  ")}
         |}""".stripMargin
