@@ -105,25 +105,25 @@ object Interpreter {
 
       case LetIn(tp, v, bind: Bind) => replaceBind(bind, v)
 
-      case Primitive(Not, BoolLiteral(b)::Nil()) => BoolLiteral(!b)
-      case Primitive(And, BoolLiteral(b1)::BoolLiteral(b2)::Nil()) => BoolLiteral(b1 && b2)
-      case Primitive(Or, BoolLiteral(b1)::BoolLiteral(b2)::Nil()) => BoolLiteral(b1 || b2)
+      case Primitive(Not, Cons(BoolLiteral(b), Nil())) => BoolLiteral(!b)
+      case Primitive(And, Cons(BoolLiteral(b1), Cons(BoolLiteral(b2), Nil()))) => BoolLiteral(b1 && b2)
+      case Primitive(Or, Cons(BoolLiteral(b1), Cons(BoolLiteral(b2), Nil()))) => BoolLiteral(b1 || b2)
 
-      case Primitive(Neq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 != n2)
-      case Primitive(Eq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 == n2)
-      case Primitive(Lt, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 < n2)
-      case Primitive(Gt, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 > n2)
-      case Primitive(Lteq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 <= n2)
-      case Primitive(Gteq, NatLiteral(n1)::NatLiteral(n2)::Nil()) => BoolLiteral(n1 >= n2)
+      case Primitive(Neq, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 != n2)
+      case Primitive(Eq, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 == n2)
+      case Primitive(Lt, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 < n2)
+      case Primitive(Gt, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 > n2)
+      case Primitive(Lteq, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 <= n2)
+      case Primitive(Gteq, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 >= n2)
 
-      case Primitive(Plus, NatLiteral(n1)::NatLiteral(n2)::Nil()) => NatLiteral(n1 + n2)
-      case Primitive(Minus, NatLiteral(n1)::NatLiteral(n2)::Nil()) => NatLiteral(n1 - n2)
-      case Primitive(Mul, NatLiteral(n1)::NatLiteral(n2)::Nil()) => NatLiteral(n1 * n2)
-      case Primitive(Div, NatLiteral(n1)::NatLiteral(n2)::Nil()) if n2 != 0 => NatLiteral(n1 / n2)
+      case Primitive(Plus, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 + n2)
+      case Primitive(Minus, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 - n2)
+      case Primitive(Mul, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 * n2)
+      case Primitive(Div, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) if n2 != 0 => NatLiteral(n1 / n2)
 
-      case Primitive(p, (x: Tree)::Nil())    if !isValue(x) => Primitive(p, smallStep(x)::Nil())
-      case Primitive(p, x::y::Nil()) if !isValue(x) => Primitive(p, smallStep(x)::y::Nil())
-      case Primitive(p, x::y::Nil()) if !isValue(y) => Primitive(p, x::smallStep(y)::Nil())
+      case Primitive(p, Cons(x, Nil())) if !isValue(x) => Primitive(p, Cons(smallStep(x), Nil()))
+      case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(x) => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
+      case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(y) => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
       case Primitive(_, _) => BottomTree
 
       case _ => e

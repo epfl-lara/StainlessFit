@@ -252,8 +252,10 @@ object ScalaParser extends Parsers[Token, TokenClass]
       eq is LeftAssociative)
     }
 
+  lazy val typeExpression = expression
+
   lazy val function: Parser[Tree] = recursive {
-    (funK ~ variable ~ colon ~ expression /* type */ ~ arrow ~ lbra ~ expression ~ rbra).map {
+    (funK ~ variable ~ colon ~ typeExpression ~ arrow ~ lbra ~ expression ~ rbra).map {
       case _ ~ x ~ _ ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(None(), Bind(Some(x), e))
     }
   }
