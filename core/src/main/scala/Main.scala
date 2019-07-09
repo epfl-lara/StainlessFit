@@ -20,7 +20,7 @@ object Main {
     """.toIterator
     val it = """def f(x: Int): Int = { 4 }
     def fac(n: Int): Int = {
-      if(n == 0) { 1 } else { (fac(n - 1)) * n }
+      if(n == 0) { 1 } else { fac (n - 1) * n }
     }
 
     def sumAcc(acc: Int): Int = {
@@ -60,7 +60,8 @@ object Main {
       else { y}
     }
 
-    ((g 1 2 3 false 4) == 3) && y == 12
+    val t = ((g 1 2 3 false 4) == 3) && y == 12 in
+    z
 
   """.toIterator
     println(ScalaParser.expression.conflicts)
