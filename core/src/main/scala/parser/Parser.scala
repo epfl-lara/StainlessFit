@@ -34,7 +34,7 @@ case class UnitToken(range: (Int, Int)) extends Token
 case class VarToken(content: String, range: (Int, Int)) extends Token
 
 case class OperatorToken(op: Operator, range: (Int, Int)) extends Token
-
+case class TypeToken(content: String, range: (Int, Int)) extends Token
 
 /*sealed abstract class Value {
   val range: (Int, Int)
@@ -79,7 +79,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
 
 
     // Separator
-    word("\\(") | oneOf("{},().\\:") | word("=>")
+    oneOf("{},().:[]") | word("=>")
       |> { (cs, r) => SeparatorToken(cs.mkString, r) },
 
     // Space
@@ -97,6 +97,9 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
     word("def")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
+
+    word("Bool") | word("Unit") | word("Int")
+      |>  { (cs, r) => TypeToken(cs.mkString, r) },
 
     // Var
     elem(c => c.isLetter) ~
@@ -132,6 +135,7 @@ case object NoClass extends TokenClass("<error>")
 case object UnitClass extends TokenClass("<unit>")
 case object AssignationClass extends TokenClass("<assignation>")
 case class KeyWordClass(value: String) extends TokenClass(value)
+case object TypeClass extends TokenClass("<type>")
 
 object ScalaParser extends Parsers[Token, TokenClass]
     with Graphs[TokenClass] with Grammars[TokenClass]
@@ -177,6 +181,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case AssignationToken(range) => AssignationClass
     case KeyWordToken(value, range) => KeyWordClass(value)
     case UnitToken(range) => UnitClass
+    case TypeToken(content, range) => TypeClass
     case _ => NoClass
   }
 
@@ -185,6 +190,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val rpar = elem(SeparatorClass(")"))
   val lbra = elem(SeparatorClass("{"))
   val rbra = elem(SeparatorClass("}"))
+  val lsbra = elem(SeparatorClass("{"))
+  val rsbra = elem(SeparatorClass("}"))
   val comma = elem(SeparatorClass(","))
   val colon = elem(SeparatorClass(":"))
   val appK = elem(SeparatorClass("\\"))
@@ -203,19 +210,61 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val valK = elem(KeyWordClass("val"))
   val defK = elem(KeyWordClass("def"))
 
+  val literalType = accept(TypeClass) {
+    case TypeToken("Int", _) => NatType
+    case TypeToken("Bool", _) => BoolType
+    case TypeToken("Unit", _) => UnitType
+  }
+
+
+  lazy val parTypeExpr: Parser[Tree] = {
+    (lpar ~ rep1sep(typeExpr, comma) ~ rpar).map {
+      case _ ~ l ~ _ =>
+        if(l.size == 1) l.head
+        else {
+          val h = l.reverse.head
+          val r = l.reverse.tail.reverse
+          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(stainless.lang.None(), acc)) }
+        }
+    }
+  }
+
+  lazy val sumType = accept(OperatorClass(Plus)) {
+    case s =>
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => SumType(x, y)
+      f
+  }
+
+  lazy val piType = accept(SeparatorClass("=>")) {
+    case s =>
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => SumType(x, y)
+      f
+  }
+
+  lazy val basicType = literalType | parTypeExpr
+
+  lazy val operatorType: Parser[Tree] = {
+    operators(basicType)(
+      piType is RightAssociative,
+      sumType is LeftAssociative
+    )
+  }
+
+
+  lazy val typeExpr = recursive {
+    operatorType
+  }
+
+
 
   val boolean = accept(BooleanClass) { case BooleanToken(value, _) => BoolLiteral(value) }
-
   val number = accept(NumberClass) { case NumberToken(value, _) => NatLiteral(value) }
-
   val variable = accept(VarClass) { case VarToken(content, _) => Var(stainless.lang.None(), content) }
-
   val unit = accept(UnitClass) { case _ => UnitLiteral }
-
   val literal = variable | number | boolean | unit
 
   val plus = accept(OperatorClass(Plus)) {
-    case _ =>
+    case s =>
       val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Plus, List(x, y))
       f
   }
@@ -261,11 +310,10 @@ object ScalaParser extends Parsers[Token, TokenClass]
     f
   }
 
-  lazy val typeExpr = expression
 
   lazy val function: Parser[Tree] = recursive {
-    (funK ~ variable ~ colon ~ typeExpr ~ arrow ~ lbra ~ expression ~ rbra).map {
-      case _ ~ x ~ _ ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(stainless.lang.None(), Bind(stainless.lang.Some(x), e))
+    (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ lbra ~ expression ~ rbra).map {
+      case _ ~ _ ~ x ~ _ ~ _ ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(stainless.lang.None(), Bind(stainless.lang.Some(x), e))
     }
   }
 
@@ -305,7 +353,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val fixpoint: Parser[Tree] = recursive {
-    (fixK ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
+    (fixK ~ opt(lsbra ~ expression ~ rsbra) ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
       case _ ~ x ~ _ ~ e ~ _ => Fix(stainless.lang.None(), Bind(stainless.lang.None(), Bind(stainless.lang.Some(x), e)))
     }
   }

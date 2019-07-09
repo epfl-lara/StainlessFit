@@ -16,7 +16,7 @@ object Main {
 
   def main(args: Array[String]): Unit = {
     val ite = """
-    (1, 2, 3, 4)
+    fun (x: (Unit + Unit)) => { 2 }
     """.toIterator
     val it = """def f(x: Int): Int = { 4 }
     def fac(n: Int): Int = {
@@ -24,7 +24,7 @@ object Main {
     }
 
     def sumAcc(acc: Int): Int = {
-      fun y: Unit + Nat => {
+      fun (y: Unit + Int) => {
         match y {
           case Left(x) => acc
           case Right(v) => sumAcc (v + acc)
@@ -33,8 +33,8 @@ object Main {
     }
 
     val s = fix(sumAcc =>
-      fun acc : Int => {
-        fun v : Unit + Int => {
+      fun (acc : Int) => {
+        fun (v : Unit + Int) => {
           match v {
             case Left(x) => acc
             case Right(n) => sumAcc()(n + acc)
@@ -43,7 +43,7 @@ object Main {
       }
     ) in
 
-    def sumAcc_(acc: Int, y: Unit + Nat): Int = {
+    def sumAcc_(acc: Int, y: Unit + Int): Int = {
       match y {
         case Left(x) => acc
         case Right(v) => sumAcc_(v + acc)
@@ -61,8 +61,19 @@ object Main {
     }
 
     val t = ((g 1 2 3 false 4) == 3) && y == 12 in
-    z
 
+  def f(x: Int): Int = {
+    match x {
+      case Left(x) =>
+        match x {
+          case Left(x) => x
+          case Right(v) => 0
+        }
+      case Right(x) => 0
+    }
+  }
+
+  f(Left(Left(Left(3))))
   """.toIterator
     println(ScalaParser.expression.conflicts)
     ScalaParser.apply(ScalaLexer.apply(it)) match {
