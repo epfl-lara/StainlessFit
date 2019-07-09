@@ -135,7 +135,7 @@ case object NoClass extends TokenClass("<error>")
 case object UnitClass extends TokenClass("<unit>")
 case object AssignationClass extends TokenClass("<assignation>")
 case class KeyWordClass(value: String) extends TokenClass(value)
-case object TypeClass extends TokenClass("<type>")
+case class TypeClass(value: String) extends TokenClass("<type>")
 
 object ScalaParser extends Parsers[Token, TokenClass]
     with Graphs[TokenClass] with Grammars[TokenClass]
@@ -181,7 +181,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case AssignationToken(range) => AssignationClass
     case KeyWordToken(value, range) => KeyWordClass(value)
     case UnitToken(range) => UnitClass
-    case TypeToken(content, range) => TypeClass
+    case TypeToken(content, range) => TypeClass(content)
     case _ => NoClass
   }
 
@@ -210,12 +210,13 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val valK = elem(KeyWordClass("val"))
   val defK = elem(KeyWordClass("def"))
 
-  val literalType = accept(TypeClass) {
-    case TypeToken("Int", _) => NatType
-    case TypeToken("Bool", _) => BoolType
-    case TypeToken("Unit", _) => UnitType
-  }
+  val natType = accept(TypeClass("Int")) { case _ => NatType }
+  val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
+  val unitType = accept(TypeClass("Unit")) { case _ => UnitType }
 
+  val literalType = natType | boolType | unitType
+
+  lazy val basicType = literalType | parTypeExpr
 
   lazy val parTypeExpr: Parser[Tree] = {
     (lpar ~ rep1sep(typeExpr, comma) ~ rpar).map {
@@ -240,8 +241,6 @@ object ScalaParser extends Parsers[Token, TokenClass]
       val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => SumType(x, y)
       f
   }
-
-  lazy val basicType = literalType | parTypeExpr
 
   lazy val operatorType: Parser[Tree] = {
     operators(basicType)(
@@ -313,7 +312,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val function: Parser[Tree] = recursive {
     (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ lbra ~ expression ~ rbra).map {
-      case _ ~ _ ~ x ~ _ ~ _ ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(stainless.lang.None(), Bind(stainless.lang.Some(x), e))
+      case _ ~ _ ~ x ~ _ ~ tp ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(stainless.lang.Some(tp), Bind(stainless.lang.Some(x), e))
     }
   }
 

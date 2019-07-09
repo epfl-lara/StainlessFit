@@ -20,11 +20,20 @@ object Printer {
         val e2s = pprint(e2).replaceAll("\n", "\n  ")
         s"""if(${cs}) {
         |  ${e1s}
+        |}
         |else {
         |  ${e2s}
         |}""".stripMargin
-      case Lambda(tp, bind) =>
-        s"""fun ${pprint(bind)}"""
+      case Lambda(tp, Bind(None(), body)) =>
+        s"""fun _:Unit => {
+        |  ${pprint(body).replaceAll("\n", "\n  ")}
+        |}""".stripMargin
+      case Lambda(Some(tp), Bind(Some(x), body)) =>
+        s"""fun ${pprint(x)}: ${pprint(tp)} => {
+        |  ${pprint(body).replaceAll("\n", "\n  ")}
+        |}""".stripMargin
+      case Lambda(None(), bind) =>
+        s"""fun ${pprint(bind)}""".stripMargin
       case App(e1, e2) => s"${pprint(e1)}(${pprint(e2)})"
       case Fix(_, Bind(_, body)) =>
       s"""Fix(
@@ -72,6 +81,14 @@ object Printer {
         |    ${t1s}
         |  case ${t2s}
         |}""".stripMargin
+
+
+      case NatType => "Int"
+      case BoolType => "Bool"
+      case UnitType => "Unit"
+      case SumType(t1, t2) => s"${pprint(t1)} + ${pprint(t2)}"
+      case PiType(t1, Bind(_, t2)) => s"${pprint(t1)} => ${pprint(t2)}"
+      case SigmaType(t1, Bind(_, t2)) => s"(${pprint(t1)}, ${pprint(t2)})"
       case _ => "<not yet pprint>"
     }
   }
