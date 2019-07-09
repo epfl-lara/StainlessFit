@@ -9,14 +9,15 @@ import scallion.parsing._
 import scallion.input._
 import scallion.lexing._
 
-import parser.ScalaParser._
+import parser.ScalaParser
 import parser.ScalaLexer
 
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val ite = """val x = (g(2)(3))
-2""".toIterator
+    val ite = """
+    (1, 2, 3, 4)
+    """.toIterator
     val it = """def f(x: Int): Int = { 4 }
     def fac(n: Int): Int = {
       if(n == 0) { 1 } else { (fac(n - 1)) * n }
@@ -26,7 +27,7 @@ object Main {
       fun y: Unit + Nat => {
         match y {
           case Left(x) => acc
-          case Right(v) => sumAcc(v + acc)
+          case Right(v) => sumAcc (v + acc)
         }
       }
     }
@@ -40,7 +41,7 @@ object Main {
           }
         }
       }
-    )
+    ) in
 
     def sumAcc_(acc: Int, y: Unit + Nat): Int = {
       match y {
@@ -49,23 +50,22 @@ object Main {
       }
     }
 
-    val x = (a, b, c, d)
-    val sum = sumAcc_(0)
-    val y = sum(Right(2), Right(7), Left(2))
-    val z = sum(Right(2))(Right(7))(Left(2))
-    val t = ((y + z == 2 * z) && !true || true)
-    val z = fac(4)
+    val x = (a, b, c, d) in
+    val sum = sumAcc_(0) in
+    val y = sum Right(2) Right(7) Left(2) in
+    val z = fac(4) in
 
     def g(x: Int, y: Int, z: Int, t: Bool, n: Int): Int = {
       if(t) { x + z}
       else { y}
     }
-    (g(1, 2, 3, false, 4) == 3) && t
+
+    ((g 1 2 3 false 4) == 3) && y == 12
 
   """.toIterator
-
-    apply(ScalaLexer.apply(it)) match {
-      case Parsed(value, _) =>
+    println(ScalaParser.expression.conflicts)
+    ScalaParser.apply(ScalaLexer.apply(it)) match {
+      case ScalaParser.Parsed(value, _) =>
         println(Printer.pprint(value))
         println("\nIs evaluated into...\n")
         println(Printer.pprint(Interpreter.evaluate(value, 1000)))

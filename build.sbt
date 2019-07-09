@@ -6,7 +6,7 @@ ThisBuild / resolvers ++= Seq(
 
 ThisBuild / libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.8" % "test",
-  "ch.epfl.lara" %% "scallion" % "0.1"
+  "ch.epfl.lara" %% "scallion" % "0.1.1"
 )
 
 lazy val core = project
