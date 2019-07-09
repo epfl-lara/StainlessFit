@@ -15,17 +15,18 @@ import parser.ScalaLexer
 object Main {
 
   def main(args: Array[String]): Unit = {
-    val ii = """\(x, y, z, t)""".toIterator
+    val ite = """val x = (g(2)(3))
+2""".toIterator
     val it = """def f(x: Int): Int = { 4 }
     def fac(n: Int): Int = {
-      if(n == 0) { 1 } else { (\fac(n - 1)) * n }
+      if(n == 0) { 1 } else { (fac(n - 1)) * n }
     }
 
     def sumAcc(acc: Int): Int = {
       fun y: Unit + Nat => {
         match y {
           case Left(x) => acc
-          case Right(v) => \sumAcc(v + acc)
+          case Right(v) => sumAcc(v + acc)
         }
       }
     }
@@ -35,7 +36,7 @@ object Main {
         fun v : Unit + Int => {
           match v {
             case Left(x) => acc
-            case Right(n) => \\sumAcc()(n + acc)
+            case Right(n) => sumAcc()(n + acc)
           }
         }
       }
@@ -44,21 +45,22 @@ object Main {
     def sumAcc_(acc: Int, y: Unit + Nat): Int = {
       match y {
         case Left(x) => acc
-        case Right(v) => \sumAcc_(v + acc)
+        case Right(v) => sumAcc_(v + acc)
       }
     }
 
-    val sum = \sumAcc_(0)
-    val y = \sum(Right(2), Right(7), Left(2))
-    val z = \\\sum(Right(2))(Right(7))(Left(2))
+    val x = (a, b, c, d)
+    val sum = sumAcc_(0)
+    val y = sum(Right(2), Right(7), Left(2))
+    val z = sum(Right(2))(Right(7))(Left(2))
     val t = ((y + z == 2 * z) && !true || true)
-    val z = \fac(4)
+    val z = fac(4)
 
     def g(x: Int, y: Int, z: Int, t: Bool, n: Int): Int = {
       if(t) { x + z}
       else { y}
     }
-    \g(1, 2, 3, false, 4)
+    (g(1, 2, 3, false, 4) == 3) && t
 
   """.toIterator
 

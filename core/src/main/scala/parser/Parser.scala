@@ -74,8 +74,8 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     oneOf("=")
       |> { (cs, r) => AssignationToken(r) },
 
-    word("")
-      |> { (cs, r) => UnitToken(r) },
+    /*word("")
+      |> { (cs, r) => UnitToken(r) },*/
 
 
     // Separator
@@ -261,19 +261,10 @@ object ScalaParser extends Parsers[Token, TokenClass]
     f
   }
 
-  lazy val basic: Parser[Tree] = literal | lpar ~>~ expression ~<~ rpar
-
-  lazy val operator: Parser[Tree] = recursive {
-    operators(prefixes(not, basic))(
-      mul | div | and is LeftAssociative,
-      plus | minus | or is LeftAssociative,
-      eq is LeftAssociative)
-    }
-
-  lazy val typeExpression = expression
+  lazy val typeExpr = result
 
   lazy val function: Parser[Tree] = recursive {
-    (funK ~ variable ~ colon ~ typeExpression ~ arrow ~ lbra ~ expression ~ rbra).map {
+    (funK ~ variable ~ colon ~ typeExpr ~ arrow ~ lbra ~ result ~ rbra).map {
       case _ ~ x ~ _ ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(stainless.lang.None(), Bind(stainless.lang.Some(x), e))
     }
   }
@@ -300,8 +291,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val defFunction: Parser[Tree] = recursive {
-    (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpression, comma) ~ rpar ~
-    colon ~ typeExpression ~ assignation ~ lbra ~ expression ~ rbra ~ opt(expression)).map {
+    (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpr, comma) ~ rpar ~
+    colon ~ typeExpr ~ assignation ~ lbra ~ result ~ rbra ~ opt(result)).map {
       case _ ~ f ~ _ ~ argsT ~ _ ~ _ ~ rt ~ _ ~ _ ~ e1 ~ _ ~ e2 =>
         val args = argsT.map { case (x ~ _ ~ t) => (x, t) }
         val (body, bType) = if(args.isEmpty) (e1, rt) else foldArgs(args, e1, rt)
@@ -314,36 +305,39 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val fixpoint: Parser[Tree] = recursive {
-    (fixK ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
+    (fixK ~ lpar ~ variable ~ arrow ~ result ~ rpar).map {
       case _ ~ x ~ _ ~ e ~ _ => Fix(stainless.lang.None(), Bind(stainless.lang.None(), Bind(stainless.lang.Some(x), e)))
     }
   }
 
   lazy val letIn: Parser[Tree] = recursive {
-    (valK ~ variable ~ assignation ~ expression ~ opt(expression)).map {
+    (valK ~ variable ~ assignation ~ result ~  opt(result)).map {
       case _ ~ x ~ _ ~ e ~ None => LetIn(stainless.lang.None(), e, Bind(stainless.lang.Some(x), x))
       case _ ~ x ~ _ ~ e ~ Some(e2) => LetIn(stainless.lang.None(), e, Bind(stainless.lang.Some(x), e2))
     }
   }
 
   lazy val application: Parser[Tree] = recursive {
-    (appK ~ expression ~ lpar ~ repsep(expression, comma) ~ rpar).map {
-      case _ ~ f ~ _ ~ args ~ _  =>
-        if(args.isEmpty) {
-          App(f, UnitLiteral)
-        }
-        else {
-          val h = args.reverse.head
-          val l = args.reverse.tail
-          App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
-        }
+    (literal ~ opt(lpar ~ repsep(repsep(result, comma) ~ rpar, lpar))).map {
+      case f ~ Some(_ ~ lArgs)  =>
+        val args = lArgs.map {
+          case s ~ _ => if(s.isEmpty) {
+            scala.collection.immutable.List(UnitLiteral)
+          }
+            else s.toList
+        }.flatten
+        println(args)
+        val h = args.reverse.head
+        val l = args.reverse.tail
+        App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
+      case e ~ None => e
     }
   }
 
   lazy val eitherMatch: Parser[Tree] = recursive {
-    (matchK ~ expression ~ lbra ~
-    caseK ~ leftK ~ lpar ~ variable ~ rpar ~ arrow ~ expression ~
-    caseK ~ rightK ~ lpar ~ variable ~ rpar ~ arrow ~ expression ~
+    (matchK ~ result ~ lbra ~
+    caseK ~ leftK ~ lpar ~ variable ~ rpar ~ arrow ~ result ~
+    caseK ~ rightK ~ lpar ~ variable ~ rpar ~ arrow ~ result ~
     rbra).map {
       case (_ ~ e ~ _ ~ _ ~ _ ~ _ ~ v1 ~ _ ~ _ ~ e1 ~
       _ ~ _ ~ _ ~ v2 ~ _ ~ _ ~ e2 ~ _) =>
@@ -352,38 +346,91 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val left: Parser[Tree] = recursive {
-    (leftK ~ lpar ~ expression ~ rpar).map {
+    (leftK ~ lpar ~ result ~ rpar).map {
       case _ ~ _ ~ e ~ _ => LeftTree(e)
     }
   }
 
   lazy val right: Parser[Tree] = recursive {
-    (rightK ~ lpar ~ expression ~ rpar).map {
+    (rightK ~ lpar ~ result ~ rpar).map {
       case  _ ~ _ ~ e ~ _ => RightTree(e)
     }
   }
 
+  val basic = tuple
+
+  val operator: Parser[Tree] = recursive {
+    operators(prefixes(not, basic))(
+      mul | div | and is LeftAssociative,
+      plus | minus | or is LeftAssociative,
+      eq is LeftAssociative)
+    }
 
   lazy val expression: Parser[Tree] = recursive {
-    oneOf(application | tuple | operator | function | fixpoint | letIn |
-      eitherMatch | left | right | unit | defFunction | condition
+    oneOf(tuple | function | fixpoint | eitherMatch | left | right | letIn | defFunction | condition | literal |
+    application
     )
   }
 
+  lazy val result: Parser[Tree] = tuple | operator
+
   lazy val condition: Parser[Tree] = recursive {
-    (ifK ~ lpar ~ expression ~ rpar ~ lbra ~ expression ~ rbra ~ elseK ~ lbra ~ expression ~ rbra).map {
+    (ifK ~ lpar ~ result ~ rpar ~ lbra ~ result ~ rbra ~ elseK ~ lbra ~ result ~ rbra).map {
       case _ ~ _ ~ cond ~ _ ~ _ ~ vTrue ~ _ ~ _ ~ _ ~ vFalse ~ _ => IfThenElse(cond, vTrue, vFalse)
     }
   }
 
-  lazy val tuple = recursive {
-    (tupleK ~ expression ~ comma ~ rep1sep(expression, comma) ~ rpar).map {
-      case _ ~ e1 ~ _ ~ vs ~ _ =>
+  lazy val tuple: Parser[Tree] = recursive {
+    oneOf(
+      (expression ~ opt(lpar ~ repsep(result, comma) ~ rpar)).map {
+        case e ~ None => e
+        case f ~ Some(_ ~ lArgs ~ _)  =>
+          val args = if(lArgs.isEmpty) scala.collection.immutable.List(UnitLiteral) else lArgs
+          println(args)
+          val h = args.reverse.head
+          val l = args.reverse.tail
+          App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
+      },
+      (lpar ~ result ~ opt(comma ~ rep1sep(result, comma)) ~ rpar ~ opt(lpar ~ repsep(result, comma) ~ rpar)).map {
+        case _ ~ e1 ~ Some(_ ~ vs) ~ _ ~ None =>
+          val h = vs.reverse.head
+          val l = vs.reverse.tail
+          Pair(e1, l.foldLeft(h) { case (e, acc) => Pair(acc, e) } )
+        case _ ~ e ~ None ~ _ ~ None => e
+        case _ ~ f ~ None ~ _ ~ Some(_ ~ lArgs ~ _)  =>
+          val args = if(lArgs.isEmpty) scala.collection.immutable.List(UnitLiteral) else lArgs
+          println(args)
+          val h = args.reverse.head
+          val l = args.reverse.tail
+          App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
+        case _ => BottomTree
+      }
+    )
+
+    /*(opt(lpar) ~ expression ~ opt(comma ~ rep1sep(expression, comma)) ~ opt(rpar) ~ opt(lpar ~ repsep(expression, comma) ~ rpar)).map {
+      case Some(_) ~ e1 ~ Some(_ ~ vs) ~ Some(_) ~ None =>
         val h = vs.reverse.head
         val l = vs.reverse.tail
         Pair(e1, l.foldLeft(h) { case (e, acc) => Pair(acc, e) } )
-    }
+      case Some(_) ~ e ~ None ~ Some(_) ~ None => e
+      case Some(_) ~ f ~ None ~ Some(_) ~ Some(_ ~ lArgs ~ _)  =>
+        val args = if(lArgs.isEmpty) scala.collection.immutable.List(UnitLiteral) else lArgs
+        println(args)
+        val h = args.reverse.head
+        val l = args.reverse.tail
+        App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
+      case None ~ e1 ~ None ~ None ~ None => e1
+      case None ~ f ~ None ~ None ~ Some(_ ~ lArgs ~ _)  =>
+        val args = if(lArgs.isEmpty) scala.collection.immutable.List(UnitLiteral) else lArgs
+        println(args)
+        val h = args.reverse.head
+        val l = args.reverse.tail
+        App(l.foldRight(f) { case (e, acc) => App(acc, e) }, h)
+      case None ~ f ~ None ~ None ~ _ => println("\nIDID\n")
+        UnitLiteral
+      case _ => BottomTree
+    }*/
   }
 
-  def apply(it: Iterator[Token]): ParseResult[Tree] = expression(it)
+  def apply(it: Iterator[Token]): ParseResult[Tree] = result(it)
 }
