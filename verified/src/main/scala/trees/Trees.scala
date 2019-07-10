@@ -100,7 +100,7 @@ case class Fold(t: Tree) extends Tree
 
 case class Unfold(tp: Option[Tree], t: Tree) extends Tree
 
-case class Error(t: Option[Tree]) extends Tree
+case class ErrorTree(t: Option[Tree]) extends Tree
 
 case class Abs(a: Tree, t: Tree) extends Tree
 

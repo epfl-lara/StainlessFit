@@ -9,4 +9,5 @@ val sumAcc = fix(sumAcc =>
   }
 ) in
 val sum = sumAcc 0 in
-sum Right(42) Right(1295) Left(())
+
+assert (sum Right(42) Right(1295) Left(()) == 42 + 1295)

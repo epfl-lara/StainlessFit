@@ -8,4 +8,4 @@ val ackermann = fix(ackermann =>
   }
 ) in
 
-ackermann 2 2
+assert(ackermann 2 2 == 7)
