@@ -24,14 +24,15 @@ object Interpreter {
     }
   }
 
-  def replaceBind(bind: Bind, v: Tree): Tree = {
+  def replaceBind(bind: Tree, v: Tree): Tree = {
     bind match {
       case Bind(None(), body) => body
       case Bind(Some(xvar), body) => replace(xvar, v, body)
     }
   }
 
-  def replace(xvar: Var, v: Tree, body: Tree): Tree = {
+  def replace(xvar: Tree, v: Tree, body: Tree): Tree = {
+    require(xvar.isInstanceOf(Var))
     body match {
       case yvar: Var if yvar == xvar => v
       case IfThenElse(cond, t1, t2) =>

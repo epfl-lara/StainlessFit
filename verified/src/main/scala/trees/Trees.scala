@@ -58,7 +58,7 @@ sealed abstract class Tree
 
 case class Var(id: Option[Int], name: String) extends Tree
 
-case class Bind(x: Option[Var], body: Tree) extends Tree
+case class Bind(x: Option[Tree], body: Tree) extends Tree
 
 case class NatLiteral(n: BigInt) extends Tree /*{
   require(n >= 0)
@@ -72,7 +72,7 @@ case class BoolLiteral(b: Boolean) extends Tree
 
 case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree
 
-case class Lambda(tp: Option[Tree], body: Bind) extends Tree
+case class Lambda(tp: Option[Tree], body: Tree) extends Tree
 
 case class App(t1: Tree, t2: Tree) extends Tree
 
@@ -82,17 +82,17 @@ case class First(t: Tree) extends Tree
 
 case class Second(t: Tree) extends Tree
 
-case class Fix(tp: Option[Bind], body: Bind) extends Tree
+case class Fix(tp: Option[Tree], body: Tree) extends Tree
 
-case class Match(t: Tree, t1: Tree, t2: Bind) extends Tree
+case class Match(t: Tree, t1: Tree, t2: Tree) extends Tree
 
-case class EitherMatch(t: Tree, t1: Bind, t2: Bind) extends Tree
+case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
 
 case class LeftTree(t: Tree) extends Tree
 
 case class RightTree(t: Tree) extends Tree
 
-case class LetIn(tp: Option[Tree], v: Tree, bind: Bind) extends Tree
+case class LetIn(tp: Option[Tree], v: Tree, Tree: Tree) extends Tree
 
 case class Because(t1: Tree, t2: Tree) extends Tree
 
@@ -121,24 +121,24 @@ case object BoolType extends Tree
 
 case object NatType extends Tree
 
-case class SigmaType(t1: Tree, t2: Bind) extends Tree
+case class SigmaType(t1: Tree, t2: Tree) extends Tree
 
-case class PiType(t1: Tree, t2: Bind) extends Tree
+case class PiType(t1: Tree, t2: Tree) extends Tree
 
 case class SumType(t1: Tree, t2: Tree) extends Tree
 
-case class IntersectionType(t1: Tree, t2: Bind) extends Tree
+case class IntersectionType(t1: Tree, t2: Tree) extends Tree
 
-case class UnionType(t1: Tree, t2: Bind) extends Tree
+case class UnionType(t1: Tree, t2: Tree) extends Tree
 
-case class RefinementType(t1: Tree, t2: Bind) extends Tree
+case class RefinementType(t1: Tree, t2: Tree) extends Tree
 
-case class PolyForallType(t: Bind) extends Tree
+case class PolyForallType(t: Tree) extends Tree
 
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
 
 case class SingletonType(t: Tree) extends Tree
 
-case class RecType(n: Tree, t0: Tree, t: Bind) extends Tree
+case class RecType(n: Tree, t0: Tree, t: Tree) extends Tree
 
-//case class RefinementByType(t: Tree, cond: Bind) extends Tree
+//case class RefinementByType(t: Tree, cond: Tree) extends Tree

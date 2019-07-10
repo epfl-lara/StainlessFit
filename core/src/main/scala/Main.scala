@@ -73,7 +73,20 @@ object Main {
     }
   }
 
-  val x = f(Left(Left(3))) in x
+  val x = f(Left(Left(3))) in
+
+  def g(x: Nat, y: Nat): Nat = {
+    if(x == 0) { y }
+    else {
+      if(y == 0) { x }
+      else {
+        if(x == y) { x }
+        else { y }
+      }
+    }
+  }
+
+  g 7 2
   """.toIterator
     println(ScalaParser.expression.conflicts)
     ScalaParser.apply(ScalaLexer.apply(it)) match {
