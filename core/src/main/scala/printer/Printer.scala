@@ -4,11 +4,11 @@ import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
 
-import _root_.trees._
+import trees._
 
 object Printer {
 
-  def pprint(e: Tree): String = {
+  def pprint(e: Tree, inline: Boolean = false, bindType: Option[Tree] = None()): String = {
     e match {
       case Var(id, x) => x
       case UnitLiteral => "unit"
@@ -20,11 +20,13 @@ object Printer {
         val e2s = pprint(e2).replaceAll("\n", "\n  ")
         s"""if(${cs}) {
         |  ${e1s}
+        |}
         |else {
         |  ${e2s}
         |}""".stripMargin
       case Lambda(tp, bind) =>
-        s"""fun ${pprint(bind)}"""
+        val pBind = pprint(bind, bindType = tp)
+        s"fun ${pBind}"
       case App(e1, e2) => s"${pprint(e1)}(${pprint(e2)})"
       case Fix(_, Bind(_, body)) =>
       s"""Fix(
@@ -44,12 +46,12 @@ object Printer {
         |    ${t2s}
         |}""".stripMargin
       case Bind(Some(Var(_, x)), b) =>
-        s"""${x} => {
-        |  ${pprint(b).replaceAll("\n", "\n  ")}
-        |}""".stripMargin
-      case Bind(None(), b) => s"""unit => {
-        |  ${pprint(b).replaceAll("\n", "\n  ")}
-        |}""".stripMargin
+        val pType = bindType match { case None() => "" case Some(t) => s": ${pprint(t)}"}
+        if(inline) s"${x}${pType} => { ${pprint(b).replaceAll("\n", "\n  ")} }"
+        else s"${x}${pType} => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
+      case Bind(None(), b) =>
+        if(inline) s"unit => { ${pprint(b).replaceAll("\n", "\n  ")} }"
+        else s"unit => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
       case LetIn(tp, v, Bind(Some(x), b)) =>
           val tv = pprint(v)
           val tx = pprint(x)
@@ -71,6 +73,14 @@ object Printer {
         |    ${t1s}
         |  case ${t2s}
         |}""".stripMargin
+
+
+      case NatType => "Nat"
+      case BoolType => "Bool"
+      case UnitType => "Unit"
+      case SumType(t1, t2) => s"(${pprint(t1)}) + (${pprint(t2)})"
+      case PiType(t1, Bind(_, t2)) => s"(${pprint(t1)}) => (${pprint(t2)})"
+      case SigmaType(t1, Bind(_, t2)) => s"(${pprint(t1)}, ${pprint(t2)})"
       case _ => "<not yet pprint>"
     }
   }

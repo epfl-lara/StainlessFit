@@ -2,8 +2,8 @@ import org.scalatest.FunSuite
 import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
-import _root_.trees._
-import _root_.interpreter.Interpreter._
+import trees._
+import interpreter.Interpreter._
 
 class InterpreterSuite extends FunSuite {
 

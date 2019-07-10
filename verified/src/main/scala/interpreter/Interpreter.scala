@@ -1,6 +1,6 @@
 package interpreter
 
-import _root_.trees._
+import trees._
 
 import stainless.annotation._
 import stainless.collection._
@@ -128,6 +128,9 @@ object Interpreter {
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(x) => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(y) => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
       case Primitive(_, _) => BottomTree
+
+      case LeftTree(e) => LeftTree(smallStep(e))
+      case RightTree(e) => RightTree(smallStep(e))
 
       case _ => e
     }
