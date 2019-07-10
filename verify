@@ -1,0 +1,1 @@
+stainless-scalac --solvers=smt-z3 --timeout=20 verified/src/main/scala/trees/* verified/src/main/scala/interpreter/*

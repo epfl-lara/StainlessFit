@@ -18,7 +18,7 @@ lazy val core = project
 
 lazy val verified = project
   .in(file("verified"))
-  .enablePlugins(StainlessPlugin)
+  // .enablePlugins(StainlessPlugin)
   .settings(
     name := "stainlesscore-verified"
   )
