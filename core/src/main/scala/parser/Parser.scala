@@ -98,7 +98,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("def")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
-    word("Bool") | word("Unit") | word("Int")
+    word("Bool") | word("Unit") | word("Nat")
       |>  { (cs, r) => TypeToken(cs.mkString, r) },
 
     // Var
@@ -141,6 +141,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
     with Graphs[TokenClass] with Grammars[TokenClass]
     with Operators {
 
+  val stainlessNone = stainless.lang.None
+  val stainlessSome = stainless.lang.Some
 
   def appearFreeIn(v: Var, e: Tree): Boolean = {
     e match {
@@ -154,7 +156,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
       case Second(t) => appearFreeIn(v, t)
       case LeftTree(t) => appearFreeIn(v, t)
       case RightTree(t) => appearFreeIn(v, t)
-      case Bind(stainless.lang.Some(yvar), e) if (v == yvar) => false
+      case Bind(stainlessSome(yvar), e) if (v == yvar) => false
       case Bind(_, t) => appearFreeIn(v, t)
 
       case Lambda(tp, bind) => appearFreeIn(v, bind)
@@ -190,8 +192,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val rpar = elem(SeparatorClass(")"))
   val lbra = elem(SeparatorClass("{"))
   val rbra = elem(SeparatorClass("}"))
-  val lsbra = elem(SeparatorClass("{"))
-  val rsbra = elem(SeparatorClass("}"))
+  val lsbra = elem(SeparatorClass("["))
+  val rsbra = elem(SeparatorClass("]"))
   val comma = elem(SeparatorClass(","))
   val colon = elem(SeparatorClass(":"))
   val appK = elem(SeparatorClass("\\"))
@@ -210,7 +212,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val valK = elem(KeyWordClass("val"))
   val defK = elem(KeyWordClass("def"))
 
-  val natType = accept(TypeClass("Int")) { case _ => NatType }
+  val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
   val unitType = accept(TypeClass("Unit")) { case _ => UnitType }
 
@@ -225,7 +227,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         else {
           val h = l.reverse.head
           val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(stainless.lang.None(), acc)) }
+          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(stainlessNone(), acc)) }
         }
     }
   }
@@ -238,14 +240,14 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val piType = accept(SeparatorClass("=>")) {
     case s =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => SumType(x, y)
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(stainlessNone(), y))
       f
   }
 
   lazy val operatorType: Parser[Tree] = {
     operators(basicType)(
-      piType is RightAssociative,
-      sumType is LeftAssociative
+      sumType is LeftAssociative,
+      piType is RightAssociative
     )
   }
 
@@ -258,7 +260,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   val boolean = accept(BooleanClass) { case BooleanToken(value, _) => BoolLiteral(value) }
   val number = accept(NumberClass) { case NumberToken(value, _) => NatLiteral(value) }
-  val variable = accept(VarClass) { case VarToken(content, _) => Var(stainless.lang.None(), content) }
+  val variable = accept(VarClass) { case VarToken(content, _) => Var(stainlessNone(), content) }
   val unit = accept(UnitClass) { case _ => UnitLiteral }
   val literal = variable | number | boolean | unit
 
@@ -311,18 +313,18 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
 
   lazy val function: Parser[Tree] = recursive {
-    (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ lbra ~ expression ~ rbra).map {
-      case _ ~ _ ~ x ~ _ ~ tp ~ _ ~ _ ~ _ ~ e ~ _ => Lambda(stainless.lang.Some(tp), Bind(stainless.lang.Some(x), e))
+    (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ bracketExpr).map {
+      case _ ~ _ ~ x ~ _ ~ tp ~ _ ~ _ ~ e => Lambda(stainlessSome(tp), Bind(stainlessSome(x), e))
     }
   }
 
   def buildFix(name: Var, body: Tree, bodyType: Tree) = {
     Fix(
-      stainless.lang.None(),
+      stainlessNone(),
       Bind(
-        stainless.lang.None(),
+        stainlessNone(),
         Bind(
-          stainless.lang.Some(name),
+          stainlessSome(name),
           Interpreter.replace(name, App(name, UnitLiteral), body)
         )
       )
@@ -332,34 +334,36 @@ object ScalaParser extends Parsers[Token, TokenClass]
   def foldArgs(args: Seq[(Var, Tree)], body: Tree, bodyType: Tree): (Tree, Tree) = {
     args.foldRight((body, bodyType)) {
       case ((x, ty1), (acc, ty2))  =>
-        val lType = PiType(ty1, Bind(stainless.lang.Some(x), ty2))
-        (Lambda(stainless.lang.Some(ty1), Bind(stainless.lang.Some(x), acc)), lType)
+        val lType = PiType(ty1, Bind(stainlessSome(x), ty2))
+        (Lambda(stainlessSome(ty1), Bind(stainlessSome(x), acc)), lType)
     }
   }
 
   lazy val defFunction: Parser[Tree] = recursive {
     (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpr, comma) ~ rpar ~
-    colon ~ typeExpr ~ assignation ~ lbra ~ expression ~ rbra ~ opt(expression)).map {
-      case _ ~ f ~ _ ~ argsT ~ _ ~ _ ~ rt ~ _ ~ _ ~ e1 ~ _ ~ e2 =>
+    colon ~ typeExpr ~ assignation ~ bracketExpr ~ opt(expression)).map {
+      case _ ~ f ~ _ ~ argsT ~ _ ~ _ ~ rt ~ _ ~ e1 ~ e2 =>
         val args = argsT.map { case (x ~ _ ~ t) => (x, t) }
         val (body, bType) = if(args.isEmpty) (e1, rt) else foldArgs(args, e1, rt)
         val funExpr = if(appearFreeIn(f, body)) buildFix(f, body, bType) else body
         e2 match {
-          case None => LetIn(stainless.lang.None(), funExpr, Bind(stainless.lang.Some(f), f))
-          case Some(e) => LetIn(stainless.lang.None(), funExpr, Bind(stainless.lang.Some(f), e))
+          case None => LetIn(stainlessNone(), funExpr, Bind(stainlessSome(f), f))
+          case Some(e) => LetIn(stainlessNone(), funExpr, Bind(stainlessSome(f), e))
         }
     }
   }
 
   lazy val fixpoint: Parser[Tree] = recursive {
-    (fixK ~ opt(lsbra ~ expression ~ rsbra) ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
-      case _ ~ x ~ _ ~ e ~ _ => Fix(stainless.lang.None(), Bind(stainless.lang.None(), Bind(stainless.lang.Some(x), e)))
+    (fixK ~ opt(lsbra ~ variable ~ arrow ~ typeExpr ~ rsbra) ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
+      case _ ~ None ~ _ ~ x ~ _ ~ e ~ _ => Fix(stainlessNone(), Bind(stainlessNone(), Bind(stainlessSome(x), e)))
+      case _ ~ Some(_ ~ n ~ _ ~ tp ~ _) ~ _ ~ x ~ _ ~ e ~ _ =>
+        Fix(stainlessSome(Bind(stainlessSome(n), tp)), Bind(stainlessSome(n), Bind(stainlessSome(x), e)))
     }
   }
 
   lazy val letIn: Parser[Tree] = recursive {
     (valK ~ variable ~ assignation ~ expression ~ inK ~ expression).map {
-      case _ ~ x ~ _ ~ e ~ _ ~ e2 => LetIn(stainless.lang.None(), e, Bind(stainless.lang.Some(x), e2))
+      case _ ~ x ~ _ ~ e ~ _ ~ e2 => LetIn(stainlessNone(), e, Bind(stainlessSome(x), e2))
     }
   }
 
@@ -384,12 +388,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val eitherMatch: Parser[Tree] = recursive {
     (matchK ~ expression ~ lbra ~
-    caseK ~ leftK ~ lpar ~ variable ~ rpar ~ arrow ~ expression ~
-    caseK ~ rightK ~ lpar ~ variable ~ rpar ~ arrow ~ expression ~
+    caseK ~ leftK ~ lpar ~ variable ~ rpar ~ arrow ~ optBracketExpr ~
+    caseK ~ rightK ~ lpar ~ variable ~ rpar ~ arrow ~ optBracketExpr ~
     rbra).map {
       case (_ ~ e ~ _ ~ _ ~ _ ~ _ ~ v1 ~ _ ~ _ ~ e1 ~
       _ ~ _ ~ _ ~ v2 ~ _ ~ _ ~ e2 ~ _) =>
-      EitherMatch(e, Bind(stainless.lang.Some(v1), e1), Bind(stainless.lang.Some(v2), e2))
+      EitherMatch(e, Bind(stainlessSome(v1), e1), Bind(stainlessSome(v2), e2))
     }
   }
 
@@ -413,9 +417,15 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val condition: Parser[Tree] = {
-    (ifK ~ lpar ~ expression ~ rpar ~ lbra ~ expression ~ rbra ~ elseK ~ lbra ~ expression ~ rbra).map {
-      case _ ~ _ ~ cond ~ _ ~ _ ~ vTrue ~ _ ~ _ ~ _ ~ vFalse ~ _ => IfThenElse(cond, vTrue, vFalse)
+    (ifK ~ lpar ~ expression ~ rpar ~ optBracketExpr ~ elseK ~ optBracketExpr).map {
+      case _ ~ _ ~ cond ~ _ ~ vTrue ~ _ ~ vFalse => IfThenElse(cond, vTrue, vFalse)
     }
+  }
+
+  lazy val optBracketExpr: Parser[Tree] = expression | bracketExpr
+
+  lazy val bracketExpr: Parser[Tree] = {
+    (lbra ~ expression ~ rbra).map { case _ ~ e ~ _ => e }
   }
 
   lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right
