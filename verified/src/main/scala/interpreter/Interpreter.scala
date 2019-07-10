@@ -24,15 +24,18 @@ object Interpreter {
     }
   }
 
+  def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
+
   def replaceBind(bind: Tree, v: Tree): Tree = {
+    require(isBind(bind))
     bind match {
-      case Bind(None(), body) => body
-      case Bind(Some(xvar), body) => replace(xvar, v, body)
+      case Bind(Some(xvar), body) if xvar.isInstanceOf[Var] => replace(xvar, v, body)
+      case Bind(_, body) => body
     }
   }
 
   def replace(xvar: Tree, v: Tree, body: Tree): Tree = {
-    require(xvar.isInstanceOf(Var))
+    require(xvar.isInstanceOf[Var])
     body match {
       case yvar: Var if yvar == xvar => v
       case IfThenElse(cond, t1, t2) =>
@@ -91,23 +94,23 @@ object Interpreter {
       case Second(t) if isValue(t) => BottomTree
       case Second(t) => Second(smallStep(t))
 
-      case App(Lambda(_, bind: Bind), v) if isValue(v) => replaceBind(bind, v)
+      case App(Lambda(_, bind), v) if isValue(v) && isBind(bind) => replaceBind(bind, v)
       case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
       case App(f, _) if isValue(f) => BottomTree // f is a value and not a lambda
       case App(f, v) => App(smallStep(f), v)
-      case Fix(_, Bind(_, bind: Bind)) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
+      case Fix(_, Bind(_, bind)) if isBind(bind) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
 
       case Match(NatLiteral(BigInt(0)), t0, _) => t0
-      case Match(NatLiteral(n), _, bind: Bind) => replaceBind(bind, NatLiteral(n - 1))
+      case Match(NatLiteral(n), _, bind) if isBind(bind) => replaceBind(bind, NatLiteral(n - 1))
       case Match(t, _, _) if isValue(t) => BottomTree
       case Match(t, t0, bind: Bind) => Match(smallStep(t), t0, bind)
 
-      case EitherMatch(LeftTree(v), bind: Bind, _) => replaceBind(bind, v)
-      case EitherMatch(RightTree(v), _, bind: Bind) => replaceBind(bind, v)
+      case EitherMatch(LeftTree(v), bind, _) if isBind(bind) => replaceBind(bind, v)
+      case EitherMatch(RightTree(v), _, bind) if isBind(bind) => replaceBind(bind, v)
       case EitherMatch(t, _, _) if isValue(t) => BottomTree
-      case EitherMatch(t, b1: Bind, b2: Bind) => EitherMatch(smallStep(t), b1, b2)
+      case EitherMatch(t, b1, b2) => EitherMatch(smallStep(t), b1, b2)
 
-      case LetIn(tp, v, bind: Bind) => replaceBind(bind, v)
+      case LetIn(tp, v, bind) if isBind(bind) => replaceBind(bind, v)
 
       case Primitive(Not, Cons(BoolLiteral(b), Nil())) => BoolLiteral(!b)
       case Primitive(And, Cons(BoolLiteral(b1), Cons(BoolLiteral(b2), Nil()))) => BoolLiteral(b1 && b2)

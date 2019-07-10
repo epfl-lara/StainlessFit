@@ -306,9 +306,9 @@ object ScalaParser extends Parsers[Token, TokenClass]
       f
   }
 
-  val leq = accept(OperatorClass(Leq)) {
+  val leq = accept(OperatorClass(Lt)) {
     case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(LEq, List(x, y))
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Lt, List(x, y))
       f
   }
 
