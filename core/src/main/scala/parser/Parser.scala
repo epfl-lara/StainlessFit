@@ -264,59 +264,37 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val unit = accept(UnitClass) { case _ => UnitLiteral }
   val literal = variable | number | boolean | unit
 
-  val plus = accept(OperatorClass(Plus)) {
+  def binopParser(op: Operator) = {
+    accept(OperatorClass(op)) {
     case s =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Plus, List(x, y))
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(op, List(x, y))
       f
+    }
   }
 
-  val minus = accept(OperatorClass(Minus)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Minus, List(x, y))
+  def unopParser(op: Operator) = {
+    accept(OperatorClass(op)) {
+    case s =>
+      val f: Tree => Tree = (x: Tree) => Primitive(op, List(x))
       f
+    }
   }
 
-  val mul = accept(OperatorClass(Mul)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Mul, List(x, y))
-      f
-  }
+  val plus = binopParser(Plus)
+  val minus = binopParser(Minus)
+  val mul = binopParser(Mul)
+  val div = binopParser(Div)
 
-  val div = accept(OperatorClass(Div)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Div, List(x, y))
-      f
-  }
+  val and = binopParser(And)
+  val or = binopParser(Or)
+  val not = unopParser(Not)
 
-  val and = accept(OperatorClass(And)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(And, List(x, y))
-      f
-  }
-
-  val or = accept(OperatorClass(Or)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Or, List(x, y))
-      f
-  }
-
-  val eq = accept(OperatorClass(Eq)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Eq, List(x, y))
-      f
-  }
-
-  val leq = accept(OperatorClass(Lt)) {
-    case _ =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => Primitive(Lt, List(x, y))
-      f
-  }
-
-  val not = accept(OperatorClass(Not)) {
-    case _ => val f: Tree => Tree = (x: Tree) => Primitive(Not, List(x))
-    f
-  }
-
+  val eq = binopParser(Eq)
+  val neq = binopParser(Neq)
+  val lt = binopParser(Lt)
+  val gt = binopParser(Gt)
+  val lteq = binopParser(Lteq)
+  val gteq = binopParser(Gteq)
 
   lazy val function: Parser[Tree] = recursive {
     (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ bracketExpr).map {
@@ -419,6 +397,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     operators(prefixes(not, application))(
       mul | div | and is LeftAssociative,
       plus | minus | or is LeftAssociative,
+      lt | gt | lteq | gteq is LeftAssociative,
       eq is LeftAssociative)
   }
 

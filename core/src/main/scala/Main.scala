@@ -38,6 +38,4 @@ object Main {
           printHelp()
       }
     }
-  }
-
 }

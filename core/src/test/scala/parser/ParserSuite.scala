@@ -20,7 +20,7 @@ class ParserSuite extends FunSuite {
     }
   }
 
-  test("parse function defintion") {
+  test("parse function definition") {
     val s = "val f = fun (x: Nat) => { x } in f(2)".toIterator
     apply(ScalaLexer.apply(s)) match {
       case Parsed(e, _) => assert(true || evaluate(e, 1000) == NatLiteral(2))
