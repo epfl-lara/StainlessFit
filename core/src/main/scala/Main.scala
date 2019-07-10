@@ -11,10 +11,14 @@ object Main {
 
   def evalFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val it = s.toIterator
+    val assertFun = "def assert(b: Bool): Unit = { if(b) () else Error }"
+    val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
-        Interpreter.evaluate(value, 1000000000)
+        Interpreter.evaluate(value, 1000000000) match {
+          case ErrorTree(_) => throw new Exception("Assertion failed in evaluation.\n")
+          case v => v
+        }
       case t =>
         throw new Exception("Error during parsing:\n" + t)
     }

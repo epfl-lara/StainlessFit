@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
       // Keywords
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
-    word("def")
+    word("def") | word("Error")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat")
@@ -262,7 +262,9 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val number = accept(NumberClass) { case NumberToken(value, _) => NatLiteral(value) }
   val variable = accept(VarClass) { case VarToken(content, _) => Var(stainlessNone(), content) }
   val unit = accept(UnitClass) { case _ => UnitLiteral }
-  val literal = variable | number | boolean | unit
+  val error = accept(KeyWordClass("Error")) { case _ => ErrorTree(stainlessNone()) }
+
+  val literal = variable | number | boolean | unit | error
 
   def binopParser(op: Operator) = {
     accept(OperatorClass(op)) {
