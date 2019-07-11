@@ -245,21 +245,22 @@ object ScalaParser extends Parsers[Token, TokenClass]
       f
   }
 
-  lazy val recType = {
+  lazy val recType: Parser[Tree] = {
     (reck ~ lpar ~ variable ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
       case _ ~ _ ~ n ~ _ ~ _ ~ alpha ~  _ ~ t ~ _ => RecType(n, Bind(stainlessSome(alpha), t), UnitType)
     }
   }
 
   lazy val operatorType: Parser[Tree] = {
-    operators(basicType)(
+    operators(simpleTypeExpr)(
       sumType is LeftAssociative,
       piType is RightAssociative
     )
   }
 
+  lazy val simpleTypeExpr = basicType | recType
 
-  lazy val typeExpr = recursive {
+  lazy val typeExpr: Parser[Tree] = recursive {
     operatorType
   }
 
