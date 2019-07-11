@@ -19,8 +19,6 @@ object Interpreter {
   def isValue(e: Tree): Boolean = {
     decreases(e)
     e match {
-      //case ErrorTree(t) => true
-      case BottomTree => true
       case UnitLiteral => true
       case NatLiteral(_) => true
       case BoolLiteral(_) => true
