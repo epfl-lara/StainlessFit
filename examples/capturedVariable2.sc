@@ -4,6 +4,5 @@ val x = (
   val x = f(x) in
   x - x
 ) in
-val x = f(x) in
-assert(x == 0)
+assert((x == 0))
 
