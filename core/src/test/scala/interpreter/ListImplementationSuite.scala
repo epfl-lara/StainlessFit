@@ -42,7 +42,7 @@ object ListTree {
       Some(Var(None(), "l")),
       EitherMatch(
         Var(None(), "l"),
-        Bind(None(), BottomTree),
+        Bind(None(), ErrorTree(None())),
         Bind(Some(Var(None(), "t")), Second(Var(None(), "t")))
       )
     )
@@ -54,7 +54,7 @@ object ListTree {
       Some(Var(None(), "l")),
       EitherMatch(
         Var(None(), "l"),
-        Bind(None(), BottomTree),
+        Bind(None(), ErrorTree(None())),
         Bind(Some(Var(None(), "t")), First(Var(None(), "t")))
       )
     )
@@ -181,13 +181,13 @@ class ListTreeTest extends FunSuite  {
   test("evaluate head of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(head, t1), 1000) == NatLiteral(l1.head))
     assert(evaluate(App(head, t2), 1000) == NatLiteral(l2.head))
-    assert(evaluate(App(head, nil), 1000) == BottomTree)
+    assert(evaluate(App(head, nil), 1000) == ErrorTree(None()))
   }
 
   test("evaluate tail of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(tail, t1), 1000) == listToTree(l1.tail))
     assert(evaluate(App(tail, t2), 1000) == listToTree(l2.tail))
-    assert(evaluate(App(tail, nil), 1000) == BottomTree)
+    assert(evaluate(App(tail, nil), 1000) == ErrorTree(None()))
   }
 
   test("cons of list...") {
