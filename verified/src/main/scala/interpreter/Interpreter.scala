@@ -171,7 +171,7 @@ object Interpreter {
     require(fuel >= 0)
     decreases(fuel)
     if(isValue(e) || isError(e)) e
-    else if(fuel == 0) BottomTree
+    else if(fuel == 0) ErrorTree(Some(BottomType))
     else evaluate(smallStep(e), fuel - 1)
   }
 }
