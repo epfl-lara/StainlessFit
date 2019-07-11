@@ -98,7 +98,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("def") | word("Error")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
-    word("Bool") | word("Unit") | word("Nat")
+    word("Bool") | word("Unit") | word("Nat") | word("Rec")
       |>  { (cs, r) => TypeToken(cs.mkString, r) },
 
     // Var
@@ -211,6 +211,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val caseK = elem(KeyWordClass("case"))
   val valK = elem(KeyWordClass("val"))
   val defK = elem(KeyWordClass("def"))
+  val reck = elem(TypeClass("Rec"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
@@ -242,6 +243,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case s =>
       val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(stainlessNone(), y))
       f
+  }
+
+  lazy val recType = {
+    (reck ~ lpar ~ variable ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ n ~ _ ~ _ ~ alpha ~  _ ~ t ~ _ => RecType(n, Bind(stainlessSome(alpha), t), UnitType)
+    }
   }
 
   lazy val operatorType: Parser[Tree] = {
@@ -298,7 +305,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val lteq = binopParser(Lteq)
   val gteq = binopParser(Gteq)
 
-  lazy val function: Parser[Tree] = recursive {
+  lazy val function: Parser[Tree] = {
     (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ bracketExpr).map {
       case _ ~ _ ~ x ~ _ ~ tp ~ _ ~ _ ~ e => Lambda(stainlessSome(tp), Bind(stainlessSome(x), e))
     }
