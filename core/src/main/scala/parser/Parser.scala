@@ -349,9 +349,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val fixpoint: Parser[Tree] = recursive {
     (fixK ~ opt(lsbra ~ variable ~ arrow ~ typeExpr ~ rsbra) ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
-      case _ ~ None ~ _ ~ x ~ _ ~ e ~ _ => Fix(stainlessNone(), Bind(stainlessNone(), Bind(stainlessSome(x), e)))
+      case _ ~ None ~ _ ~ x ~ _ ~ e ~ _ =>
+        val body = Interpreter.replace(x, App(x, UnitLiteral), e)
+        Fix(stainlessNone(), Bind(stainlessNone(), Bind(stainlessSome(x), body)))
       case _ ~ Some(_ ~ n ~ _ ~ tp ~ _) ~ _ ~ x ~ _ ~ e ~ _ =>
-        Fix(stainlessSome(Bind(stainlessSome(n), tp)), Bind(stainlessSome(n), Bind(stainlessSome(x), e)))
+        val body = Interpreter.replace(x, App(x, UnitLiteral), e)
+        Fix(stainlessSome(Bind(stainlessSome(n), tp)), Bind(stainlessSome(n), Bind(stainlessSome(x), body)))
     }
   }
 

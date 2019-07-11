@@ -3,7 +3,7 @@ val sumAcc = fix(sumAcc =>
     fun (v : Unit + Nat) => {
       match v {
         case Left(x) => acc
-        case Right(n) => sumAcc()(n + acc)
+        case Right(n) => sumAcc(n + acc)
       }
     }
   }
