@@ -5,7 +5,10 @@ val oddEven = fix(oddEven =>
   }
 ) in
 
-val x = assert(oddEven 0 0) in
-val x = assert(oddEven 1 1) in
-val x = assert(oddEven 0 2) in
-assert (oddEven 1 3)
+val isEven = oddEven 0 in
+val isOdd = oddEven 1 in
+
+val x = assert(isEven 0) in
+val x = assert(isOdd 1) in
+val x = assert(isEven 2) in
+assert (isOdd 3)
