@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
       // Keywords
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
-    word("def") | word("Error")
+    word("def") | word("Error") | word("First") | word("Second")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -207,6 +207,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val funK = elem(KeyWordClass("fun"))
   val rightK = elem(KeyWordClass("Right"))
   val leftK = elem(KeyWordClass("Left"))
+  val firstK = elem(KeyWordClass("First"))
+  val secondK = elem(KeyWordClass("Second"))
   val matchK = elem(KeyWordClass("match"))
   val caseK = elem(KeyWordClass("case"))
   val valK = elem(KeyWordClass("val"))
@@ -406,6 +408,18 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
+  lazy val first: Parser[Tree] = recursive {
+    (firstK ~ lpar ~ expression ~ rpar).map {
+      case _ ~ _ ~ e ~ _ => First(e)
+    }
+  }
+
+  lazy val second: Parser[Tree] = recursive {
+    (secondK ~ lpar ~ expression ~ rpar).map {
+      case  _ ~ _ ~ e ~ _ => Second(e)
+    }
+  }
+
   val operator: Parser[Tree] = {
     operators(prefixes(not, application))(
       mul | div | and is LeftAssociative,
@@ -426,7 +440,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (lbra ~ expression ~ rbra).map { case _ ~ e ~ _ => e }
   }
 
-  lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right
+  lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second
 
   lazy val expression: Parser[Tree] = recursive {
     condition | eitherMatch | letIn | defFunction | operator
