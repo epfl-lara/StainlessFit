@@ -72,5 +72,7 @@ object Main {
       )
     )
     println(typer.TypeChecker.infer(e1))
+
+    println(typer.TypeChecker.newInfer(NatLiteral(2)))
   }
 }

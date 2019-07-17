@@ -37,11 +37,135 @@ case class SynthesizeResult(t: Tree, ty: Tree)  extends Result
 case object ErrorResult extends Result
 
 
-case class GoalContext(
-  val goals: List[Unit => Goal],
+case class ResultGoalContext(
+  val goals: List[ResultGoalContext => Goal],
   val results: Map[Goal, Result],
-)
+  val merge: ResultGoalContext => ResultGoalContext
+) {
+  def updateResults(goal: Goal, result: Result) = {
+    result match {
+      case ErrorResult => this
+      case _ => copy(results = results.updated(goal, result))
+    }
+  }
+}
 
+trait NewRule {
+  def apply(g: Goal): ResultGoalContext
+
+  val errorContext: ResultGoalContext =
+    ResultGoalContext(
+      Nil(),
+      Map(),
+      (rc: ResultGoalContext) => rc
+    )
+
+  def or(other: NewRule): NewRule = NewRule.or(this, other)
+  def repeat: NewRule = NewRule.repeat(this)
+}
+
+object NewRule {
+  def or(rule1: NewRule, rule2: NewRule): NewRule = {
+    new NewRule {
+      def apply(g: Goal): ResultGoalContext = {
+        val rc1: ResultGoalContext = rule1.apply(g)
+        val rc2: ResultGoalContext = rule2.apply(g)
+        ResultGoalContext(
+          rc1.goals ++ rc2.goals,
+          rc1.results ++ rc2.results, // Should merge the two results rc1.mergeResults(rc2)
+          (rc: ResultGoalContext) => {
+            val newRC1 = rc1.merge(rc)
+            val newRC2 = rc2.merge(rc)
+            ResultGoalContext(newRC1.goals ++ newRC2.goals, newRC1.results ++ newRC2.results, (rc: ResultGoalContext) => rc)
+          }
+        )
+      }
+    }
+  }
+
+  def repeat(rule: NewRule): NewRule = {
+    new NewRule {
+      def apply(g: Goal): ResultGoalContext = {
+        val frc = rule.apply(g)
+        val rc = frc.merge(frc)
+        if(rc.results.contains(g)) rc
+        else rc.goals.foldLeft(rc) { case (rc, g) => apply(g(rc)) }
+      }
+    }
+  }
+}
+
+
+
+
+case object NewInferBool extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, BoolLiteral(b)) =>
+        ResultGoalContext(
+          Nil(),
+          Map(),
+          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(BoolLiteral(b), BoolType)) }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
+case object NewInferNat extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, NatLiteral(n)) =>
+        ResultGoalContext(
+          Nil(),
+          Map(),
+          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(NatLiteral(n), NatType)) }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
+case object NewInferUnit extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, UnitLiteral) =>
+        ResultGoalContext(
+          Nil(),
+          Map(),
+          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(UnitLiteral, UnitType)) }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
+
+case object NewInferApp extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, App(t1, t2)) =>
+        val g1 = InferGoal(c, t1)
+        val fg2 = (rc: ResultGoalContext) => {
+          rc.results(g1) match {
+            case InferResult(_, PiType(ty2, ty)) => CheckGoal(c, t2, ty2)
+            case _ => ErrorGoal(c)
+          }
+        }
+        ResultGoalContext(
+          List((rc: ResultGoalContext) => g1, fg2),
+          Map(),
+          (rc: ResultGoalContext) => {
+            (rc.results(g1), rc.results(fg2(rc))) match {
+              case (InferResult(_, PiType(_, ty)), CheckResult(_, _, true)) => rc.updateResults(g, InferResult(App(t1, t2), ty))
+              case _ => rc
+            }
+          }
+        )
+      case _ => errorContext
+    }
+  }
+}
 
 trait Rule {
   def apply(g: Goal): (List[Goal], (List[Result] => Result))
@@ -53,6 +177,8 @@ trait Rule {
   def repeat(): Rule = Rule.repeat(this)
   //def compose(other: Rule): Rule = Rule.compose(this, other)
 }
+
+
 
 object Rule {
   def or(rule1: Rule, rule2: Rule): Rule = {
@@ -467,5 +593,11 @@ object TypeChecker {
   def infer(t: Tree): Result = {
     val (goals, merge):(List[Goal], (List[Result] => Result)) = rule.repeat.apply(InferGoal(Context(Map(), Set(), 0), t))
     merge(Nil())
+  }
+
+  def newInfer(t: Tree) = {
+    val g = InferGoal(Context(Map(), Set(), 0), t)
+    val c = NewInferBool.or(NewInferNat).apply(g)
+    c.merge(c).results.getOrElse(g, ErrorResult)
   }
 }
