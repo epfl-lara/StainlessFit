@@ -10,7 +10,7 @@ object Printer {
 
   def pprint(e: Tree, inline: Boolean = false, bindType: Option[Tree] = None()): String = {
     e match {
-      case Var(id, x) => x
+      case Var(Identifier(id, x)) => x
       case UnitLiteral => "unit"
       case BoolLiteral(b) => b.toString
       case NatLiteral(n) => n.toString
@@ -40,12 +40,12 @@ object Printer {
         val t1s = pprint(t1).replaceAll("\n", "\n    ")
         val t2s = pprint(t2).replaceAll("\n", "\n    ")
         s"""${ts} match {
-        |  case Left(${pprint(x)}) =>
+        |  case Left(${x.name}) =>
         |    ${t1s}
-        |  case Right(${pprint(y)}) =>
+        |  case Right(${y.name}) =>
         |    ${t2s}
         |}""".stripMargin
-      case Bind(Some(Var(_, x)), b) =>
+      case Bind(Some(Identifier(_, x)), b) =>
         val pType = bindType match { case None() => "" case Some(t) => s": ${pprint(t)}"}
         if(inline) s"${x}${pType} => { ${pprint(b).replaceAll("\n", "\n  ")} }"
         else s"${x}${pType} => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
@@ -54,7 +54,7 @@ object Printer {
         else s"unit => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
       case LetIn(tp, v, Bind(Some(x), b)) =>
           val tv = pprint(v)
-          val tx = pprint(x)
+          val tx = x.name
           val tb = pprint(b)
           s"""val ${tx} = ${tv}
           |${tb}""".stripMargin

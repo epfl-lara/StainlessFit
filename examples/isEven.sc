@@ -6,10 +6,10 @@ val oddEven = fix[n => (Nat => Nat)](oddEven =>
 ) in
 
 val oddEven1 = fix[n => (Nat => Nat)](oddEven1 =>
-    (
-      fun(x: Nat) => { if(x == 0) true else Second(oddEven1) (x - 1) },
-      fun(x: Nat) => { if(x == 1) true else First(oddEven1) (x - 1) }
-    )
+  (
+    fun(x: Nat) => { if(x == 0) true else Second(oddEven1) (x - 1) },
+    fun(x: Nat) => { if(x == 1) true else First(oddEven1) (x - 1) }
+  )
 ) in
 
 val isEven = oddEven 0 in

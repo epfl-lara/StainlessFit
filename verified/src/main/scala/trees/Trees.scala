@@ -54,11 +54,14 @@ case object Nop extends Operator {
 }
 
 
+case class Identifier(id: Option[Int], name: String)
+
+
 sealed abstract class Tree
 
-case class Var(id: Option[Int], name: String) extends Tree
+case class Var(id: Identifier) extends Tree
 
-case class Bind(x: Option[Tree], body: Tree) extends Tree
+case class Bind(x: Option[Identifier], body: Tree) extends Tree
 
 case class NatLiteral(n: BigInt) extends Tree /*{
   require(n >= 0)
@@ -92,7 +95,7 @@ case class LeftTree(t: Tree) extends Tree
 
 case class RightTree(t: Tree) extends Tree
 
-case class LetIn(tp: Option[Tree], v: Tree, Tree: Tree) extends Tree
+case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree
 
 case class Because(t1: Tree, t2: Tree) extends Tree
 
@@ -100,7 +103,7 @@ case class Fold(t: Tree) extends Tree
 
 case class Unfold(tp: Option[Tree], t: Tree) extends Tree
 
-case class ErrorTree(t: Option[Tree]) extends Tree
+case class ErrorTree(s: String, t: Option[Tree]) extends Tree
 
 case class Abs(a: Tree, t: Tree) extends Tree
 
@@ -139,6 +142,6 @@ case class EqualityType(t1: Tree, t2: Tree) extends Tree
 
 case class SingletonType(t: Tree) extends Tree
 
-case class RecType(n: Tree, t0: Tree, t: Tree) extends Tree
+case class RecType(n: Identifier, t0: Tree, t: Tree) extends Tree
 
 //case class RefinementByType(t: Tree, cond: Tree) extends Tree

@@ -11,7 +11,7 @@ object Interpreter {
   def isError(e: Tree): Boolean = {
     decreases(e)
     e match {
-      case ErrorTree(t) => true
+      case ErrorTree(_, _) => true
       case _ => false
     }
   }
@@ -22,7 +22,7 @@ object Interpreter {
       case UnitLiteral => true
       case NatLiteral(_) => true
       case BoolLiteral(_) => true
-      case Var(_, _) => true
+      case Var(_) => true
       case Lambda(_, _) => true
       case Pair(t1, t2) => isValue(t1) && isValue(t2)
       case RightTree(t) => isValue(t)
@@ -40,16 +40,16 @@ object Interpreter {
     }
     else {
       bind match {
-        case Bind(Some(xvar), body) if xvar.isInstanceOf[Var] => replace(xvar, v, body)
+        case Bind(Some(xvar), body) if xvar.isInstanceOf[Identifier] => replace(xvar, v, body)
         case Bind(_, body) => body
       }
     }
   }
 
-  def replace(xvar: Tree, v: Tree, body: Tree): Tree = {
-    require(xvar.isInstanceOf[Var])
+  def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
+    require(xvar.isInstanceOf[Identifier])
     body match {
-      case yvar: Var if yvar == xvar => v
+      case Var(yvar) if yvar == xvar => v
       case IfThenElse(cond, t1, t2) =>
         IfThenElse(replace(xvar, v, cond), replace(xvar, v, t1), replace(xvar, v, t2))
       case App(t1, t2) =>
@@ -92,51 +92,49 @@ object Interpreter {
     e match {
       case IfThenElse(BoolLiteral(true), t1, t2) => t1
       case IfThenElse(BoolLiteral(false), t1, t2) => t2
-      case IfThenElse(ErrorTree(t), _, _) => ErrorTree(t)
-      case IfThenElse(t, _, _) if isValue(t) => ErrorTree(Some(BoolType))
+      case IfThenElse(ErrorTree(s, t), _, _) => ErrorTree(s, t)
+      case IfThenElse(t, _, _) if isValue(t) => ErrorTree("Waiting bool in if", Some(BoolType))
       case IfThenElse(t, tt, tf) => IfThenElse(smallStep(t), tt, tf)
 
-      case Pair(ErrorTree(t), _) => ErrorTree(t)
-      case Pair(_, ErrorTree(t)) => ErrorTree(t)
+      case Pair(ErrorTree(s, t), _) => ErrorTree(s, t)
+      case Pair(_, ErrorTree(s, t)) => ErrorTree(s, t)
       case Pair(t1, t2) if isValue(t1) => Pair(t1, smallStep(t2))
       case Pair(t1, t2) => Pair(smallStep(t1), t2)
 
-
-
-      case First(ErrorTree(t)) => ErrorTree(t)
+      case First(ErrorTree(s, t)) => ErrorTree(s, t)
       case First(Pair(t1, t2)) => t1
-      case First(t) if isValue(t) => ErrorTree(Some(SigmaType(UnitType, UnitType)))
+      case First(t) if isValue(t) => ErrorTree("First wait a Pair", None())
       case First(t) => First(smallStep(t))
 
-      case Second(ErrorTree(t)) => ErrorTree(t)
+      case Second(ErrorTree(s, t)) => ErrorTree(s, t)
       case Second(Pair(t1, t2)) => t2
-      case Second(t) if isValue(t) => ErrorTree(Some(SigmaType(UnitType, UnitType)))
+      case Second(t) if isValue(t) => ErrorTree("Second wait a Pair", None())
       case Second(t) => Second(smallStep(t))
 
-      case App(ErrorTree(t), _) => ErrorTree(t)
-      case App(_, ErrorTree(t)) => ErrorTree(t)
+      case App(ErrorTree(s, t), _) => ErrorTree(s, t)
+      case App(_, ErrorTree(s, t)) => ErrorTree(s, t)
       case App(Lambda(_, bind), v) if isValue(v) && isBind(bind) => replaceBind(bind, v)
       case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
-      case App(f, _) if isValue(f) => ErrorTree(Some(PiType(UnitType, UnitType))) // f is a value and not a lambda
+      case App(f, _) if isValue(f) => ErrorTree("App wait a lambda abstraction", None()) // f is a value and not a lambda
       case App(f, v) => App(smallStep(f), v)
       case Fix(_, Bind(_, bind)) if isBind(bind) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
 
-      case Match(ErrorTree(t), _, _) => ErrorTree(t)
+      case Match(ErrorTree(s, t), _, _) => ErrorTree(s, t)
       case Match(NatLiteral(BigInt(0)), t0, _) => t0
       case Match(NatLiteral(n), _, bind) if isBind(bind) => replaceBind(bind, NatLiteral(n - 1))
-      case Match(t, _, _) if isValue(t) => ErrorTree(Some(NatType))
-      case Match(t, t0, bind: Bind) => Match(smallStep(t), t0, bind)
-      case Match(t, t0, notBind) => ErrorTree(None())
+      case Match(t, _, _) if isValue(t) => ErrorTree("Match wait a nat", Some(NatType))
+      case Match(t, t0, bind) => Match(smallStep(t), t0, bind)
+      //case Match(t, t0, notBind) => ErrorTree("Match wait a bind", None())
 
-      case EitherMatch(ErrorTree(t), _, _) => ErrorTree(t)
+      case EitherMatch(ErrorTree(s, t), _, _) => ErrorTree(s, t)
       case EitherMatch(LeftTree(v), bind, _) if isBind(bind) => replaceBind(bind, v)
       case EitherMatch(RightTree(v), _, bind) if isBind(bind) => replaceBind(bind, v)
-      case EitherMatch(t, _, _) if isValue(t) => ErrorTree(Some(SumType(UnitLiteral, UnitLiteral)))
+      case EitherMatch(t, _, _) if isValue(t) => ErrorTree("EitherMatch Wait a Left or a Right", None())
       case EitherMatch(t, b1, b2) => EitherMatch(smallStep(t), b1, b2)
 
-      case LetIn(tp, ErrorTree(t), bind) => ErrorTree(t)
+      case LetIn(tp, ErrorTree(s, t), bind) => ErrorTree(s, t)
       case LetIn(tp, v, bind) if isValue(v) && isBind(bind) => replaceBind(bind, v)
-      case LetIn(tp, t, bind) if isValue(t) => ErrorTree(None())
+      case LetIn(tp, t, bind) if isValue(t) => ErrorTree("LetIn should have a bind", None())
       case LetIn(tp, t, bind) => LetIn(tp, smallStep(t), bind)
 
       case Primitive(Not, Cons(BoolLiteral(b), Nil())) => BoolLiteral(!b)
@@ -158,7 +156,7 @@ object Interpreter {
       case Primitive(p, Cons(x, Nil())) if !isValue(x) => Primitive(p, Cons(smallStep(x), Nil()))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(x) => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(y) => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
-      case Primitive(_, _) => ErrorTree(None())
+      case Primitive(_, _) => ErrorTree("Bad Primitive operations", None())
 
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))
@@ -171,7 +169,7 @@ object Interpreter {
     require(fuel >= 0)
     decreases(fuel)
     if(isValue(e) || isError(e)) e
-    else if(fuel == 0) ErrorTree(Some(BottomType))
+    else if(fuel == 0) ErrorTree("No more fuel", Some(BottomType))
     else evaluate(smallStep(e), fuel - 1)
   }
 }
