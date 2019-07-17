@@ -4,7 +4,7 @@ import stainless.collection._
 import stainless.lang._
 import _root_.trees._
 import _root_.interpreter.Interpreter._
-
+/*
 object ListTree {
 
   def listToTree(l: List[BigInt]): Tree = l match {
@@ -221,4 +221,4 @@ class ListTreeTest extends FunSuite  {
     assert(evaluate(App(f, t2), 1000) == listToTree(l2.filter(_ >= 0)))
     assert(evaluate(App(f, nil), 1000) == nil)
   }
-}
+}*/

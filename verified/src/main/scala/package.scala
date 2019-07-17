@@ -4,3 +4,4 @@ package object interpreter
 
 package object printer
 
+package object typer
