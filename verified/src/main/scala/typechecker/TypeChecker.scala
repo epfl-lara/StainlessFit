@@ -111,7 +111,6 @@ case object NewErrorGoalRule extends NewRule {
   }
 }
 
-
 case object NewInferBool extends NewRule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
@@ -193,6 +192,21 @@ case object NewInferVar extends NewRule {
             case Some(ty) => (rc: ResultGoalContext) => rc.updateResults(g, InferResult(ty))
             case None() => (rc: ResultGoalContext) => rc
           }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
+case object NewInferError extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, ErrorTree(_, tp)) =>
+        val ty = tp.getOrElse(UnitType)
+        ResultGoalContext(
+          Nil(),
+          Map(g -> InferResult(ty)),
+          (rc: ResultGoalContext) => rc.updateResults(g, InferResult(ty))
         )
       case _ => errorContext
     }
@@ -671,7 +685,7 @@ object TypeChecker {
 
     val rule = NewInferBool.or(NewInferNat).or(NewInferApp).or(NewInferUnit).or(NewInferVar).or(NewInferLambda).or(NewCheckReflexive).or(NewErrorGoalRule).or(
                NewInferBinNatPrimitive).or(NewInferLet).or(NewInferIf).or(NewInferPair).or(NewInferFirst).or(NewInferSecond).or(NewInferMatch).or(
-                NewCheckIf).or(NewCheckMatch).or(NewInferEitherMatch)
+                NewCheckIf).or(NewCheckMatch).or(NewInferEitherMatch).or(NewInferError)
     val g = InferGoal(Context(Map(), Set(), 0), t)
     val c = rule.repeat.apply(g)
     c.results.getOrElse(g, ErrorResult)
