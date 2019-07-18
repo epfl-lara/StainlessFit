@@ -53,6 +53,48 @@ case object Nop extends Operator {
   override def toString = "-"
 }
 
+object Operator {
+  def isNatToNatBinOp(op: Operator): Boolean = {
+    op match {
+      case Plus => true
+      case Minus => true
+      case Mul => true
+      case Div => true
+      case _ => false
+    }
+  }
+
+  def isNatToBoolBinOp(op: Operator): Boolean = {
+    op match {
+      case Eq => true
+      case Neq => true
+      case Lteq => true
+      case Gteq => true
+      case Lt => true
+      case Gt => true
+      case _ => false
+    }
+  }
+
+  def isNatBinOp(op: Operator): Boolean = {
+    isNatToNatBinOp(op) || isNatToBoolBinOp(op)
+  }
+
+  def isBoolBinOp(op: Operator): Boolean = {
+    op match {
+      case And => true
+      case Or => true
+      case _ => false
+    }
+  }
+
+  def isBoolUnOp(op: Operator): Boolean = {
+    op match {
+      case Not => true
+      case _ => false
+    }
+  }
+}
 
 case class Identifier(id: Option[Int], name: String)
 

@@ -267,46 +267,59 @@ case object NewInferLambda extends NewRule {
 }
 
 case object NewInferBinNatPrimitive extends NewRule {
-
-  def isNatToNatBinOp(op: Operator): Boolean = {
-    op match {
-      case Plus => true
-      case Minus => true
-      case Mul => true
-      case Div => true
-      case _ => false
-    }
-  }
-
-  def isNatToBoolBinOp(op: Operator): Boolean = {
-    op match {
-      case Eq => true
-      case Neq => true
-      case Lteq => true
-      case Gteq => true
-      case Lt => true
-      case Gt => true
-      case _ => false
-    }
-  }
-
-  def isNatBinOp(op: Operator): Boolean = {
-    isNatToNatBinOp(op) || isNatToBoolBinOp(op)
-  }
-
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case InferGoal(c, Primitive(op, Cons(n1, Cons(n2, Nil())))) if isNatBinOp(op) =>
+      case InferGoal(c, Primitive(op, Cons(n1, Cons(n2, Nil())))) if Operator.isNatBinOp(op) =>
         val checkN1 = CheckGoal(c, n1, NatType)
         val checkN2 = CheckGoal(c, n2, NatType)
+        val retType = if(Operator.isNatToBoolBinOp(op)) BoolType else NatType
         ResultGoalContext(
           List((rc: ResultGoalContext) => checkN1, (rc: ResultGoalContext) => checkN2),
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(checkN1), rc.results.get(checkN2)) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true))) =>
-                val retType = if(isNatToBoolBinOp(op)) BoolType else NatType
-                rc.updateResults(g, InferResult(retType))
+              case (Some(CheckResult(true)), Some(CheckResult(true))) => rc.updateResults(g, InferResult(retType))
+              case _ => rc
+            }
+          }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
+case object NewInferBinBoolPrimitive extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, Primitive(op, Cons(b1, Cons(b2, Nil())))) if Operator.isBoolBinOp(op) =>
+        val checkB1 = CheckGoal(c, b1, BoolType)
+        val checkB2 = CheckGoal(c, b2, BoolType)
+        ResultGoalContext(
+          List((rc: ResultGoalContext) => checkB1, (rc: ResultGoalContext) => checkB2),
+          Map(),
+          (rc: ResultGoalContext) => {
+            (rc.results.get(checkB1), rc.results.get(checkB2)) match {
+              case (Some(CheckResult(true)), Some(CheckResult(true))) => rc.updateResults(g, InferResult(BoolType))
+              case _ => rc
+            }
+          }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
+case object NewInferUnBoolPrimitive extends NewRule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, Primitive(op, Cons(b, Nil()))) if Operator.isBoolUnOp(op) =>
+        val checkB = CheckGoal(c, b, BoolType)
+        ResultGoalContext(
+          List((rc: ResultGoalContext) => checkB),
+          Map(),
+          (rc: ResultGoalContext) => {
+            rc.results.get(checkB) match {
+              case Some(CheckResult(true)) => rc.updateResults(g, InferResult(BoolType))
               case _ => rc
             }
           }
@@ -685,7 +698,7 @@ object TypeChecker {
 
     val rule = NewInferBool.or(NewInferNat).or(NewInferApp).or(NewInferUnit).or(NewInferVar).or(NewInferLambda).or(NewCheckReflexive).or(NewErrorGoalRule).or(
                NewInferBinNatPrimitive).or(NewInferLet).or(NewInferIf).or(NewInferPair).or(NewInferFirst).or(NewInferSecond).or(NewInferMatch).or(
-                NewCheckIf).or(NewCheckMatch).or(NewInferEitherMatch).or(NewInferError)
+                NewCheckIf).or(NewCheckMatch).or(NewInferEitherMatch).or(NewInferError).or(NewInferBinBoolPrimitive).or(NewInferUnBoolPrimitive)
     val g = InferGoal(Context(Map(), Set(), 0), t)
     val c = rule.repeat.apply(g)
     c.results.getOrElse(g, ErrorResult)
