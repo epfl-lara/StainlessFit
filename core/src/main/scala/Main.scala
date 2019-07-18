@@ -49,7 +49,6 @@ object Main {
   def main(args: Array[String]): Unit = {
     if (args.length == 0) printHelp()
     else {
-
       args(0) match {
         case "eval" if (args.length == 2) =>
           println(Printer.pprint(evalFile(args(1))))
@@ -57,57 +56,5 @@ object Main {
           printHelp()
       }
     }
-    /*val e0 = Match(
-      NatLiteral(0),
-      NatLiteral(2),
-      Bind(
-        stainless.lang.Some(Identifier(stainless.lang.Some(0), "n")),
-        Var(Identifier(stainless.lang.Some(0), "n"))
-      )
-    )
-    val e1 = Lambda(
-      stainless.lang.Some(NatType),
-      Bind(
-        stainless.lang.Some(Identifier(stainless.lang.Some(0), "n")),
-        Primitive(Plus, stainless.collection.List(Var(Identifier(stainless.lang.Some(0), "n")), NatLiteral(2)))
-      )
-    )
-    //println(typer.TypeChecker.infer(e1))
-
-    val e = App(
-      Lambda(
-        stainless.lang.Some(NatType),
-        Bind(
-          stainless.lang.Some(Identifier(stainless.lang.Some(0), "n")),
-          Primitive(
-            Plus,
-            stainless.collection.List(
-              NatLiteral(2),
-              Var(Identifier(stainless.lang.Some(0), "n"))
-            )
-          )
-        )
-      ),
-      NatLiteral(3)
-    )
-
-    val f = Lambda(
-      stainless.lang.Some(NatType),
-      Bind(
-        stainless.lang.Some(Identifier(stainless.lang.Some(0), "n")),
-        Primitive(
-          Plus,
-          stainless.collection.List(
-            NatLiteral(2),
-            Var(Identifier(stainless.lang.Some(0), "n"))
-          )
-        )
-      )
-    )
-
-    val ee = LetIn(stainless.lang.None(), f, Bind(stainless.lang.Some(Identifier(stainless.lang.Some(0), "f")),
-                  App(Var(Identifier(stainless.lang.Some(0), "f")), NatLiteral(2))))
-
-    println(typer.TypeChecker.newInfer(ee))*/
   }
 }

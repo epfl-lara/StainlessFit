@@ -31,11 +31,10 @@ case class ErrorGoal(c: Context) extends Goal
 
 sealed abstract class Result
 
-case class InferResult(t: Tree, ty: Tree) extends Result
-case class CheckResult(t: Tree, ty: Tree, b: Boolean)  extends Result
-case class SynthesizeResult(t: Tree, ty: Tree)  extends Result
+case class InferResult(ty: Tree) extends Result
+case class CheckResult(b: Boolean) extends Result
+case class SynthesizeResult(t: Tree) extends Result
 case object ErrorResult extends Result
-
 
 case class ResultGoalContext(
   val goals: List[ResultGoalContext => Goal],
@@ -43,10 +42,7 @@ case class ResultGoalContext(
   val merge: ResultGoalContext => ResultGoalContext
 ) {
   def updateResults(goal: Goal, result: Result) = {
-    result match {
-      case ErrorResult => this
-      case _ => copy(results = results.updated(goal, result))
-    }
+    copy(results = results.updated(goal, result))
   }
 }
 
@@ -122,8 +118,8 @@ case object NewInferBool extends NewRule {
       case InferGoal(c, BoolLiteral(b)) =>
         ResultGoalContext(
           Nil(),
-          Map(g -> InferResult(BoolLiteral(b), BoolType)),
-          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(BoolLiteral(b), BoolType)) }
+          Map(g -> InferResult(BoolType)),
+          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(BoolType)) }
         )
       case _ => errorContext
     }
@@ -140,10 +136,10 @@ case object NewCheckReflexive extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(gInfer) match {
-              case Some(InferResult(t, ty1)) =>
+              case Some(InferResult(ty1)) =>
                 rc.updateResults(
                   g,
-                  CheckResult(t, ty1, ty1 == ty)
+                  CheckResult(ty1 == ty)
                 )
               case _ => rc
             }
@@ -161,8 +157,8 @@ case object NewInferNat extends NewRule {
       case InferGoal(c, NatLiteral(n)) =>
         ResultGoalContext(
           Nil(),
-          Map(g -> InferResult(NatLiteral(n), NatType)),
-          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(NatLiteral(n), NatType)) }
+          Map(g -> InferResult(NatType)),
+          (rc: ResultGoalContext) => { rc.updateResults(g, InferResult(NatType)) }
         )
       case _ => errorContext
     }
@@ -175,8 +171,8 @@ case object NewInferUnit extends NewRule {
       case InferGoal(c, UnitLiteral) =>
         ResultGoalContext(
           Nil(),
-          Map(g -> InferResult(UnitLiteral, UnitType)),
-          (rc: ResultGoalContext) => rc.updateResults(g, InferResult(UnitLiteral, UnitType))
+          Map(g -> InferResult(UnitType)),
+          (rc: ResultGoalContext) => rc.updateResults(g, InferResult(UnitType))
         )
       case _ => errorContext
     }
@@ -190,11 +186,11 @@ case object NewInferVar extends NewRule {
         ResultGoalContext(
           Nil(),
           c.getTypeOf(id) match {
-            case Some(ty) => Map(g -> InferResult(Var(id), ty))
+            case Some(ty) => Map(g -> InferResult(ty))
             case None() => Map()
           },
           c.getTypeOf(id) match {
-            case Some(ty) => (rc: ResultGoalContext) => rc.updateResults(g, InferResult(Var(id), ty))
+            case Some(ty) => (rc: ResultGoalContext) => rc.updateResults(g, InferResult(ty))
             case None() => (rc: ResultGoalContext) => rc
           }
         )
@@ -211,7 +207,7 @@ case object NewInferApp extends NewRule {
         val g1 = InferGoal(c, t1)
         val fg2 = (rc: ResultGoalContext) => {
           rc.results.get(g1) match {
-            case Some(InferResult(_, PiType(ty2, ty))) => CheckGoal(c, t2, ty2)
+            case Some(InferResult(PiType(ty2, ty))) => CheckGoal(c, t2, ty2)
             case _ =>
               ErrorGoal(c)
           }
@@ -221,7 +217,7 @@ case object NewInferApp extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(g1), rc.results.get(fg2(rc))) match {
-              case (Some(InferResult(_, PiType(_, ty))), Some(CheckResult(_, _, true))) => rc.updateResults(g, InferResult(App(t1, t2), ty))
+              case (Some(InferResult(PiType(_, ty))), Some(CheckResult(true))) => rc.updateResults(g, InferResult(ty))
               case _ => rc
             }
           }
@@ -242,10 +238,10 @@ case object NewInferLambda extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(gb) match {
-              case Some(InferResult(body, bodyTy)) =>
+              case Some(InferResult(bodyTy)) =>
                 rc.updateResults(
                   g,
-                  InferResult(Lambda(Some(ty1), Bind(Some(id), body)), PiType(ty1, bodyTy))
+                  InferResult(PiType(ty1, bodyTy))
                 )
               case _ => rc
             }
@@ -294,9 +290,9 @@ case object NewInferBinNatPrimitive extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(checkN1), rc.results.get(checkN2)) match {
-              case (Some(CheckResult(_, _, true)), Some(CheckResult(_, _, true))) =>
+              case (Some(CheckResult(true)), Some(CheckResult(true))) =>
                 val retType = if(isNatToBoolBinOp(op)) BoolType else NatType
-                rc.updateResults(g, InferResult(Primitive(op, Cons(n1, Cons(n2, Nil()))), retType))
+                rc.updateResults(g, InferResult(retType))
               case _ => rc
             }
           }
@@ -314,7 +310,7 @@ case object NewInferLet extends NewRule {
         val gv = InferGoal(c, v)
         val fgb = (rc: ResultGoalContext) => {
           rc.results.get(gv) match {
-            case Some(InferResult(_, tyv)) =>
+            case Some(InferResult(tyv)) =>
               val c1 = c.bind(id, tyv)
               InferGoal(c1, body)
             case _ => ErrorGoal(c)
@@ -325,8 +321,8 @@ case object NewInferLet extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(fgb(rc)) match {
-              case Some(InferResult(_, ty)) =>
-                rc.updateResults(g, InferResult(LetIn(tp, v, Bind(Some(id), body)), ty))
+              case Some(InferResult(ty)) =>
+                rc.updateResults(g, InferResult(ty))
               case _ => rc
             }
           }
@@ -350,8 +346,8 @@ case object NewInferIf extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              (rc.results.get(checkCond), rc.results.get(inferT1), rc.results.get(inferT2)) match {
-              case (Some(CheckResult(_, _, true)), Some(InferResult(_, ty1)), Some(InferResult(_, ty2))) =>
-                if(ty1 == ty2) rc.updateResults(g, InferResult(IfThenElse(tc, t1, t2), ty1))
+              case (Some(CheckResult(true)), Some(InferResult(ty1)), Some(InferResult(ty2))) =>
+                if(ty1 == ty2) rc.updateResults(g, InferResult(ty1))
                 else rc
               case _ => rc
             }
@@ -372,7 +368,7 @@ case object NewInferLeft extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(_, SumType(ty1, ty2))) => rc.updateResults(g, InferResult(LeftTree(t), ty1))
+              case Some(InferResult(SumType(ty1, ty2))) => rc.updateResults(g, InferResult(ty1))
               case _ => rc
             }
           }
@@ -392,7 +388,7 @@ case object NewInferRight extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(_, SumType(ty1, ty2))) => rc.updateResults(g, InferResult(RightTree(t), ty2))
+              case Some(InferResult(SumType(ty1, ty2))) => rc.updateResults(g, InferResult(ty2))
               case _ => rc
             }
           }
@@ -414,8 +410,8 @@ case object NewInferPair extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(inferFirst), rc.results.get(inferSecond)) match {
-              case (Some(InferResult(_, ty1)), Some(InferResult(_, ty2))) =>
-                rc.updateResults(g, InferResult(Pair(t1, t2), SigmaType(ty1, Bind(Some(Identifier(Some(0), "x")), ty2))))
+              case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
+                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(Some(Identifier(Some(0), "x")), ty2))))
             }
           }
         )
@@ -435,7 +431,7 @@ case object NewInferFirst extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(_, SigmaType(ty1, ty2))) => rc.updateResults(g, InferResult(First(t), ty1))
+              case Some(InferResult(SigmaType(ty1, ty2))) => rc.updateResults(g, InferResult(ty1))
               case _ => rc
             }
           }
@@ -455,7 +451,7 @@ case object NewInferSecond extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(_, SigmaType(ty1, ty2))) => rc.updateResults(g, InferResult(Second(t), ty2))
+              case Some(InferResult(SigmaType(ty1, ty2))) => rc.updateResults(g, InferResult(ty2))
               case _ => rc
             }
           }
@@ -480,8 +476,8 @@ case object NewInferMatch extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              (rc.results.get(checkCond), rc.results.get(inferT0), rc.results.get(inferTn)) match {
-              case (Some(CheckResult(_, _, true)), Some(InferResult(_, ty0)), Some(InferResult(_, tyn))) =>
-                if(ty0 == tyn) rc.updateResults(g, InferResult(Match(t, t0, Bind(Some(id), tn)), ty0))
+              case (Some(CheckResult(true)), Some(InferResult(ty0)), Some(InferResult(tyn))) =>
+                if(ty0 == tyn) rc.updateResults(g, InferResult(ty0))
                 else rc
               case _ => rc
             }
@@ -499,7 +495,7 @@ case object NewInferEitherMatch extends NewRule {
         val inferVar = InferGoal(c, t)
         val finferT1 = (rc: ResultGoalContext) => {
           rc.results.get(inferVar) match {
-            case Some(InferResult(_, SumType(ty1, ty2))) =>
+            case Some(InferResult(SumType(ty1, ty2))) =>
               val c1 = c.bindFresh("_", EqualityType(t, LeftTree(Var(id1)))).bind(id1, ty1)
               InferGoal(c1, t1)
             case _ => ErrorGoal(c)
@@ -507,7 +503,7 @@ case object NewInferEitherMatch extends NewRule {
         }
         val finferT2 = (rc: ResultGoalContext) => {
           rc.results.get(inferVar) match {
-            case Some(InferResult(_, SumType(ty1, ty2))) =>
+            case Some(InferResult(SumType(ty1, ty2))) =>
               val c2 = c.bindFresh("_", EqualityType(t, RightTree(Var(id2)))).bind(id2, ty2)
               InferGoal(c2, t2)
             case _ => ErrorGoal(c)
@@ -518,8 +514,8 @@ case object NewInferEitherMatch extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              (rc.results.get(finferT1(rc)), rc.results.get(finferT2(rc))) match {
-              case (Some(InferResult(_, ty1)), Some(InferResult(_, ty2))) =>
-                if(ty1 == ty2) rc.updateResults(g, InferResult(EitherMatch(t, Bind(Some(id1), t1), Bind(Some(id2), t2)), ty1))
+              case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
+                if(ty1 == ty2) rc.updateResults(g, InferResult(ty1))
                 else rc
               case _ => rc
             }
@@ -548,8 +544,8 @@ case object NewCheckIf extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              (rc.results.get(checkCond), rc.results.get(checkT1), rc.results.get(checkT2)) match {
-              case (Some(CheckResult(_, _, true)), Some(CheckResult(_, _, true)), Some(CheckResult(_, _, true))) =>
-                rc.updateResults(g, CheckResult(IfThenElse(tc, t1, t2), ty, true))
+              case (Some(CheckResult(true)), Some(CheckResult(true)), Some(CheckResult(true))) =>
+                rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
           }
@@ -573,8 +569,8 @@ case object NewCheckMatch extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              (rc.results.get(checkCond), rc.results.get(checkT0), rc.results.get(checkTn)) match {
-              case (Some(CheckResult(_, _, true)), Some(CheckResult(_, _, true)), Some(CheckResult(_, _, true))) =>
-                rc.updateResults(g, CheckResult(Match(t, t0, Bind(Some(id), tn)), ty, true))
+              case (Some(CheckResult(true)), Some(CheckResult(true)), Some(CheckResult(true))) =>
+                rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
           }
@@ -591,7 +587,7 @@ case object NewCheckEitherMatch extends NewRule {
         val inferVar = InferGoal(c, t)
         val fcheckT1 = (rc: ResultGoalContext) => {
           rc.results.get(inferVar) match {
-            case Some(InferResult(_, SumType(ty1, ty2))) =>
+            case Some(InferResult(SumType(ty1, ty2))) =>
               val c1 = c.bindFresh("_", EqualityType(t, LeftTree(Var(id1)))).bind(id1, ty1)
               CheckGoal(c1, t1, ty)
             case _ => ErrorGoal(c)
@@ -599,7 +595,7 @@ case object NewCheckEitherMatch extends NewRule {
         }
         val fcheckT2 = (rc: ResultGoalContext) => {
           rc.results.get(inferVar) match {
-            case Some(InferResult(_, SumType(ty1, ty2))) =>
+            case Some(InferResult(SumType(ty1, ty2))) =>
               val c2 = c.bindFresh("_", EqualityType(t, RightTree(Var(id2)))).bind(id2, ty2)
               CheckGoal(c2, t2, ty)
             case _ => ErrorGoal(c)
@@ -610,8 +606,8 @@ case object NewCheckEitherMatch extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              (rc.results.get(fcheckT1(rc)), rc.results.get(fcheckT2(rc))) match {
-              case (Some(CheckResult(_, _, true)), Some(CheckResult(_, _, true))) =>
-                rc.updateResults(g, CheckResult(EitherMatch(t, Bind(Some(id1), t1), Bind(Some(id2), t2)), ty, true))
+              case (Some(CheckResult(true)), Some(CheckResult(true))) =>
+                rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
           }
@@ -633,8 +629,8 @@ case object NewCheckPi extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              rc.results.get(subgoal) match {
-              case Some(CheckResult(_, _, true)) =>
-                rc.updateResults(g, CheckResult(t, PiType(ty1, ty2), true))
+              case Some(CheckResult(true)) =>
+                rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
           }
@@ -655,8 +651,8 @@ case object NewCheckForall extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
              rc.results.get(subgoal) match {
-              case Some(CheckResult(_, _, true)) =>
-                rc.updateResults(g, CheckResult(t, PolyForallType(tyid, Bind(Some(id), ty)), true))
+              case Some(CheckResult(true)) =>
+                rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
           }
@@ -678,6 +674,6 @@ object TypeChecker {
                 NewCheckIf).or(NewCheckMatch).or(NewInferEitherMatch)
     val g = InferGoal(Context(Map(), Set(), 0), t)
     val c = rule.repeat.apply(g)
-    c.results.getOrElse(g, InferResult(UnitLiteral, UnitLiteral))
+    c.results.getOrElse(g, ErrorResult)
   }
 }
