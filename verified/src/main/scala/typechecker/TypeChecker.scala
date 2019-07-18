@@ -221,7 +221,7 @@ case object NewInferApp extends NewRule {
         val g1 = InferGoal(c, t1)
         val fg2 = (rc: ResultGoalContext) => {
           rc.results.get(g1) match {
-            case Some(InferResult(PiType(ty2, ty))) => CheckGoal(c, t2, ty2)
+            case Some(InferResult(PiType(ty2, Bind(_, ty)))) => CheckGoal(c, t2, ty2)
             case _ =>
               ErrorGoal(c)
           }
@@ -231,7 +231,7 @@ case object NewInferApp extends NewRule {
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(g1), rc.results.get(fg2(rc))) match {
-              case (Some(InferResult(PiType(_, ty))), Some(CheckResult(true))) => rc.updateResults(g, InferResult(ty))
+              case (Some(InferResult(PiType(_, Bind(_, ty)))), Some(CheckResult(true))) => rc.updateResults(g, InferResult(ty))
               case _ => rc
             }
           }
@@ -255,7 +255,7 @@ case object NewInferLambda extends NewRule {
               case Some(InferResult(bodyTy)) =>
                 rc.updateResults(
                   g,
-                  InferResult(PiType(ty1, bodyTy))
+                  InferResult(PiType(ty1, Bind(None(), bodyTy)))
                 )
               case _ => rc
             }
@@ -438,7 +438,7 @@ case object NewInferPair extends NewRule {
           (rc: ResultGoalContext) => {
             (rc.results.get(inferFirst), rc.results.get(inferSecond)) match {
               case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
-                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(Some(Identifier(Some(0), "x")), ty2))))
+                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(None(), ty2))))
             }
           }
         )
@@ -647,7 +647,7 @@ case object NewCheckEitherMatch extends NewRule {
 case object NewCheckPi extends NewRule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case CheckGoal(c, t, PiType(ty1, ty2)) =>
+      case CheckGoal(c, t, PiType(ty1, Bind(_, ty2))) =>
         val id = Identifier(Some(0), "_x")
         val c1 = c.bind(id, ty1)
         val subgoal = CheckGoal(c1, App(t, Var(id)), ty2)
