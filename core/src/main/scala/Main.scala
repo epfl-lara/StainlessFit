@@ -12,8 +12,8 @@ object Main {
 
   def evalFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val assertFun = """def assert(b: Bool): Unit = { if(b) () else Error("Assertion failed") }"""
-    val it = (/*assertFun +*/ s).toIterator
+    val assertFun = """def assert(b: Bool): Unit = { if(b) () else val x = Error("Assertion failed") in () }"""
+    val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         println(TypeChecker.newInfer(value))
