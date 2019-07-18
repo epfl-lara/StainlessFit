@@ -1,7 +1,7 @@
 import trees._
 import interpreter._
 import printer._
-import typer._
+import typechecker._
 
 import parser.ScalaParser
 import parser.ScalaLexer
@@ -13,9 +13,10 @@ object Main {
   def evalFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val assertFun = """def assert(b: Bool): Unit = { if(b) () else Error("Assertion failed") }"""
-    val it = (assertFun + s).toIterator
+    val it = (/*assertFun +*/ s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
+        println(TypeChecker.newInfer(value))
         Interpreter.evaluate(value, 1000000000) match {
           case ErrorTree(error, _) => throw new Exception(s"Error during evaluation.\n${error}")
           case v => v
@@ -56,7 +57,7 @@ object Main {
           printHelp()
       }
     }
-    val e0 = Match(
+    /*val e0 = Match(
       NatLiteral(0),
       NatLiteral(2),
       Bind(
@@ -71,8 +72,42 @@ object Main {
         Primitive(Plus, stainless.collection.List(Var(Identifier(stainless.lang.Some(0), "n")), NatLiteral(2)))
       )
     )
-    println(typer.TypeChecker.infer(e1))
+    //println(typer.TypeChecker.infer(e1))
 
-    println(typer.TypeChecker.newInfer(NatLiteral(2)))
+    val e = App(
+      Lambda(
+        stainless.lang.Some(NatType),
+        Bind(
+          stainless.lang.Some(Identifier(stainless.lang.Some(0), "n")),
+          Primitive(
+            Plus,
+            stainless.collection.List(
+              NatLiteral(2),
+              Var(Identifier(stainless.lang.Some(0), "n"))
+            )
+          )
+        )
+      ),
+      NatLiteral(3)
+    )
+
+    val f = Lambda(
+      stainless.lang.Some(NatType),
+      Bind(
+        stainless.lang.Some(Identifier(stainless.lang.Some(0), "n")),
+        Primitive(
+          Plus,
+          stainless.collection.List(
+            NatLiteral(2),
+            Var(Identifier(stainless.lang.Some(0), "n"))
+          )
+        )
+      )
+    )
+
+    val ee = LetIn(stainless.lang.None(), f, Bind(stainless.lang.Some(Identifier(stainless.lang.Some(0), "f")),
+                  App(Var(Identifier(stainless.lang.Some(0), "f")), NatLiteral(2))))
+
+    println(typer.TypeChecker.newInfer(ee))*/
   }
 }
