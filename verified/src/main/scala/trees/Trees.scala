@@ -98,7 +98,6 @@ object Operator {
 
 case class Identifier(id: Option[Int], name: String)
 
-
 sealed abstract class Tree
 
 case class Var(id: Identifier) extends Tree

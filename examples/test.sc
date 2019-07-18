@@ -12,4 +12,4 @@ def g(x: Nat + Nat): Nat = {
 val x = 2 in
 val y = 4 in
 val z = (1, 2) in
-f(x + y + First(z))
+f(x + y + First(z) + f(f(2)))
