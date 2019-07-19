@@ -121,7 +121,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     elem('0') | (nonZero ~ many(digit))
       |> { (cs, r) => NumberToken(cs.mkString.toInt, r) },
 
-    elem('/') ~ elem('/') ~ many { elem(c => c != '\n' )} ~ elem('\n')
+    elem('/') ~ elem('/') ~ many { elem(c => c != '\n' )}
       |> { (_, r) => SpaceToken(r) },
 
   ) onError {
