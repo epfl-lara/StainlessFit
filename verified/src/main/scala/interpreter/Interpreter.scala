@@ -35,15 +35,15 @@ object Interpreter {
 
   def replaceBind(bind: Tree, v: Tree): Tree = {
     require(isBind(bind))
-    if(isError(v)) {
+    /*if(isError(v)) {
       v
     }
-    else {
+    else { */
       bind match {
         case Bind(Some(xvar), body) if xvar.isInstanceOf[Identifier] => replace(xvar, v, body)
         case Bind(_, body) => body
       }
-    }
+    //}
   }
 
   def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {

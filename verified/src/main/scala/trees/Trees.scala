@@ -108,6 +108,8 @@ case class NatLiteral(n: BigInt) extends Tree /*{
   require(n >= 0)
 }*/
 
+case class Succ(t: Tree) extends Tree
+
 case object UnitLiteral extends Tree
 
 case object BottomTree extends Tree

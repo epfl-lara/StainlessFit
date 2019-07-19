@@ -27,12 +27,15 @@ object Main {
     }
   }
 
-  def typeCheckFile(f: File): Result = {
+  def typeCheckFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
-        TypeChecker.infer(value)
+        TypeChecker.infer(value) match {
+          case ErrorResult => throw new Exception("Cannot typecheck file.\n")
+          case InferResult(ty) => ty
+        }
       case t =>
         throw new Exception("Error during parsing:\n" + t)
     }
@@ -40,7 +43,7 @@ object Main {
 
   def evalFile(s: String): (Result, Tree) = evalFile(new File(s))
 
-  def typeCheckFile(s: String): Result = typeCheckFile(new File(s))
+  def typeCheckFile(s: String): Tree = typeCheckFile(new File(s))
 
   def printHelp() = {
     println(
