@@ -687,7 +687,7 @@ case object CheckForall extends Rule {
 object TypeChecker {
   val rule = InferBool.or(InferNat).or(InferApp).or(InferUnit).or(InferVar).or(InferLambda).or(CheckReflexive).or(NewErrorGoalRule).or(
     InferBinNatPrimitive).or(InferLet).or(InferIf).or(InferPair).or(InferFirst).or(InferSecond).or(InferMatch).or(
-    CheckIf).or(CheckMatch).or(InferEitherMatch).or(InferError).or(InferBinBoolPrimitive).or(InferUnBoolPrimitive)
+    CheckIf).or(CheckMatch).or(InferEitherMatch).or(InferError).or(InferBinBoolPrimitive) || InferUnBoolPrimitive
 
   def infer(t: Tree) = {
     val g = InferGoal(Context(Map(), Set(), 0), t)
