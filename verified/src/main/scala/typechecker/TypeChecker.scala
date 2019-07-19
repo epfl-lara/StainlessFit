@@ -46,7 +46,7 @@ case class ResultGoalContext(
   }
 }
 
-trait NewRule {
+trait Rule {
   def apply(g: Goal): ResultGoalContext
 
   val errorContext: ResultGoalContext =
@@ -56,15 +56,15 @@ trait NewRule {
       (rc: ResultGoalContext) => rc
     )
 
-  def or(other: NewRule): NewRule = NewRule.or(this, other)
-  def repeat: NewRule = NewRule.repeat(this)
+  def or(other: Rule): Rule = Rule.or(this, other)
+  def repeat: Rule = Rule.repeat(this)
 }
 
 
 
-object NewRule {
-  def or(rule1: NewRule, rule2: NewRule): NewRule = {
-    new NewRule {
+object Rule {
+  def or(rule1: Rule, rule2: Rule): Rule = {
+    new Rule {
       def apply(g: Goal): ResultGoalContext = {
         val rc1: ResultGoalContext = rule1.apply(g)
         val rc2: ResultGoalContext = rule2.apply(g)
@@ -81,8 +81,8 @@ object NewRule {
     }
   }
 
-  def repeat(rule: NewRule): NewRule = {
-    new NewRule {
+  def repeat(rule: Rule): Rule = {
+    new Rule {
       def apply(g: Goal): ResultGoalContext = {
         val rc = rule.apply(g)
         if(rc.goals.isEmpty) {
@@ -105,13 +105,13 @@ object NewRule {
   }
 }
 
-case object NewErrorGoalRule extends NewRule {
+case object NewErrorGoalRule extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     errorContext
   }
 }
 
-case object NewInferBool extends NewRule {
+case object InferBool extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, BoolLiteral(b)) =>
@@ -125,7 +125,7 @@ case object NewInferBool extends NewRule {
   }
 }
 
-case object NewCheckReflexive extends NewRule {
+case object CheckReflexive extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, t, ty) =>
@@ -150,7 +150,7 @@ case object NewCheckReflexive extends NewRule {
 }
 
 
-case object NewInferNat extends NewRule {
+case object InferNat extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, NatLiteral(n)) =>
@@ -164,7 +164,7 @@ case object NewInferNat extends NewRule {
   }
 }
 
-case object NewInferUnit extends NewRule {
+case object InferUnit extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, UnitLiteral) =>
@@ -178,7 +178,7 @@ case object NewInferUnit extends NewRule {
   }
 }
 
-case object NewInferVar extends NewRule {
+case object InferVar extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Var(id)) =>
@@ -198,7 +198,7 @@ case object NewInferVar extends NewRule {
   }
 }
 
-case object NewInferError extends NewRule {
+case object InferError extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, ErrorTree(_, tp)) =>
@@ -214,7 +214,7 @@ case object NewInferError extends NewRule {
 }
 
 
-case object NewInferApp extends NewRule {
+case object InferApp extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, App(t1, t2)) =>
@@ -241,7 +241,7 @@ case object NewInferApp extends NewRule {
   }
 }
 
-case object NewInferLambda extends NewRule {
+case object InferLambda extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Lambda(Some(ty1), Bind(Some(id), body))) =>
@@ -266,7 +266,7 @@ case object NewInferLambda extends NewRule {
   }
 }
 
-case object NewInferBinNatPrimitive extends NewRule {
+case object InferBinNatPrimitive extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Primitive(op, Cons(n1, Cons(n2, Nil())))) if Operator.isNatBinOp(op) =>
@@ -288,7 +288,7 @@ case object NewInferBinNatPrimitive extends NewRule {
   }
 }
 
-case object NewInferBinBoolPrimitive extends NewRule {
+case object InferBinBoolPrimitive extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Primitive(op, Cons(b1, Cons(b2, Nil())))) if Operator.isBoolBinOp(op) =>
@@ -309,7 +309,7 @@ case object NewInferBinBoolPrimitive extends NewRule {
   }
 }
 
-case object NewInferUnBoolPrimitive extends NewRule {
+case object InferUnBoolPrimitive extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Primitive(op, Cons(b, Nil()))) if Operator.isBoolUnOp(op) =>
@@ -330,7 +330,7 @@ case object NewInferUnBoolPrimitive extends NewRule {
 }
 
 
-case object NewInferLet extends NewRule {
+case object InferLet extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, LetIn(tp, v, Bind(Some(id), body))) =>
@@ -359,7 +359,7 @@ case object NewInferLet extends NewRule {
   }
 }
 
-case object NewInferIf extends NewRule {
+case object InferIf extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, IfThenElse(tc, t1, t2)) =>
@@ -385,7 +385,7 @@ case object NewInferIf extends NewRule {
   }
 }
 
-case object NewInferLeft extends NewRule {
+case object InferLeft extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, LeftTree(t)) =>
@@ -405,7 +405,7 @@ case object NewInferLeft extends NewRule {
   }
 }
 
-case object NewInferRight extends NewRule {
+case object InferRight extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, LeftTree(t)) =>
@@ -426,7 +426,7 @@ case object NewInferRight extends NewRule {
 }
 
 
-case object NewInferPair extends NewRule {
+case object InferPair extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Pair(t1, t2))  =>
@@ -448,7 +448,7 @@ case object NewInferPair extends NewRule {
 }
 
 
-case object NewInferFirst extends NewRule {
+case object InferFirst extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, First(t)) =>
@@ -468,7 +468,7 @@ case object NewInferFirst extends NewRule {
   }
 }
 
-case object NewInferSecond extends NewRule {
+case object InferSecond extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Second(t)) =>
@@ -489,7 +489,7 @@ case object NewInferSecond extends NewRule {
 }
 
 
-case object NewInferMatch extends NewRule {
+case object InferMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, Match(t, t0, Bind(Some(id), tn))) =>
@@ -515,7 +515,7 @@ case object NewInferMatch extends NewRule {
   }
 }
 
-case object NewInferEitherMatch extends NewRule {
+case object InferEitherMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case InferGoal(c, EitherMatch(t, Bind(Some(id1), t1), Bind(Some(id2), t2))) =>
@@ -557,7 +557,7 @@ case object NewInferEitherMatch extends NewRule {
 
 
 
-case object NewCheckIf extends NewRule {
+case object CheckIf extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, IfThenElse(tc, t1, t2), ty) =>
@@ -582,7 +582,7 @@ case object NewCheckIf extends NewRule {
   }
 }
 
-case object NewCheckMatch extends NewRule {
+case object CheckMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, Match(t, t0, Bind(Some(id), tn)), ty) =>
@@ -607,7 +607,7 @@ case object NewCheckMatch extends NewRule {
   }
 }
 
-case object NewCheckEitherMatch extends NewRule {
+case object CheckEitherMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, EitherMatch(t, Bind(Some(id1), t1), Bind(Some(id2), t2)), ty) =>
@@ -644,7 +644,7 @@ case object NewCheckEitherMatch extends NewRule {
   }
 }
 
-case object NewCheckPi extends NewRule {
+case object CheckPi extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, t, PiType(ty1, Bind(_, ty2))) =>
@@ -667,7 +667,7 @@ case object NewCheckPi extends NewRule {
   }
 }
 
-case object NewCheckForall extends NewRule {
+case object CheckForall extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, t, PolyForallType(tyid, Bind(Some(id), ty))) =>
@@ -693,12 +693,11 @@ case object NewCheckForall extends NewRule {
 
 
 object TypeChecker {
+  val rule = InferBool.or(InferNat).or(InferApp).or(InferUnit).or(InferVar).or(InferLambda).or(CheckReflexive).or(NewErrorGoalRule).or(
+    InferBinNatPrimitive).or(InferLet).or(InferIf).or(InferPair).or(InferFirst).or(InferSecond).or(InferMatch).or(
+    CheckIf).or(CheckMatch).or(InferEitherMatch).or(InferError).or(InferBinBoolPrimitive).or(InferUnBoolPrimitive)
 
-  def newInfer(t: Tree) = {
-
-    val rule = NewInferBool.or(NewInferNat).or(NewInferApp).or(NewInferUnit).or(NewInferVar).or(NewInferLambda).or(NewCheckReflexive).or(NewErrorGoalRule).or(
-               NewInferBinNatPrimitive).or(NewInferLet).or(NewInferIf).or(NewInferPair).or(NewInferFirst).or(NewInferSecond).or(NewInferMatch).or(
-                NewCheckIf).or(NewCheckMatch).or(NewInferEitherMatch).or(NewInferError).or(NewInferBinBoolPrimitive).or(NewInferUnBoolPrimitive)
+  def infer(t: Tree) = {
     val g = InferGoal(Context(Map(), Set(), 0), t)
     val c = rule.repeat.apply(g)
     c.results.getOrElse(g, ErrorResult)
