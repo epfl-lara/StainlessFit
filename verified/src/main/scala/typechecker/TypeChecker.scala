@@ -12,7 +12,7 @@ case class Context(
   val n: Int // All variables in the context must have an identifier strictly smaller than n.
 ) {
   def bind(i: Identifier, t: Tree) = copy(termVariables = termVariables.updated(i, t))
-  def bindFresh(s: String, t: Tree) = bind(Identifier(Some(n), s), t).copy(n = n+1)
+  def bindFresh(s: String, t: Tree) = bind(Identifier(n, s), t).copy(n = n+1)
 
   def contains(id: Identifier): Boolean = termVariables.contains(id)
 
@@ -236,7 +236,7 @@ case object InferApp extends Rule {
 case object InferLambda extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case InferGoal(c, Lambda(Some(ty1), Bind(Some(id), body))) =>
+      case InferGoal(c, Lambda(Some(ty1), Bind(id, body))) =>
         val c1 = c.bind(id, ty1)
         val gb = InferGoal(c1, body)
         ResultGoalContext(
@@ -247,7 +247,7 @@ case object InferLambda extends Rule {
               case Some(InferResult(bodyTy)) =>
                 rc.updateResults(
                   g,
-                  InferResult(PiType(ty1, Bind(None(), bodyTy)))
+                  InferResult(PiType(ty1, Bind(Identifier(0, "_"), bodyTy)))
                 )
               case _ => rc
             }
@@ -325,7 +325,7 @@ case object InferUnBoolPrimitive extends Rule {
 case object InferLet extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case InferGoal(c, LetIn(None(), v, Bind(Some(id), body))) =>
+      case InferGoal(c, LetIn(None(), v, Bind(id, body))) =>
         val gv = InferGoal(c, v)
         val fgb = (rc: ResultGoalContext) => {
           rc.results.get(gv) match {
@@ -345,7 +345,7 @@ case object InferLet extends Rule {
             }
           }
         )
-      case InferGoal(c, LetIn(Some(tyv), v, Bind(Some(id), body))) =>
+      case InferGoal(c, LetIn(Some(tyv), v, Bind(id, body))) =>
         val gv = CheckGoal(c, v, tyv)
         val c1 = c.bind(id, tyv)
         val gb = InferGoal(c1, body)
@@ -443,7 +443,8 @@ case object InferPair extends Rule {
           (rc: ResultGoalContext) => {
             (rc.results.get(inferFirst), rc.results.get(inferSecond)) match {
               case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
-                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(None(), ty2))))
+                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(Identifier(0, "_"), ty2))))
+              case _ => rc
             }
           }
         )
@@ -497,7 +498,7 @@ case object InferSecond extends Rule {
 case object InferMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case InferGoal(c, Match(t, t0, Bind(Some(id), tn))) =>
+      case InferGoal(c, Match(t, t0, Bind(id, tn))) =>
         val c1 = c.bindFresh("_", EqualityType(tn, NatLiteral(0)))
         val c2 = c.bindFresh("_", EqualityType(tn, Succ(Var(id)))).bind(id, NatType)
         val checkCond = CheckGoal(c, t, NatType)
@@ -523,7 +524,7 @@ case object InferMatch extends Rule {
 case object InferEitherMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case InferGoal(c, EitherMatch(t, Bind(Some(id1), t1), Bind(Some(id2), t2))) =>
+      case InferGoal(c, EitherMatch(t, Bind(id1, t1), Bind(id2, t2))) =>
         val inferVar = InferGoal(c, t)
         val finferT1 = (rc: ResultGoalContext) => {
           rc.results.get(inferVar) match {
@@ -588,7 +589,7 @@ case object CheckIf extends Rule {
 case object CheckMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case CheckGoal(c, Match(t, t0, Bind(Some(id), tn)), ty) =>
+      case CheckGoal(c, Match(t, t0, Bind(id, tn)), ty) =>
         val c1 = c.bindFresh("_", EqualityType(tn, NatLiteral(0)))
         val c2 = c.bindFresh("_", EqualityType(tn, NatLiteral(1))).bind(id, NatType)
         val checkCond = CheckGoal(c, t, NatType)
@@ -613,7 +614,7 @@ case object CheckMatch extends Rule {
 case object CheckEitherMatch extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case CheckGoal(c, EitherMatch(t, Bind(Some(id1), t1), Bind(Some(id2), t2)), ty) =>
+      case CheckGoal(c, EitherMatch(t, Bind(id1, t1), Bind(id2, t2)), ty) =>
         val inferVar = InferGoal(c, t)
         val fcheckT1 = (rc: ResultGoalContext) => {
           rc.results.get(inferVar) match {
@@ -651,7 +652,7 @@ case object CheckPi extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, t, PiType(ty1, Bind(_, ty2))) =>
-        val id = Identifier(Some(0), "_x")
+        val id = Identifier(0, "_x")
         val c1 = c.bind(id, ty1)
         val subgoal = CheckGoal(c1, App(t, Var(id)), ty2)
         ResultGoalContext(
@@ -673,7 +674,7 @@ case object CheckPi extends Rule {
 case object CheckForall extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case CheckGoal(c, t, PolyForallType(tyid, Bind(Some(id), ty))) =>
+      case CheckGoal(c, t, PolyForallType(tyid, Bind(id, ty))) =>
         val c1 = c.bind(id, tyid)
         val subgoal = CheckGoal(c1, t, ty)
         ResultGoalContext(
@@ -693,31 +694,34 @@ case object CheckForall extends Rule {
 }
 
 
-/*case object CheckSigma extends Rule {
+case object CheckSigma extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case CheckGoal(c, t, SigmaType(ty1, Bind(_, ty2)))  =>
+      case CheckGoal(c, t, SigmaType(ty1, Bind(id, ty2)))  =>
         val checkFirst = CheckGoal(c, First(t), ty1)
         val fcheckSecond = (rc: ResultGoalContext) => {
           rc.results.get(checkFirst) match {
-            case CheckResult(true) =>
-              val c1 =
+            case Some(CheckResult(true)) =>
+              val c1 = c.bind(id, ty1).bindFresh("_", EqualityType(Var(id), First(t)))
+              CheckGoal(c1, Second(t), ty2)
+            case _ => ErrorGoal(c)
           }
         }
         ResultGoalContext(
-          List((r: ResultGoalContext) => inferFirst, (r: ResultGoalContext) => inferSecond),
+          List((rc: ResultGoalContext) => checkFirst, fcheckSecond),
           Map(),
           (rc: ResultGoalContext) => {
-            (rc.results.get(inferFirst), rc.results.get(inferSecond)) match {
-              case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
-                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(None(), ty2))))
+            (rc.results.get(checkFirst), rc.results.get(fcheckSecond(rc))) match {
+              case (Some(CheckResult(true)), Some(CheckResult(true))) =>
+                rc.updateResults(g, CheckResult(true))
+              case _ => rc
             }
           }
         )
       case _ => errorContext
     }
   }
-}*/
+}
 
 
 

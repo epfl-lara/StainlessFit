@@ -35,7 +35,7 @@ object Printer {
       case LeftTree(b) => s"Left(${pprint(b)})"
       case RightTree(b) => s"Right(${pprint(b)})"
 
-      case EitherMatch(t, Bind(Some(x), t1), Bind(Some(y), t2)) =>
+      case EitherMatch(t, Bind(x, t1), Bind(y, t2)) =>
         val ts = pprint(t)
         val t1s = pprint(t1).replaceAll("\n", "\n    ")
         val t2s = pprint(t2).replaceAll("\n", "\n    ")
@@ -45,19 +45,16 @@ object Printer {
         |  case Right(${y.name}) =>
         |    ${t2s}
         |}""".stripMargin
-      case Bind(Some(Identifier(_, x)), b) =>
+      case Bind(Identifier(_, x), b) =>
         val pType = bindType match { case None() => "" case Some(t) => s": ${pprint(t)}"}
         if(inline) s"${x}${pType} => { ${pprint(b).replaceAll("\n", "\n  ")} }"
         else s"${x}${pType} => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
-      case Bind(None(), b) =>
-        if(inline) s"unit => { ${pprint(b).replaceAll("\n", "\n  ")} }"
-        else s"unit => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
-      case LetIn(tp, v, Bind(Some(x), b)) =>
-          val tv = pprint(v)
-          val tx = x.name
-          val tb = pprint(b)
-          s"""val ${tx} = ${tv}
-          |${tb}""".stripMargin
+      case LetIn(tp, v, Bind(x, b)) =>
+        val tv = pprint(v)
+        val tx = x.name
+        val tb = pprint(b)
+        s"""val ${tx} = ${tv}
+        |${tb}""".stripMargin
       case Primitive(op, arg::Nil())  => s"${op}${pprint(arg)}"
       case Primitive(op, arg1::arg2::Nil())  => s"(${pprint(arg1)}) ${op} (${pprint(arg2)})"
 
