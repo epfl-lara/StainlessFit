@@ -96,13 +96,13 @@ object Operator {
   }
 }
 
-case class Identifier(id: Option[Int], name: String)
+case class Identifier(id: Int, name: String)
 
 sealed abstract class Tree
 
 case class Var(id: Identifier) extends Tree
 
-case class Bind(x: Option[Identifier], body: Tree) extends Tree
+case class Bind(id: Identifier, body: Tree) extends Tree
 
 case class NatLiteral(n: BigInt) extends Tree /*{
   require(n >= 0)

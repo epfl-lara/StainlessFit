@@ -2,9 +2,11 @@ package interpreter
 
 import trees._
 
+
 import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
+
 
 object Interpreter {
 
@@ -35,19 +37,14 @@ object Interpreter {
 
   def replaceBind(bind: Tree, v: Tree): Tree = {
     require(isBind(bind))
-    /*if(isError(v)) {
-      v
+    bind match {
+      case Bind(id, body) => replace(id, v, body)
+      case t => t
     }
-    else { */
-      bind match {
-        case Bind(Some(xvar), body) if xvar.isInstanceOf[Identifier] => replace(xvar, v, body)
-        case Bind(_, body) => body
-      }
-    //}
+
   }
 
   def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
-    require(xvar.isInstanceOf[Identifier])
     body match {
       case Var(yvar) if yvar == xvar => v
       case IfThenElse(cond, t1, t2) =>
@@ -60,29 +57,13 @@ object Interpreter {
       case LeftTree(t) => LeftTree(replace(xvar, v, t))
       case RightTree(t) => RightTree(replace(xvar, v, t))
       case Because(t1, t2) => Because(replace(xvar, v, t1), replace(xvar, v, t2))
-      case Bind(Some(yvar), e) if (xvar == yvar) => body
+      case Bind(yvar, e) if (xvar == yvar) => body
       case Bind(yvar, e) => Bind(yvar, replace(xvar, v, e))
-
-      case Lambda(tp, bind) => replace(xvar, v, bind) match {
-        case b: Bind => Lambda(tp, b)
-        case _ => BottomTree
-      }
-      case Fix(tp, Bind(n, bind)) => replace(xvar, v, bind) match {
-        case b: Bind => Fix(tp, Bind(n, b))
-        case _ => BottomTree
-      }
-      case LetIn(tp, v1, bind) => replace(xvar, v, bind) match {
-        case b: Bind => LetIn(tp, replace(xvar, v, v1), b)
-        case _ => BottomTree
-      }
-      case Match(t, t0, bind) => replace(xvar, v, bind) match {
-        case b: Bind => Match(replace(xvar, v, t), replace(xvar, v, t0), b)
-        case _ => BottomTree
-      }
-      case EitherMatch(t, bind1, bind2) => (replace(xvar, v, bind1), replace(xvar, v, bind2)) match {
-        case (b1: Bind, b2: Bind) => EitherMatch(replace(xvar, v, t), b1, b2)
-        case _ => BottomTree
-      }
+      case Lambda(tp, bind) => Lambda(tp, replace(xvar, v, bind))
+      case Fix(tp, bind) => Fix(tp, replace(xvar, v, bind))
+      case LetIn(tp, v1, bind) => LetIn(tp, replace(xvar, v, v1), replace(xvar, v, bind))
+      case Match(t, t0, bind) => Match(replace(xvar, v, t), replace(xvar, v, t0), replace(xvar, v, bind))
+      case EitherMatch(t, bind1, bind2) => EitherMatch(replace(xvar, v, t), replace(xvar, v, bind1), replace(xvar, v, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
       case _ => body
     }
@@ -117,7 +98,7 @@ object Interpreter {
       case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
       case App(f, _) if isValue(f) => ErrorTree("App wait a lambda abstraction", None()) // f is a value and not a lambda
       case App(f, v) => App(smallStep(f), v)
-      case Fix(_, Bind(_, bind)) if isBind(bind) => replaceBind(bind, Lambda(None(), Bind(None(), e)))
+      case Fix(_, Bind(id, bind)) if isBind(bind) => replaceBind(bind, Lambda(None(), Bind(Identifier(0, "_"), e)))
 
       case Match(ErrorTree(s, t), _, _) => ErrorTree(s, t)
       case Match(NatLiteral(BigInt(0)), t0, _) => t0
