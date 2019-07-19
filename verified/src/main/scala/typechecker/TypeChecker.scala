@@ -58,6 +58,7 @@ trait Rule {
 
   def or(other: Rule): Rule = Rule.or(this, other)
   def repeat: Rule = Rule.repeat(this)
+  def ||(other: Rule): Rule = Rule.or(this, other)
 }
 
 
