@@ -67,16 +67,7 @@ object Rule {
     new Rule {
       def apply(g: Goal): ResultGoalContext = {
         val rc1: ResultGoalContext = rule1.apply(g)
-        val rc2: ResultGoalContext = rule2.apply(g)
-        ResultGoalContext(
-          rc1.goals ++ rc2.goals,
-          rc1.results ++ rc2.results, // Should merge the two results rc1.mergeResults(rc2)
-          (rc: ResultGoalContext) => {
-            val newRC1 = rc1.merge(rc)
-            val newRC2 = rc2.merge(rc)
-            ResultGoalContext(newRC1.goals ++ newRC2.goals, newRC1.results ++ newRC2.results, (rc: ResultGoalContext) => rc)
-          }
-        )
+        if(rc1 == errorContext) rule2.apply(g) else rc1
       }
     }
   }
