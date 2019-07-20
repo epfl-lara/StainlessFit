@@ -5,4 +5,3 @@ val x = (
   x - x
 ) in
 assert((x == 0))
-
