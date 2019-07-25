@@ -9,10 +9,16 @@ def g(x: Nat + Nat): Nat = {
   }
 }
 
+val fact = fix[n => Nat => Nat](fac =>
+  fun (m: Nat) => {
+      if(m == 0) 1
+      else m * (fac (m - 1))
+  }
+) in
 val x: Nat = 2 in
 val y: Nat  = 4 in
 val z: (Nat, Nat) = (1, 2) in
 val p: Nat = f(x + y + First(z) + f(f(2))) + g(Left(22)) / g(Right(22)) in
-g(Left(22))
+assert(p == 8)
 
-// Should returns 7
+//Should returns 8

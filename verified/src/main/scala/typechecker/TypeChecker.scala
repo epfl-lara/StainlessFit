@@ -46,6 +46,23 @@ case class ResultGoalContext(
   }
 }
 
+
+object TypeSimplification {
+  def simpl(t2: Tree, t3: Tree): Tree = {
+    (t2, t3) match {
+      case (UnitLiteral, UnitLiteral) => UnitLiteral
+      case (NatType, NatType) => NatType
+      case (BoolType, BoolType) => BoolType
+      case (TopType, TopType) => TopType
+      case (PiType(a1, Bind(x, b1)), PiType(a2, Bind(_, b2))) => PiType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
+      /*case (PolyForallType(a1, Bind(x, b1)), PiType(a2, Bind(_, b2)) => PolyForallType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
+      case (SigmaType(a1, Bind(x, b1)), PiType(a2, Bind(_, b2)) => SigmaType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
+    */
+      case (_, _) => BottomType
+    }
+  }
+}
+
 trait Rule {
   def apply(g: Goal): ResultGoalContext
 
@@ -402,7 +419,7 @@ case object InferLeft extends Rule {
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
               case Some(InferResult(ty1)) =>
-                rc.updateResults(g, InferResult(SumType(ty1, TopType)))
+                rc.updateResults(g, InferResult(SumType(ty1, BottomType)))
               case _ => rc
             }
           }
@@ -422,7 +439,7 @@ case object InferRight extends Rule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(ty2)) => rc.updateResults(g, InferResult(SumType(TopType, ty2)))
+              case Some(InferResult(ty2)) => rc.updateResults(g, InferResult(SumType(BottomType, ty2)))
               case _ => rc
             }
           }
@@ -562,18 +579,64 @@ case object InferEitherMatch extends Rule {
 }
 
 
-/*case object InferFix extends Rule {
+case object InferFix extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
-      case InferGOal(c, Fix(stainlessSome(Bind(n, ty)), Bind(n, Bind(y, t)))) =>
+      case InferGoal(c, Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))) =>
+        // If n1 != n, fail
+        val m = Identifier(0, "_m")
         val c1 = c.bind(n, NatType).bind(
           y,
-          PiType(UnitType, Bind(, PolyForallType()))
+          PiType(UnitType, Bind(Identifier(0, "_"), PolyForallType(
+            RefinementType(NatType, Bind(m, Primitive(Lt, List(Var(m), Var(n))))),
+            Bind(m, ty)))
+          )
+        )
+        val subgoal = InferGoal(c1, t)
+        ResultGoalContext(
+          List((r: ResultGoalContext) => subgoal),
+          Map(),
+          (rc: ResultGoalContext) => {
+             rc.results.get(subgoal) match {
+              case Some(InferResult(ty1)) =>
+                if(ty == ty1) rc.updateResults(g, InferResult(ty))
+                else rc
+              case _ => rc
+            }
+          }
         )
       case _ => errorContext
     }
   }
-}*/
+}
+
+case object InferForallInstantiation extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match {
+      case InferGoal(c, Inst(t1, t2)) =>
+        val inferT1 = InferGoal(c, t1)
+        val fcheckT2 = (rc: ResultGoalContext) => {
+          rc.results.get(inferT1) match {
+            case Some(InferResult(PolyForallType(ty1, Bind(_, ty)))) =>
+              CheckGoal(c, t2, ty1)
+            case _ => ErrorGoal(c)
+          }
+        }
+        ResultGoalContext(
+          List((r: ResultGoalContext) => inferT1, fcheckT2),
+          Map(),
+          (rc: ResultGoalContext) => {
+            (rc.results.get(inferT1), rc.results.get(fcheckT2(rc))) match {
+              case (Some(InferResult(PolyForallType(ty1, Bind(_, ty)))), Some(CheckResult(true))) =>
+                rc.updateResults(g, InferResult(ty))
+              case _ => rc
+            }
+          }
+        )
+      case _ => errorContext
+    }
+  }
+}
 
 
 case object CheckIf extends Rule {
@@ -823,25 +886,25 @@ case object CheckRight extends Rule {
 
 // PLUTÔT QUE DES EQUALITY TYPE, un terme composé de LETIN ?
 
-/*case object CheckRefinement extends Rule {
+case object CheckRefinement extends Rule {
   def apply(g: Goal): ResultGoalContext = {
     g match {
       case CheckGoal(c, t, RefinementType(ty, Bind(id, b)))  =>
         val checkTy = CheckGoal(c, t, ty)
-        val fcheckSecond = (rc: ResultGoalContext) => {
-          rc.results.get(checkFirst) match {
+        /*val fcheckSecond = (rc: ResultGoalContext) => {
+          rc.results.get(checkTy) match {
             case Some(CheckResult(true)) =>
               val c1 = c.bind(id, ty1).bindFresh("_", EqualityType(Var(id), First(t)))
               CheckGoal(c1, Second(t), ty2)
             case _ => ErrorGoal(c)
           }
-        }
+        }*/
         ResultGoalContext(
-          List((rc: ResultGoalContext) => checkFirst, fcheckSecond),
+          List((rc: ResultGoalContext) => checkTy), //fcheckSecond),
           Map(),
           (rc: ResultGoalContext) => {
-            (rc.results.get(checkFirst), rc.results.get(fcheckSecond(rc))) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true))) =>
+            rc.results.get(checkTy) match { //, rc.results.get(fcheckSecond(rc))) match {
+              case Some(CheckResult(true)) =>  //, Some(CheckResult(true))) =>
                 rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
@@ -850,14 +913,15 @@ case object CheckRight extends Rule {
       case _ => errorContext
     }
   }
-}*/
+}
 
 
 
 object TypeChecker {
-  val rule = InferBool.or(InferNat).or(InferApp).or(InferUnit).or(InferVar).or(InferLambda) || CheckLeft || CheckRight.or(CheckReflexive).or(NewErrorGoalRule).or(
+  val rule = InferBool.or(InferNat).or(InferApp).or(InferUnit).or(InferVar).or(InferLambda) || CheckLeft || CheckRefinement || CheckRight.or(CheckReflexive).or(NewErrorGoalRule).or(
     InferBinNatPrimitive).or(InferLet).or(InferIf).or(InferPair).or(InferFirst).or(InferSecond).or(InferMatch).or(
-    CheckIf).or(CheckMatch).or(InferEitherMatch).or(InferError).or(InferBinBoolPrimitive) || InferUnBoolPrimitive || InferLeft || InferRight
+    CheckIf).or(CheckMatch).or(InferEitherMatch).or(InferError).or(InferBinBoolPrimitive) || InferUnBoolPrimitive || InferLeft || InferRight ||
+    InferFix || InferForallInstantiation
 
 
   def infer(t: Tree) = {
