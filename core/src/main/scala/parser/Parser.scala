@@ -379,7 +379,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         val body = Interpreter.replace(x, App(Var(x), UnitLiteral), e)
         Fix(stainlessNone(), Bind(Identifier(0, "_"), Bind(x, body)))
       case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
-        val body = Interpreter.replace(x, App(Var(x), UnitLiteral), e)
+        val body = Interpreter.replace(x, Inst(App(Var(x), UnitLiteral), Var(n)), e) // Not correct should inst with n - 1
         Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(x, body)))
     }
   }

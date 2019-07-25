@@ -65,6 +65,7 @@ object Interpreter {
       case Match(t, t0, bind) => Match(replace(xvar, v, t), replace(xvar, v, t0), replace(xvar, v, bind))
       case EitherMatch(t, bind1, bind2) => EitherMatch(replace(xvar, v, t), replace(xvar, v, bind1), replace(xvar, v, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
+      case Inst(t1, t2) => Inst(replace(xvar, v, t1), t2)
       case _ => body
     }
   }
@@ -141,6 +142,7 @@ object Interpreter {
 
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))
+      case Inst(t1, t2) => t1
 
       case _ => e
     }
