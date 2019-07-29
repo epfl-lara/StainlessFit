@@ -6,6 +6,4 @@ val ackermann = fix[o => Nat => Nat => Nat](ackermann =>
       else ackermann (m - 1) (ackermann m (n - 1))
     }
   }
-) in
-
-assert(ackermann 2 2 == 7)
+) in assert(ackermann 2 2 == 7)

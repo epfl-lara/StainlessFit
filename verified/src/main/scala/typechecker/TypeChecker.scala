@@ -50,17 +50,31 @@ case class ResultGoalContext(
 object TypeSimplification {
   def simpl(t2: Tree, t3: Tree): Tree = {
     (t2, t3) match {
-      case (UnitLiteral, UnitLiteral) => UnitLiteral
+      case (UnitType, UnitType) => UnitType
       case (NatType, NatType) => NatType
       case (BoolType, BoolType) => BoolType
       case (TopType, TopType) => TopType
       case (PiType(a1, Bind(x, b1)), PiType(a2, Bind(_, b2))) => PiType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
-      /*case (PolyForallType(a1, Bind(x, b1)), PiType(a2, Bind(_, b2)) => PolyForallType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
-      case (SigmaType(a1, Bind(x, b1)), PiType(a2, Bind(_, b2)) => SigmaType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
-    */
+      case (PolyForallType(a1, Bind(x, b1)), PolyForallType(a2, Bind(_, b2))) => PolyForallType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
+      case (SigmaType(a1, Bind(x, b1)), SigmaType(a2, Bind(_, b2))) => SigmaType(simpl(a1, a2), Bind(x, simpl(b1, b2)))
+      case (RefinementType(a1, Bind(x, p1)), RefinementType(a2, Bind(_, p2))) => RefinementType(simpl(a1, a2), Bind(x, simpl(p1, p2)))
+      case (RefinementType(a1, Bind(x, p1)), t) => RefinementType(simpl(a1, t), Bind(x, p1))
+      case (t, RefinementType(a1, Bind(x, p1))) => RefinementType(simpl(a1, t), Bind(x, p1))
+      case (EqualityType(t11, t12), EqualityType(t21, t22)) => EqualityType(simpl(t11, t21), simpl(t12, t22))
       case (_, _) => BottomType
     }
   }
+
+  /*def if(t1, t2, t3): Tree = simpl(t2, t3)
+
+  def match(tn, t1, b): Tree = {
+    b match {
+      case Bind(n, t2) => simpl(t1, t2)
+      case _ => BottomType
+    }
+  }
+
+  def letin(t1, t2): Tree = simpl(t2, t2)*/
 }
 
 trait Rule {
@@ -241,7 +255,8 @@ case object InferApp extends Rule {
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(g1), rc.results.get(fg2(rc))) match {
-              case (Some(InferResult(PiType(_, Bind(_, ty)))), Some(CheckResult(true))) => rc.updateResults(g, InferResult(ty))
+              case (Some(InferResult(PiType(_, Bind(_, ty)))), Some(CheckResult(true))) =>
+                rc.updateResults(g, InferResult(TypeSimplification.simpl(ty, ty)))
               case _ => rc
             }
           }
@@ -372,7 +387,8 @@ case object InferLet extends Rule {
           Map(),
           (rc: ResultGoalContext) => {
             (rc.results.get(gv), rc.results.get(gb)) match {
-              case (Some(CheckResult(true)), Some(InferResult(ty))) => rc.updateResults(g, InferResult(ty))
+              case (Some(CheckResult(true)), Some(InferResult(ty))) =>
+                rc.updateResults(g, InferResult(TypeSimplification.simpl(ty, ty)))
               case _ => rc
             }
           }
@@ -397,8 +413,8 @@ case object InferIf extends Rule {
           (rc: ResultGoalContext) => {
              (rc.results.get(checkCond), rc.results.get(inferT1), rc.results.get(inferT2)) match {
               case (Some(CheckResult(true)), Some(InferResult(ty1)), Some(InferResult(ty2))) =>
-                if(ty1 == ty2) rc.updateResults(g, InferResult(ty1))
-                else rc
+                val t = TypeSimplification.simpl(ty1, ty2)
+                rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -439,7 +455,8 @@ case object InferRight extends Rule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(ty2)) => rc.updateResults(g, InferResult(SumType(BottomType, ty2)))
+              case Some(InferResult(ty2)) =>
+              rc.updateResults(g, InferResult(SumType(BottomType, ty2)))
               case _ => rc
             }
           }
@@ -503,7 +520,9 @@ case object InferSecond extends Rule {
           Map(),
           (rc: ResultGoalContext) => {
             rc.results.get(subgoal) match {
-              case Some(InferResult(SigmaType(ty1, ty2))) => rc.updateResults(g, InferResult(ty2))
+              case Some(InferResult(SigmaType(ty1, ty2))) =>
+                val t = TypeSimplification.simpl(ty2, ty2)
+                rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -529,8 +548,8 @@ case object InferMatch extends Rule {
           (rc: ResultGoalContext) => {
              (rc.results.get(checkCond), rc.results.get(inferT0), rc.results.get(inferTn)) match {
               case (Some(CheckResult(true)), Some(InferResult(ty0)), Some(InferResult(tyn))) =>
-                if(ty0 == tyn) rc.updateResults(g, InferResult(ty0))
-                else rc
+                val t = TypeSimplification.simpl(ty0, tyn)
+                rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -567,8 +586,8 @@ case object InferEitherMatch extends Rule {
           (rc: ResultGoalContext) => {
              (rc.results.get(finferT1(rc)), rc.results.get(finferT2(rc))) match {
               case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
-                if(ty1 == ty2) rc.updateResults(g, InferResult(ty1))
-                else rc
+                val t = TypeSimplification.simpl(ty1, ty2)
+                rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -883,8 +902,6 @@ case object CheckRight extends Rule {
     }
   }
 }
-
-// PLUTÔT QUE DES EQUALITY TYPE, un terme composé de LETIN ?
 
 case object CheckRefinement extends Rule {
   def apply(g: Goal): ResultGoalContext = {
