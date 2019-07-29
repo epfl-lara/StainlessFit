@@ -50,6 +50,7 @@ case class ResultGoalContext(
 object TypeSimplification {
   def simpl(t2: Tree, t3: Tree): Tree = {
     (t2, t3) match {
+      case (t1, t2) if t2  == t3 => t1
       case (UnitType, UnitType) => UnitType
       case (NatType, NatType) => NatType
       case (BoolType, BoolType) => BoolType
@@ -60,10 +61,13 @@ object TypeSimplification {
       case (RefinementType(a1, Bind(x, p1)), RefinementType(a2, Bind(_, p2))) => RefinementType(simpl(a1, a2), Bind(x, simpl(p1, p2)))
       case (RefinementType(a1, Bind(x, p1)), t) => RefinementType(simpl(a1, t), Bind(x, p1))
       case (t, RefinementType(a1, Bind(x, p1))) => RefinementType(simpl(a1, t), Bind(x, p1))
-      case (EqualityType(t11, t12), EqualityType(t21, t22)) => EqualityType(simpl(t11, t21), simpl(t12, t22))
+      case (EqualityType(t11, t12), EqualityType(t21, t22)) =>
+        EqualityType(t11, t12)
+        //EqualityType(simplTerm(t11, t21), simplTerm(t12, t22))
       case (_, _) => BottomType
     }
   }
+
 
   /*def if(t1, t2, t3): Tree = simpl(t2, t3)
 
@@ -256,7 +260,9 @@ case object InferApp extends Rule {
           (rc: ResultGoalContext) => {
             (rc.results.get(g1), rc.results.get(fg2(rc))) match {
               case (Some(InferResult(PiType(_, Bind(_, ty)))), Some(CheckResult(true))) =>
-                rc.updateResults(g, InferResult(TypeSimplification.simpl(ty, ty)))
+                val t = TypeSimplification.simpl(ty, ty)
+                if(t == BottomType) rc
+                else rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -388,7 +394,9 @@ case object InferLet extends Rule {
           (rc: ResultGoalContext) => {
             (rc.results.get(gv), rc.results.get(gb)) match {
               case (Some(CheckResult(true)), Some(InferResult(ty))) =>
-                rc.updateResults(g, InferResult(TypeSimplification.simpl(ty, ty)))
+                val t = TypeSimplification.simpl(ty, ty)
+                if(t == BottomType) rc
+                else rc.updateResults(g, InferResult(TypeSimplification.simpl(ty, ty)))
               case _ => rc
             }
           }
@@ -414,7 +422,8 @@ case object InferIf extends Rule {
              (rc.results.get(checkCond), rc.results.get(inferT1), rc.results.get(inferT2)) match {
               case (Some(CheckResult(true)), Some(InferResult(ty1)), Some(InferResult(ty2))) =>
                 val t = TypeSimplification.simpl(ty1, ty2)
-                rc.updateResults(g, InferResult(t))
+                if(t == BottomType) rc
+                else rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -522,7 +531,8 @@ case object InferSecond extends Rule {
             rc.results.get(subgoal) match {
               case Some(InferResult(SigmaType(ty1, ty2))) =>
                 val t = TypeSimplification.simpl(ty2, ty2)
-                rc.updateResults(g, InferResult(t))
+                if(t == BottomType) rc
+                else rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -549,7 +559,8 @@ case object InferMatch extends Rule {
              (rc.results.get(checkCond), rc.results.get(inferT0), rc.results.get(inferTn)) match {
               case (Some(CheckResult(true)), Some(InferResult(ty0)), Some(InferResult(tyn))) =>
                 val t = TypeSimplification.simpl(ty0, tyn)
-                rc.updateResults(g, InferResult(t))
+                if(t == BottomType) rc
+                else rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -587,7 +598,8 @@ case object InferEitherMatch extends Rule {
              (rc.results.get(finferT1(rc)), rc.results.get(finferT2(rc))) match {
               case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
                 val t = TypeSimplification.simpl(ty1, ty2)
-                rc.updateResults(g, InferResult(t))
+                if(t == BottomType) rc
+                else rc.updateResults(g, InferResult(t))
               case _ => rc
             }
           }
@@ -608,7 +620,7 @@ case object InferFix extends Rule {
           y,
           PiType(UnitType, Bind(Identifier(0, "_"), PolyForallType(
             RefinementType(NatType, Bind(m, Primitive(Lt, List(Var(m), Var(n))))),
-            Bind(m, ty)))
+            Bind(m, ty))) // TODO ty with n replaced by m
           )
         )
         val subgoal = InferGoal(c1, t)

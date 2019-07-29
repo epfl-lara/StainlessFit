@@ -18,7 +18,7 @@ object Main {
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         val ty = TypeChecker.infer(value)
-        Interpreter.evaluate(value, 1000000000) match {
+        Interpreter.evaluate(value, 1000) match {
           case ErrorTree(error, _) => throw new Exception(s"Error during evaluation.\n${error}")
           case v => (ty, v)
         }
