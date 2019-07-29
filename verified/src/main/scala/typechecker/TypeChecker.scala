@@ -68,6 +68,12 @@ object TypeSimplification {
     }
   }
 
+  def simplTerm(t2: Tree, t3: Tree): Tree = {
+    (t2, t3) match {
+      case (t2, t3) if t2 == t3 => t2
+      case (_, _) => t2
+    }
+  }
 
   /*def if(t1, t2, t3): Tree = simpl(t2, t3)
 
