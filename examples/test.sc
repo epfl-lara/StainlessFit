@@ -9,12 +9,17 @@ def g(x: Nat + Nat): Nat = {
   }
 }
 
+def h() = {
+  2
+}
+
 val fact = fix[n => Nat => Nat](fac =>
   fun (m: Nat) => {
       if(m == 0) 1
       else m * (fac (m - 1))
   }
 ) in
+val q: Nat = h() in
 val x: Nat = 2 in
 val y: Nat  = 4 in
 val z: (Nat, Nat) = (1, 2) in
