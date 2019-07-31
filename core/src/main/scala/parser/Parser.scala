@@ -202,6 +202,35 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case _ => NoClass
   }
 
+  private def instantiateFun(funId: Identifier, body: Tree): Tree = {
+    body match {
+      case Var(yvar) if yvar == funId => App(Var(funId), UnitLiteral)
+      case IfThenElse(cond, t1, t2) =>
+        IfThenElse(instantiateFun(funId, cond), instantiateFun(funId, t1), instantiateFun(funId, t2))
+      case App(Var(id), t2) if id == funId =>
+        val t1 = Inst(App(Var(funId), UnitLiteral), NatLiteral(0))//t2)
+        App(t1, instantiateFun(funId, t2))
+      case App(t1, t2) =>
+        App(instantiateFun(funId, t1), instantiateFun(funId, t2))
+      case Pair(t1, t2) => Pair(instantiateFun(funId, t1), instantiateFun(funId, t2))
+      case First(t) => First(instantiateFun(funId, t))
+      case Second(t) => Second(instantiateFun(funId, t))
+      case LeftTree(t) => LeftTree(instantiateFun(funId, t))
+      case RightTree(t) => RightTree(instantiateFun(funId, t))
+      case Because(t1, t2) => Because(instantiateFun(funId, t1), instantiateFun(funId, t2))
+      case Bind(yvar, e) if (funId == yvar) => body
+      case Bind(yvar, e) => Bind(yvar, instantiateFun(funId, e))
+      case Lambda(tp, bind) => Lambda(tp, instantiateFun(funId, bind))
+      case Fix(tp, bind) => Fix(tp, instantiateFun(funId, bind))
+      case LetIn(tp, v1, bind) => LetIn(tp, instantiateFun(funId, v1), instantiateFun(funId, bind))
+      case Match(t, t0, bind) => Match(instantiateFun(funId, t), instantiateFun(funId, t0), instantiateFun(funId, bind))
+      case EitherMatch(t, bind1, bind2) => EitherMatch(instantiateFun(funId, t), instantiateFun(funId, bind1), instantiateFun(funId, bind2))
+      case Primitive(op, args) => Primitive(op, args.map(instantiateFun(funId, _)))
+      case Inst(t1, t2) => Inst(instantiateFun(funId, t1), t2)
+      case _ => body
+    }
+  }
+
   val assignation = elem(AssignationClass)
   val lpar = elem(SeparatorClass("("))
   val rpar = elem(SeparatorClass(")"))
@@ -391,7 +420,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         val body = Interpreter.replace(x, App(Var(x), UnitLiteral), e)
         Fix(stainlessNone(), Bind(Identifier(0, "_"), Bind(x, body)))
       case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
-        val body = Interpreter.replace(x, Inst(App(Var(x), UnitLiteral), Var(n)), e) // Not correct should inst with n - 1
+        val body = instantiateFun(x, e) //Interpreter.replace(x, Inst(App(Var(x), UnitLiteral), Var(n)), e) // Not correct should inst with n - 1
         Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(x, body)))
     }
   }
