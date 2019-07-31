@@ -70,6 +70,7 @@ object Interpreter {
     }
   }
 
+
   def smallStep(e: Tree): Tree = {
     e match {
       case IfThenElse(BoolLiteral(true), t1, t2) => t1
