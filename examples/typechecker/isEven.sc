@@ -12,11 +12,7 @@ val oddEven1 = fix[n => (Nat => Bool, Nat => Bool)](oddEven1 =>
   )
 ) in
 
-val isEven = oddEven 0 in
-val isOdd = oddEven 1 in
-val isEven1 = First(oddEven1) in
-val isOdd1 = Second(oddEven1) in
-val x = assert(isEven 0 && isEven1 0) in
-val x = assert(isOdd 1 && isOdd1 1) in
-val x = assert(isEven 2 && isEven1 2) in
-assert(isOdd 3 && isOdd1 3)
+val isEven: Nat => Bool = oddEven 0 in
+val isOdd: Nat => Bool = oddEven 1 in
+val isEven1: Nat => Bool = First(oddEven1) in
+val isOdd1: Nat => Bool = Second(oddEven1) in ()
