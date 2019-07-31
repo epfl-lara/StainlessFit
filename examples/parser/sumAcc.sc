@@ -1,4 +1,4 @@
-val sumAcc = fix(sumAcc =>
+val sumAcc = fix[o => Nat](sumAcc =>
   fun (acc : Nat) => {
     fun (v : Unit + Nat) => {
       match v {
