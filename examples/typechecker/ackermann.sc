@@ -1,4 +1,4 @@
-val ackermann = fix[o => Nat => Nat => Nat](ackermann =>
+val ackermann = fix[o => {m: Nat, m < o} => Nat => Nat](ackermann =>
   fun (m: Nat) => {
     fun (n: Nat) => {
       if(m == 0) n + 1

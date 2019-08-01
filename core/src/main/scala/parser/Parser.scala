@@ -276,7 +276,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         else {
           val h = l.reverse.head
           val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(0, "_"), acc)) }
+          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(0, "_X"), acc)) }
         }
     }
   }
@@ -289,13 +289,20 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val piType = accept(SeparatorClass("=>")) {
     case s =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(Identifier(0, "_"), y))
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(Identifier(0, "_X"), y))
       f
   }
 
   lazy val recType: Parser[Tree] = {
     (recK ~ lpar ~ variable ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
       case _ ~ _ ~ Var(n) ~ _ ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t), UnitType)
+    }
+  }
+
+  lazy val refinementType: Parser[Tree] = {
+    (lbra ~ variable ~ colon ~ typeExpr ~ comma ~ expression ~ rbra).map {
+      case _ ~ Var(x) ~ _ ~ ty ~ _ ~ p ~ _ => println(ty)
+      RefinementType(ty, Bind(x, p))
     }
   }
 
@@ -306,7 +313,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     )
   }
 
-  lazy val simpleTypeExpr = basicType | recType
+  lazy val simpleTypeExpr = basicType | recType | refinementType
 
   lazy val typeExpr: Parser[Tree] = recursive {
     operatorType

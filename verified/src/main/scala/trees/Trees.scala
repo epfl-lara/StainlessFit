@@ -96,6 +96,12 @@ object Operator {
   }
 }
 
+object Tree {
+  def setId(t: Tree, current: Int): Tree = {
+    t
+  }
+}
+
 case class Identifier(id: Int, name: String)
 
 sealed abstract class Tree
