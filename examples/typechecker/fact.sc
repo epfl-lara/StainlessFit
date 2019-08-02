@@ -5,8 +5,10 @@ val facFix = fix[n => {p: Nat, p < n} => Nat](fac =>
   }
 ) in
 
-def fac(n : Nat) = {
-  Inst(facFix, n +1) n
-}
+//def fac(n : Nat) = {
+//  Inst(facFix, n +1) n
+//}
 
-fac(2)
+//fac(2)
+
+2

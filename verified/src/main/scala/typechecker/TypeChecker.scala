@@ -1145,6 +1145,92 @@ case object NoName1Resolve extends Rule {
   }
 }
 
+case object NoName2Resolve extends Rule {
+  def replace(c: Context, t: Tree): Context = {
+    val c1 = c.variables.foldLeft(c) { case (acc, x) =>
+      c.getTypeOf(x) match {
+        case Some(RefinementType(ty, Bind(y, t2))) =>
+          val t2p = Interpreter.replace(y, Var(x), t2)
+          c.copy(
+            termVariables = c.termVariables.updated(x, ty),
+            termEqualities = (t2p, BoolLiteral(true))::c.termEqualities
+          )
+        case _ => acc
+      }
+    }
+    c1
+    /* SHould be applied more than once
+       For now Id issues => not possible
+    */
+  }
+
+  def apply(g: Goal): ResultGoalContext = {
+
+    g match  {
+      case EqualityGoal(c, t, BoolLiteral(true), l) =>
+        val c1 = replace(c, t)
+        val subgoal = EqualityGoal(c1, t, BoolLiteral(true), g.level + 1)
+        if(c1 == c) errorContext
+        else {
+          ResultGoalContext(
+            List((rc: ResultGoalContext) => subgoal),
+            Map(),
+            (rc: ResultGoalContext) => {
+              rc.results.get(subgoal) match {
+                case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
+                case _ => rc
+              }
+            }
+          )
+        }
+      case _ => errorContext
+    }
+  }
+}
+
+case object ReplaceLet extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+   g match {
+      case EqualityGoal(c, LetIn(tp, v, Bind(x, t1)), t2, l) =>
+        TypeChecker.equalityDebug(s"Context:\n${c}\n")
+        TypeChecker.equalityDebug(s"Here, Should show Equality ${LetIn(tp, v, Bind(x, t1))} = ${t2} in context.\n\n")
+        val c1 = c.addEquality(Var(x), v)
+        val subgoal =  EqualityGoal(c1, t1, t2, g.level + 1)
+          ResultGoalContext(
+            List((rc: ResultGoalContext) => subgoal),
+            Map(),
+            (rc: ResultGoalContext) =>
+              rc.results.get(subgoal) match {
+                case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
+                case _ => rc
+              }
+          )
+      case _ => errorContext
+    }
+  }
+}
+
+
+
+case object InContextResolve extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+
+    g match  {
+      case EqualityGoal(c, t1, t2, l) if c.termEqualities.contains((t1, t2)) =>
+        TypeChecker.equalityDebug(s"Context:\n${c}\n")
+        TypeChecker.equalityDebug(s"COOL : Equality ${t1} = ${t2} in context.\n\n")
+          ResultGoalContext(
+            Nil(),
+            Map(g -> EqualityResult(true)),
+            (rc: ResultGoalContext) => { rc.updateResults(g, EqualityResult(true)) }
+          )
+      case _ => errorContext
+    }
+  }
+}
+
+
+
 case object EqualityResolve extends Rule {
   def apply(g: Goal): ResultGoalContext = {
 
@@ -1174,10 +1260,10 @@ object TypeChecker {
   val rule = InferBool || InferNat || InferApp || InferUnit || InferVar || InferLambda || CheckLeft || CheckRefinement || CheckPi ||
        CheckRight || NewErrorGoalRule || InferBinNatPrimitive || InferLet || InferIf || InferPair || InferFirst || InferSecond || InferMatch ||
     CheckIf || CheckMatch || InferEitherMatch || InferError || InferBinBoolPrimitive || InferUnBoolPrimitive || InferLeft || InferRight ||
-    InferFix || InferIntersection|| EqualityResolve || CheckSigma || CheckReflexive || InferDropRefinement || PrintRule
+    InferFix || InferIntersection|| ReplaceLet || NoName1Resolve || NoName2Resolve || InContextResolve || EqualityResolve || CheckSigma || CheckReflexive || InferDropRefinement || PrintRule
 
-  val tdebug = true
-  val edebug = false
+  val tdebug = false
+  val edebug = true
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context(List(), Map(), Set(), List(), max), t, 0)
