@@ -114,7 +114,7 @@ object Tree {
       case Pair(t1, t2) =>
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newT2, m2, max2) = setId(t2, m1, max1)
-        (App(newT1, newT2), m2, max2)
+        (Pair(newT1, newT2), m2, max2)
       case First(t) =>
         val (newT, m1, max1) = setId(t, m, max)
         (First(newT), m1, max1)
@@ -331,7 +331,7 @@ case class App(t1: Tree, t2: Tree) extends Tree {
 
 case class Pair(t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
-     "(" + t2.toString + ", " + t2.toString + ")"
+     "(" + t1.toString + ", " + t2.toString + ")"
   }
 }
 
