@@ -65,7 +65,12 @@ object Interpreter {
       case Match(t, t0, bind) => Match(replace(xvar, v, t), replace(xvar, v, t0), replace(xvar, v, bind))
       case EitherMatch(t, bind1, bind2) => EitherMatch(replace(xvar, v, t), replace(xvar, v, bind1), replace(xvar, v, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
-      case Inst(t1, t2) => Inst(replace(xvar, v, t1), t2)
+      case Inst(t1, t2) => Inst(replace(xvar, v, t1), replace(xvar, v, t2))
+      case SumType(t1, t2) => SumType(replace(xvar, v, t1), replace(xvar, v, t2))
+      case PiType(t1, bind) => PiType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case IntersectionType(t1, bind) => IntersectionType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
       case _ => body
     }
   }

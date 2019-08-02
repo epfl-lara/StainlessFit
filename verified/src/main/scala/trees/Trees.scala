@@ -100,9 +100,49 @@ object Tree {
   def setId(t: Tree, current: Int): Tree = {
     t
   }
+
+  def appearsFreeIn(v: Identifier, e: Tree): Boolean = {
+    e match {
+      case Var(id) if id == v => true
+      case IfThenElse(cond, t1, t2) =>
+        appearsFreeIn(v, t1) || appearsFreeIn(v, t2) ||
+        appearsFreeIn(v, cond)
+      case App(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
+      case Pair(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
+      case First(t) => appearsFreeIn(v, t)
+      case Second(t) => appearsFreeIn(v, t)
+      case LeftTree(t) => appearsFreeIn(v, t)
+      case RightTree(t) => appearsFreeIn(v, t)
+      case Bind(yvar, e) if (v == Var(yvar)) => false
+      case Bind(_, t) => appearsFreeIn(v, t)
+
+      case Lambda(tp, bind) => appearsFreeIn(v, bind)
+      case Fix(tp, Bind(n, bind)) => appearsFreeIn(v, bind)
+      case LetIn(tp, v1, bind) => appearsFreeIn(v, bind)
+      case Match(t, t0, bind) =>
+        appearsFreeIn(v, t) || appearsFreeIn(v, t0) ||
+        appearsFreeIn(v, bind)
+      case EitherMatch(t, bind1, bind2) =>
+        appearsFreeIn(v, bind1) || appearsFreeIn(v, bind2) ||
+        appearsFreeIn(v, t)
+      case Primitive(op, args) =>
+        args.exists(appearsFreeIn(v, _))
+      case SumType(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
+      case PiType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
+      case SigmaType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
+      case IntersectionType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
+      case RefinementType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
+      case _ => false
+    }
+  }
+
 }
 
-case class Identifier(id: Int, name: String)
+case class Identifier(id: Int, name: String) {
+  override def toString: String = {
+    s"${name}#${id}"
+  }
+}
 
 sealed abstract class Tree
 
@@ -185,7 +225,7 @@ case class UnionType(t1: Tree, t2: Tree) extends Tree
 
 case class RefinementType(t1: Tree, t2: Tree) extends Tree
 
-case class PolyForallType(t1: Tree, t2: Tree) extends Tree
+case class PolyForallType(t1: Tree) extends Tree
 
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
 

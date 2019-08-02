@@ -10,7 +10,7 @@ object Printer {
 
   def pprint(e: Tree, inline: Boolean = false, bindType: Option[Tree] = None()): String = {
     e match {
-      case Var(Identifier(id, x)) => x
+      case Var(id) => id.toString
       case UnitLiteral => "unit"
       case BoolLiteral(b) => b.toString
       case NatLiteral(n) => n.toString
@@ -76,9 +76,15 @@ object Printer {
       case BoolType => "Bool"
       case UnitType => "Unit"
       case SumType(t1, t2) => s"(${pprint(t1)}) + (${pprint(t2)})"
-      case PiType(t1, Bind(_, t2)) => s"(${pprint(t1)}) => (${pprint(t2)})"
-      case SigmaType(t1, Bind(_, t2)) => s"(${pprint(t1)}, ${pprint(t2)})"
-      case _ => "<not yet pprint>"
+      case PiType(t1, Bind(n, t2)) =>
+        if(Tree.appearsFreeIn(n, t2)) s"(${n}: ${pprint(t1)}) => (${pprint(t2)})"
+        else s"(${pprint(t1)}) => (${pprint(t2)})"
+      case SigmaType(t1, Bind(n, t2)) =>
+        if(Tree.appearsFreeIn(n, t2)) s"(${n}: ${pprint(t1)}, ${pprint(t2)})"
+        else s"(${pprint(t1)}, ${pprint(t2)})"
+      case IntersectionType(t1, Bind(n, t2)) => s"∀${n}: ${pprint(t1)}. (${pprint(t2)})"
+      case RefinementType(t1, Bind(n, t2)) => s"{${n}: ${pprint(t1)}, ${pprint(t2)}}"
+      case _ => s"<not yet pprint> ${e.getClass}"
     }
   }
 }

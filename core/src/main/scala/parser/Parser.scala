@@ -158,36 +158,6 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val stainlessNone = stainless.lang.None
   val stainlessSome = stainless.lang.Some
 
-  def appearFreeIn(v: Var, e: Tree): Boolean = {
-    e match {
-      case yvar: Var if e == v => true
-      case IfThenElse(cond, t1, t2) =>
-        appearFreeIn(v, t1) || appearFreeIn(v, t2) ||
-        appearFreeIn(v, cond)
-      case App(t1, t2) => appearFreeIn(v, t1) || appearFreeIn(v, t2)
-      case Pair(t1, t2) => appearFreeIn(v, t1) || appearFreeIn(v, t2)
-      case First(t) => appearFreeIn(v, t)
-      case Second(t) => appearFreeIn(v, t)
-      case LeftTree(t) => appearFreeIn(v, t)
-      case RightTree(t) => appearFreeIn(v, t)
-      case Bind(yvar, e) if (v == Var(yvar)) => false
-      case Bind(_, t) => appearFreeIn(v, t)
-
-      case Lambda(tp, bind) => appearFreeIn(v, bind)
-      case Fix(tp, Bind(n, bind)) => appearFreeIn(v, bind)
-      case LetIn(tp, v1, bind) => appearFreeIn(v, bind)
-      case Match(t, t0, bind) =>
-        appearFreeIn(v, t) || appearFreeIn(v, t0) ||
-        appearFreeIn(v, bind)
-      case EitherMatch(t, bind1, bind2) =>
-        appearFreeIn(v, bind1) || appearFreeIn(v, bind2) ||
-        appearFreeIn(v, t)
-      case Primitive(op, args) =>
-        args.exists(appearFreeIn(v, _))
-      case _ => false
-    }
-  }
-
   override def getKind(token: Token): TokenClass = token match {
     case SeparatorToken(value, range) => SeparatorClass(value)
     case BooleanToken(value, range) => BooleanClass
@@ -276,7 +246,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         else {
           val h = l.reverse.head
           val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(0, "_X"), acc)) }
+          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(0, "Y"), acc)) }
         }
     }
   }
@@ -289,7 +259,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val piType = accept(SeparatorClass("=>")) {
     case s =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(Identifier(0, "_X"), y))
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(Identifier(0, "Z"), y))
       f
   }
 
@@ -301,8 +271,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val refinementType: Parser[Tree] = {
     (lbra ~ variable ~ colon ~ typeExpr ~ comma ~ expression ~ rbra).map {
-      case _ ~ Var(x) ~ _ ~ ty ~ _ ~ p ~ _ => println(ty)
-      RefinementType(ty, Bind(x, p))
+      case _ ~ Var(x) ~ _ ~ ty ~ _ ~ p ~ _ => RefinementType(ty, Bind(x, p))
     }
   }
 

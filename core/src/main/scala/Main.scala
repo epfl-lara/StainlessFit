@@ -28,7 +28,7 @@ object Main {
 
   def typeCheckFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val it = (assertFun + s).toIterator
+    val it = (s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         TypeChecker.infer(value) match {
@@ -58,7 +58,9 @@ object Main {
         case "eval" if (args.length == 2) =>
           println(evalFile(args(1)))
         case "typecheck" if (args.length == 2) =>
-          println(typeCheckFile(args(1)))
+          val t = typeCheckFile(args(1))
+          println("=======")
+          println(Printer.pprint(t))
         case _ =>
           printHelp()
       }
