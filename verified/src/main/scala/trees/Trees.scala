@@ -176,12 +176,27 @@ object Tree {
       case Inst(t1, t2) =>
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newT2, m2, max2) = setId(t2, m1, max1)
-        (Inst(newT1, newT2), m2, max2)/*
-      case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
-      case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)*/
+        (Inst(newT1, newT2), m2, max2)
+      case SumType(t1, t2) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newT2, m2, max2) = setId(t2, m1, max1)
+        (SumType(newT1, newT2), m2, max2)
+      case PiType(t1, bind) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (PiType(newT1, newBind), m2, max2)
+      case SigmaType(t1, bind) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (SigmaType(newT1, newBind), m2, max2)
+      case IntersectionType(t1, bind) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (IntersectionType(newT1, newBind), m2, max2)
+      case RefinementType(t1, bind) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (RefinementType(newT1, newBind), m2, max2)
       case _ => (t, m, max)
     }
   }
