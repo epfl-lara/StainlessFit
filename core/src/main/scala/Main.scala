@@ -31,10 +31,10 @@ object Main {
     val it = (s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
-        TypeChecker.infer(value) match {
+        val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
+        TypeChecker.infer(t, max) match {
           case ErrorResult => throw new Exception("Cannot typecheck file.\n")
           case InferResult(ty) =>
-            println(value)
             ty
         }
       case t =>

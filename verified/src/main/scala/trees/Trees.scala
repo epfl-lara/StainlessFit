@@ -99,8 +99,91 @@ object Operator {
 
 
 object Tree {
-  def setId(t: Tree, current: Int): Tree = {
-    t
+  def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Map[Identifier, Identifier], Int) = {
+    t match {
+      case Var(id) => (Var(m(id)), m, max)
+      case IfThenElse(cond, t1, t2) =>
+        val (newC, m1, max1) = setId(cond, m, max)
+        val (newT1, m2, max2) = setId(t1, m1, max1)
+        val (newT2, m3, max3) = setId(t2, m2, max2)
+        (IfThenElse(newC, newT1, newT2), m3, max3)
+      case App(t1, t2) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newT2, m2, max2) = setId(t2, m1, max1)
+        (App(newT1, newT2), m2, max2)
+      case Pair(t1, t2) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newT2, m2, max2) = setId(t2, m1, max1)
+        (App(newT1, newT2), m2, max2)
+      case First(t) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        (First(newT), m1, max1)
+      case Second(t) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        (Second(newT), m1, max1)
+      case LeftTree(t) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        (LeftTree(newT), m1, max1)
+      case RightTree(t) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        (RightTree(newT), m1, max1)
+      case Bind(y, e) =>
+        val m1 = m.updated(y, Identifier(max, y.name))
+        val (newE, m2, max2) = setId(e, m1, max + 1)
+        (Bind(Identifier(max, y.name), newE), m2, max2)
+      case Lambda(Some(tp), bind) =>
+        val (newTp, m1, max1) = setId(tp, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (Lambda(Some(newTp), newBind), m2, max2)
+      case Lambda(None(), bind) =>
+        val (newBind, m1, max1) = setId(bind, m, max)
+        (Lambda(None(), newBind), m1, max1)
+      case Fix(Some(Bind(n, tp)), Bind(_, bind)) =>
+        val m1 = m.updated(n, Identifier(max, n.name))
+        val newN = Identifier(max, n.name)
+        val (newTp, m2, max2) = setId(tp, m1, max + 1)
+        val (newBind, m3, max3) = setId(bind, m2, max2)
+        (Fix(Some(Bind(newN, newTp)), Bind(newN, newBind)), m3, max3)
+      case Fix(None(), bind) =>
+        val (newBind, m1, max1) = setId(bind, m, max)
+        (Fix(None(), newBind), m1, max1)
+      case LetIn(Some(tp), v, bind) =>
+        val (newTp, m1, max1) = setId(tp, m, max)
+        val (newV, m2, max2) = setId(v, m1, max1)
+        val (newBind, m3, max3) = setId(bind, m2, max2)
+        (LetIn(Some(newTp), newV, newBind), m3, max3)
+      case LetIn(None(), v, bind) =>
+        val (newV, m1, max1) = setId(v, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (LetIn(None(), newV, newBind), m2, max2)
+      case Match(t, t0, bind) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        val (newT0, m2, max2) = setId(t0, m1, max1)
+        val (newBind, m3, max3) = setId(bind, m2, max2)
+        (Match(newT, newT0, newBind), m3, max3)
+      case EitherMatch(t, bind1, bind2) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        val (newBind1, m2, max2) = setId(bind1, m1, max1)
+        val (newBind2, m3, max3) = setId(bind2, m2, max2)
+        (EitherMatch(newT, newBind1, newBind2), m3, max3)
+      case Primitive(op, Cons(t, Nil())) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        (Primitive(op, Cons(newT, Nil())), m1, max1)
+      case Primitive(op, Cons(t1, Cons(t2, Nil()))) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newT2, m2, max2) = setId(t2, m1, max1)
+        (Primitive(op, Cons(newT1, Cons(newT2, Nil()))), m2, max2)
+      case Inst(t1, t2) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newT2, m2, max2) = setId(t2, m1, max1)
+        (Inst(newT1, newT2), m2, max2)/*
+      case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+      case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)*/
+      case _ => (t, m, max)
+    }
   }
 
   /*def appearsFreeIn(v: Identifier, e: Tree): Boolean = {
@@ -142,7 +225,7 @@ object Tree {
 }
 
 case class Identifier(id: Int, name: String) {
-  override def toString: String = name.toString + id.toString
+  override def toString: String = name.toString + "#" + id.toString
 
  def isFreeIn(e: Tree): Boolean = {
     e match {
@@ -156,7 +239,7 @@ case class Identifier(id: Int, name: String) {
       case Second(t) => isFreeIn(t)
       case LeftTree(t) => isFreeIn(t)
       case RightTree(t) => isFreeIn(t)
-      case Bind(ythisar, e) if (this == Var(ythisar)) => false
+      case Bind(y, e) if (this == y) => false
       case Bind(_, t) => isFreeIn(t)
       case Lambda(tp, bind) => isFreeIn(bind)
       case Fix(tp, Bind(n, bind)) => isFreeIn(bind)
@@ -205,14 +288,14 @@ case class BoolLiteral(b: Boolean) extends Tree {
 }
 
 case class Bind(id: Identifier, body: Tree) extends Tree {
-  private def bodyString: String = {
+  private def bodyString(): String = {
     " => {\n  " + body.toString.replaceAll("\n", "\n  ") + "\n}"
   }
 
-  override def toString: String = id.toString + bodyString
+  override def toString: String = id.toString + bodyString()
 
   def toStringWithType(ty: Tree): String = {
-    id.toString + ": " + ty.toString + bodyString
+    id.toString + ": " + ty.toString + bodyString()
   }
 }
 

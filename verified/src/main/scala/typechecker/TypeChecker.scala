@@ -327,7 +327,8 @@ case object InferApp extends Rule {
               CheckGoal(c, t2, ty2)
             case Some(ty) =>
               ErrorGoal(c, s"Error in InferApp ${g} => ${ty}")
-            case _ => ErrorGoal(c, s"Error in InferApp None ${g}")
+            case _ =>
+              ErrorGoal(c, s"Error in InferApp None ${g}")
           }
         }
         ResultGoalContext(
@@ -1147,7 +1148,7 @@ case object EqualityResolve extends Rule {
     g match  {
       case EqualityGoal(c, t1, t2) =>
         TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Equality between ${t1} and ${t1} to solve.\n\n")
+        TypeChecker.equalityDebug(s"Equality between ${t1} and ${t2} to solve.\n\n")
         ResultGoalContext(
           Nil(),
           Map(g -> EqualityResult(true)),
@@ -1175,8 +1176,8 @@ object TypeChecker {
   val tdebug = false
   val edebug = true
 
-  def infer(t: Tree) = {
-    val g = InferGoal(Context(List(), Map(), Set(), List(), 0), t)
+  def infer(t: Tree, max: Int) = {
+    val g = InferGoal(Context(List(), Map(), Set(), List(), max), t)
     val c = rule.repeat.apply(g)
     c.results.getOrElse(g, ErrorResult)
   }
