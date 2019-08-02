@@ -33,7 +33,9 @@ object Main {
       case ScalaParser.Parsed(value, _) =>
         TypeChecker.infer(value) match {
           case ErrorResult => throw new Exception("Cannot typecheck file.\n")
-          case InferResult(ty) => ty
+          case InferResult(ty) =>
+            println(value)
+            ty
         }
       case t =>
         throw new Exception("Error during parsing:\n" + t)

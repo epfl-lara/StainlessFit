@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
       // Keywords
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
-    word("def") | word("Error") | word("First") | word("Second") | word("fixdef")
+    word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -172,35 +172,6 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case _ => NoClass
   }
 
-  private def instantiateFun(funId: Identifier, body: Tree): Tree = {
-    body match {
-      case Var(yvar) if yvar == funId => App(Var(funId), UnitLiteral)
-      case IfThenElse(cond, t1, t2) =>
-        IfThenElse(instantiateFun(funId, cond), instantiateFun(funId, t1), instantiateFun(funId, t2))
-      case App(Var(id), t2) if id == funId =>
-        val t1 = Inst(App(Var(funId), UnitLiteral), NatLiteral(0))//t2)
-        App(t1, instantiateFun(funId, t2))
-      case App(t1, t2) =>
-        App(instantiateFun(funId, t1), instantiateFun(funId, t2))
-      case Pair(t1, t2) => Pair(instantiateFun(funId, t1), instantiateFun(funId, t2))
-      case First(t) => First(instantiateFun(funId, t))
-      case Second(t) => Second(instantiateFun(funId, t))
-      case LeftTree(t) => LeftTree(instantiateFun(funId, t))
-      case RightTree(t) => RightTree(instantiateFun(funId, t))
-      case Because(t1, t2) => Because(instantiateFun(funId, t1), instantiateFun(funId, t2))
-      case Bind(yvar, e) if (funId == yvar) => body
-      case Bind(yvar, e) => Bind(yvar, instantiateFun(funId, e))
-      case Lambda(tp, bind) => Lambda(tp, instantiateFun(funId, bind))
-      case Fix(tp, bind) => Fix(tp, instantiateFun(funId, bind))
-      case LetIn(tp, v1, bind) => LetIn(tp, instantiateFun(funId, v1), instantiateFun(funId, bind))
-      case Match(t, t0, bind) => Match(instantiateFun(funId, t), instantiateFun(funId, t0), instantiateFun(funId, bind))
-      case EitherMatch(t, bind1, bind2) => EitherMatch(instantiateFun(funId, t), instantiateFun(funId, bind1), instantiateFun(funId, bind2))
-      case Primitive(op, args) => Primitive(op, args.map(instantiateFun(funId, _)))
-      case Inst(t1, t2) => Inst(instantiateFun(funId, t1), t2)
-      case _ => body
-    }
-  }
-
   val assignation = elem(AssignationClass)
   val lpar = elem(SeparatorClass("("))
   val rpar = elem(SeparatorClass(")"))
@@ -229,6 +200,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val defK = elem(KeyWordClass("def"))
   val recK = elem(TypeClass("Rec"))
   val errorK = elem(KeyWordClass("Error"))
+  val instK = elem(KeyWordClass("Inst"))
   val fixdefK = elem(KeyWordClass("fixdef"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
@@ -471,6 +443,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
+  lazy val instantiate: Parser[Tree] = recursive {
+    (instK ~ lpar ~ expression ~ comma ~ expression ~ rpar).map {
+      case _ ~ _ ~ f ~ _ ~ e ~ _ => Inst(f, e)
+    }
+  }
+
   val operator: Parser[Tree] = {
     operators(prefixes(not, application))(
       mul | div | and is LeftAssociative,
@@ -491,7 +469,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (lbra ~ expression ~ rbra).map { case _ ~ e ~ _ => e }
   }
 
-  lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second | error
+  lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second | error | instantiate
 
   lazy val expression: Parser[Tree] = recursive {
     condition | eitherMatch | letIn | defFunction | operator

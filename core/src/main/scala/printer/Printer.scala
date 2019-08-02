@@ -77,10 +77,10 @@ object Printer {
       case UnitType => "Unit"
       case SumType(t1, t2) => s"(${pprint(t1)}) + (${pprint(t2)})"
       case PiType(t1, Bind(n, t2)) =>
-        if(Tree.appearsFreeIn(n, t2)) s"(${n}: ${pprint(t1)}) => (${pprint(t2)})"
+        if(n.isFreeIn(t2)) s"(${n}: ${pprint(t1)}) => (${pprint(t2)})"
         else s"(${pprint(t1)}) => (${pprint(t2)})"
       case SigmaType(t1, Bind(n, t2)) =>
-        if(Tree.appearsFreeIn(n, t2)) s"(${n}: ${pprint(t1)}, ${pprint(t2)})"
+        if(n.isFreeIn(t2)) s"(${n}: ${pprint(t1)}, ${pprint(t2)})"
         else s"(${pprint(t1)}, ${pprint(t2)})"
       case IntersectionType(t1, Bind(n, t2)) => s"∀${n}: ${pprint(t1)}. (${pprint(t2)})"
       case RefinementType(t1, Bind(n, t2)) => s"{${n}: ${pprint(t1)}, ${pprint(t2)}}"

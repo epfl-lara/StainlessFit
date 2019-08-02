@@ -7,91 +7,6 @@ import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
 
-
-object Prnterb {
-
-  def pprint(e: Tree, inline: Boolean = false, bindType: Option[Tree] = None()): String = {
-    e match {
-      case Var(id) => id.toString
-      case UnitLiteral => "unit"
-      case BoolLiteral(b) => b.toString
-      case NatLiteral(n) => n.toString
-      case IfThenElse(c, e1, e2) =>
-        val cs = pprint(c)
-        val e1s = pprint(e1).replaceAll("\n", "\n  ")
-        val e2s = pprint(e2).replaceAll("\n", "\n  ")
-        s"""if(${cs}) {
-        |  ${e1s}
-        |}
-        |else {
-        |  ${e2s}
-        |}""".stripMargin
-      case Lambda(tp, bind) =>
-        val pBind = pprint(bind, bindType = tp)
-        s"fun ${pBind}"
-      case App(e1, e2) => s"${pprint(e1)}(${pprint(e2)})"
-      case Inst(e1, e2) => s"Inst(${pprint(e1)},${pprint(e2)})"
-      case Fix(_, Bind(_, body)) =>
-      s"""Fix(
-       |  ${pprint(body).replaceAll("\n", "\n  ")}
-       |)""".stripMargin
-      case LeftTree(b) => s"Left(${pprint(b)})"
-      case RightTree(b) => s"Right(${pprint(b)})"
-
-      case EitherMatch(t, Bind(x, t1), Bind(y, t2)) =>
-        val ts = pprint(t)
-        val t1s = pprint(t1).replaceAll("\n", "\n    ")
-        val t2s = pprint(t2).replaceAll("\n", "\n    ")
-        s"""${ts} match {
-        |  case Left(${x.name}) =>
-        |    ${t1s}
-        |  case Right(${y.name}) =>
-        |    ${t2s}
-        |}""".stripMargin
-      case Bind(Identifier(_, x), b) =>
-        val pType = bindType match { case None() => "" case Some(t) => s": ${pprint(t)}"}
-        if(inline) s"${x}${pType} => { ${pprint(b).replaceAll("\n", "\n  ")} }"
-        else s"${x}${pType} => {\n  ${pprint(b).replaceAll("\n", "\n  ")}\n}"
-      case LetIn(tp, v, Bind(x, b)) =>
-        val tv = pprint(v)
-        val tx = x.name
-        val tb = pprint(b)
-        s"""val ${tx} = ${tv}
-        |${tb}""".stripMargin
-      case Primitive(op, arg::Nil())  => s"${op}${pprint(arg)}"
-      case Primitive(op, arg1::arg2::Nil())  => s"(${pprint(arg1)}) ${op} (${pprint(arg2)})"
-
-      case Pair(a, b) => s"(${pprint(a)}, ${pprint(b)})"
-      case First(b) => s"First(${pprint(b)})"
-      case Second(b) => s"Second(${pprint(b)})"
-      case Match(t, t1, t2) =>
-        val ts = pprint(t)
-        val t1s = pprint(t1).replaceAll("\n", "\n    ")
-        val t2s = pprint(t2).replaceAll("\n", "\n  ")
-        s"""${ts} match {
-        |  case 0 =>
-        |    ${t1s}
-        |  case ${t2s}
-        |}""".stripMargin
-
-
-      case NatType => "Nat"
-      case BoolType => "Bool"
-      case UnitType => "Unit"
-      case SumType(t1, t2) => s"(${pprint(t1)}) + (${pprint(t2)})"
-      case PiType(t1, Bind(n, t2)) =>
-        if(Tree.appearsFreeIn(n, t2)) s"(${n}: ${pprint(t1)}) => (${pprint(t2)})"
-        else s"(${pprint(t1)}) => (${pprint(t2)})"
-      case SigmaType(t1, Bind(n, t2)) =>
-        if(Tree.appearsFreeIn(n, t2)) s"(${n}: ${pprint(t1)}, ${pprint(t2)})"
-        else s"(${pprint(t1)}, ${pprint(t2)})"
-      case IntersectionType(t1, Bind(n, t2)) => s"∀${n}: ${pprint(t1)}. (${pprint(t2)})"
-      case RefinementType(t1, Bind(n, t2)) => s"{${n}: ${pprint(t1)}, ${pprint(t2)}}"
-      case _ => s"<not yet pprint> ${e.getClass}"
-    }
-  }
-}
-
 case class Context(
   val variables: List[Identifier],
   val termVariables: Map[Identifier, Tree],
@@ -118,10 +33,10 @@ case class Context(
   override def toString: String = {
     "Term equalities:\n"++
     termEqualities.foldLeft("") {
-      case (acc, (a, b)) => acc + s"${Prnterb.pprint(a)} = ${Prnterb.pprint(b)}\n"
+      case (acc, (a, b)) => acc + s"${a} = ${b}\n"
     }++ "Term variables:\n" ++
     variables.foldLeft("") {
-      case (acc, id) => acc + s"${id}: ${Prnterb.pprint(termVariables(id))}\n"
+      case (acc, id) => acc + s"${id}: ${termVariables(id)}\n"
     }
   }
 }
@@ -132,13 +47,13 @@ sealed abstract class Goal {
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
   override def toString: String = {
-    s"Inferring ${Prnterb.pprint(t)}"
+    s"Inferring ${t}"
   }
 }
 
 case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
   override def toString: String = {
-    s"Checking ${Prnterb.pprint(t)}: ${tp}"
+    s"Checking ${t}: ${tp}"
   }
 }
 
@@ -146,7 +61,7 @@ case class SynthesizeGoal(c: Context, tp: Tree) extends Goal
 
 case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
   override def toString: String = {
-    s"Check equality ${Prnterb.pprint(t1)} = ${Prnterb.pprint(t2)}"
+    s"Check equality ${t1} = ${t1}"
   }
 }
 
@@ -211,7 +126,7 @@ object TypeSimplification {
 
   def letIn(x: Identifier, tp: Option[Tree], v: Tree, t: Tree) = {
     def f(t1: Tree, t2: Tree): Tree = {
-      if(Tree.appearsFreeIn(x, t1)) LetIn(tp, v, Bind(x, t1))
+      if(x.isFreeIn(t1)) LetIn(tp, v, Bind(x, t1))
       else t1
     }
     simpl(t, t, f)
@@ -880,12 +795,6 @@ case object InferIntersection extends Rule {
             (rc.results.get(inferT1), rc.results.get(fcheckT2(rc))) match {
               case (Some(InferResult(IntersectionType(ty1, Bind(x, ty)))), Some(CheckResult(true))) =>
                 val t = TypeSimplification.letIn(x, None(), t2, ty)
-                println("Insnt")
-                 println((x, Prnterb.pprint(t2)))
-                 println(Prnterb.pprint(ty))
-                 println(t)
-                 println(t1)
-                 println("\n\n")
                 rc.updateResults(g, InferResult(t))
               case _ => rc
             }
@@ -1238,7 +1147,7 @@ case object EqualityResolve extends Rule {
     g match  {
       case EqualityGoal(c, t1, t2) =>
         TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Equality between ${Prnterb.pprint(t1)} and ${Prnterb.pprint(t2)} to solve.\n\n")
+        TypeChecker.equalityDebug(s"Equality between ${t1} and ${t1} to solve.\n\n")
         ResultGoalContext(
           Nil(),
           Map(g -> EqualityResult(true)),
