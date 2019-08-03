@@ -1368,7 +1368,7 @@ object TypeChecker {
     CheckIf || CheckMatch || InferEitherMatch || InferError || InferBinBoolPrimitive || InferUnBoolPrimitive || InferLeft || InferRight ||
     InferFix || InferIntersection|| ReplaceLet || NatInequalityResolve || GoodArithmeticResolve ||  ReflexivityResolve || NoName1Resolve || NoName2Resolve || InContextResolve || EqualityResolve || CheckSigma || CheckReflexive || InferDropRefinement || PrintRule
 
-  val tdebug = true
+  val tdebug = false
   val edebug = false
 
   def infer(t: Tree, max: Int) = {

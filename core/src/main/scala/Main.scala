@@ -17,7 +17,8 @@ object Main {
     val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
-        Interpreter.evaluate(value, 1000) match {
+        val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
+        Interpreter.evaluate(t, 1000) match {
           case ErrorTree(error, _) => throw new Exception(s"Error during evaluation.\n${error}")
           case v => v
         }

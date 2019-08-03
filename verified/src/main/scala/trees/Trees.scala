@@ -130,7 +130,7 @@ object Tree {
       case Bind(y, e) =>
         val m1 = m.updated(y, Identifier(max, y.name))
         val (newE, m2, max2) = setId(e, m1, max + 1)
-        (Bind(Identifier(max, y.name), newE), m2, max2)
+        (Bind(Identifier(max, y.name), newE), m, max2)
       case Lambda(Some(tp), bind) =>
         val (newTp, m1, max1) = setId(tp, m, max)
         val (newBind, m2, max2) = setId(bind, m1, max1)
