@@ -63,7 +63,7 @@ object Main {
         case "typecheck" if (args.length == 2) =>
           val t = typeCheckFile(args(1))
           println("=======")
-          println(Printer.pprint(t))
+          println(t)
         case _ =>
           printHelp()
       }
