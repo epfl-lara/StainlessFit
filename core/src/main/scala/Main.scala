@@ -1,6 +1,5 @@
 import trees._
 import interpreter._
-import printer._
 import typechecker._
 
 import parser.ScalaParser
@@ -34,9 +33,8 @@ object Main {
       case ScalaParser.Parsed(value, _) =>
         val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
         TypeChecker.infer(t, max) match {
-          case ErrorResult => throw new Exception("Cannot typecheck file.\n")
-          case InferResult(ty) =>
-            ty
+          case InferResult(ty) => ty
+          case _ => throw new Exception("Cannot typecheck file.\n")
         }
       case t =>
         throw new Exception("Error during parsing:\n" + t)
