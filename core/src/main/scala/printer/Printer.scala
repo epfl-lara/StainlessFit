@@ -28,7 +28,7 @@ object Printer {
         val pBind = pprint(bind, bindType = tp)
         s"fun ${pBind}"
       case App(e1, e2) => s"${pprint(e1)}(${pprint(e2)})"
-      case Fix(_, Bind(_, body)) =>
+      case Fix(_, _, Bind(_, body)) =>
       s"""Fix(
        |  ${pprint(body).replaceAll("\n", "\n  ")}
        |)""".stripMargin

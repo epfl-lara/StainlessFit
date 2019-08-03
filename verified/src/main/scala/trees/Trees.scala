@@ -200,43 +200,6 @@ object Tree {
       case _ => (t, m, max)
     }
   }
-
-  /*def appearsFreeIn(v: Identifier, e: Tree): Boolean = {
-    e match {
-      case Var(id) if id == v => true
-      case IfThenElse(cond, t1, t2) =>
-        appearsFreeIn(v, t1) || appearsFreeIn(v, t2) ||
-        appearsFreeIn(v, cond)
-      case App(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
-      case Pair(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
-      case First(t) => appearsFreeIn(v, t)
-      case Second(t) => appearsFreeIn(v, t)
-      case LeftTree(t) => appearsFreeIn(v, t)
-      case RightTree(t) => appearsFreeIn(v, t)
-      case Bind(yvar, e) if (v == Var(yvar)) => false
-      case Bind(_, t) => appearsFreeIn(v, t)
-
-      case Lambda(tp, bind) => appearsFreeIn(v, bind)
-      case Fix(tp, Bind(n, bind)) => appearsFreeIn(v, bind)
-      case LetIn(tp, v1, bind) => appearsFreeIn(v, bind)
-      case Match(t, t0, bind) =>
-        appearsFreeIn(v, t) || appearsFreeIn(v, t0) ||
-        appearsFreeIn(v, bind)
-      case EitherMatch(t, bind1, bind2) =>
-        appearsFreeIn(v, bind1) || appearsFreeIn(v, bind2) ||
-        appearsFreeIn(v, t)
-      case Primitive(op, args) =>
-        args.exists(appearsFreeIn(v, _))
-      case Inst(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
-      case SumType(t1, t2) => appearsFreeIn(v, t1) || appearsFreeIn(v, t2)
-      case PiType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
-      case SigmaType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
-      case IntersectionType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
-      case RefinementType(t1, bind) => appearsFreeIn(v, t1) || appearsFreeIn(v, bind)
-      case _ => false
-    }
-  }*/
-
 }
 
 case class Identifier(id: Int, name: String) {
@@ -256,9 +219,9 @@ case class Identifier(id: Int, name: String) {
       case RightTree(t) => isFreeIn(t)
       case Bind(y, e) if (this == y) => false
       case Bind(_, t) => isFreeIn(t)
-      case Lambda(tp, bind) => isFreeIn(bind)
-      case Fix(tp, Bind(n, bind)) => isFreeIn(bind)
-      case LetIn(tp, this1, bind) => isFreeIn(bind)
+      case Lambda(tp, bind) => isFreeIn(bind) || isFreeIn(tp.getOrElse(UnitLiteral))
+      case Fix(tp, Bind(n, bind)) => isFreeIn(bind) || isFreeIn(tp.getOrElse(UnitLiteral))
+      case LetIn(tp, v, bind) => isFreeIn(bind) || isFreeIn(v) || isFreeIn(tp.getOrElse(UnitLiteral))
       case Match(t, t0, bind) =>
         isFreeIn(t) || isFreeIn(t0) || isFreeIn(bind)
       case EitherMatch(t, bind1, bind2) =>
@@ -365,9 +328,13 @@ case class Second(t: Tree) extends Tree {
 case class Fix(tp: Option[Tree], body: Tree) extends Tree {
   override def toString: String = {
     this match {
-      case Fix(Some(Bind(n, ty)), Bind(_, Bind(x, body))) =>
-        "Fix[" + n.toString + " => " + ty.toString + "](\n" +
-        "  " + n.toString + ", " + Bind(x, body).toString.replaceAll("\n", "\n  ") +
+      case Fix(Some(Bind(n, ty)), Bind(n1, Bind(x, body))) =>
+        val tyString = tp match {
+          case Some(Bind(n, ty)) => "[" + n.toString + " => " + ty.toString + "]"
+          case _ => ""
+        }
+        "Fix" + tyString + "(\n" +
+        "  " + n1.toString + ", " + Bind(x, body).toString.replaceAll("\n", "\n  ") +
         "\n)"
       case _ => "<No bind in Fix>"
     }
