@@ -84,6 +84,10 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree, level: Int) extends Goal
 
 case class ErrorGoal(c: Context, s: String) extends Goal {
   val level = 0
+
+  override def toString: String = {
+    s"Error Goal : ${s}"
+  }
 }
 
 
@@ -101,7 +105,15 @@ case class ResultGoalContext(
   val merge: ResultGoalContext => ResultGoalContext
 ) {
   def updateResults(goal: Goal, result: Result) = {
-    copy(results = results.updated(goal, result))
+    copy(
+      results = results.updated(goal, result)
+    )
+  }
+
+  override def toString: String = {
+    results.theMap.foldLeft("") {
+      case (acc, (g, r)) => acc + s"${g} = ${r}\n"
+    }
   }
 }
 
@@ -132,7 +144,8 @@ object TypeSimplification {
   }
 
   def ifThenElse(tc: Tree, t1: Tree, t2: Tree): Tree = {
-    simpl(t1, t2, (ty1: Tree, ty2: Tree) => IfThenElse(tc, ty1, ty2))
+    if(t1 == t2) t1
+    else simpl(t1, t2, (ty1: Tree, ty2: Tree) => IfThenElse(tc, ty1, ty2))
   }
 
   def matchSimpl(n: Tree, t0: Tree, id: Identifier, tn: Tree): Tree = {
@@ -345,9 +358,9 @@ case object InferApp extends Rule {
             case Some(InferResult(PiType(ty2, Bind(_, ty)))) =>
               CheckGoal(c, t2, ty2, l + 1)
             case Some(ty) =>
-              ErrorGoal(c, s"Error in InferApp ${g} => ${ty}")
+              ErrorGoal(c, s"Error in InferApp ${t1}.\n\nInfer${ty}\n\n\n")
             case _ =>
-              ErrorGoal(c, s"Error in InferApp None ${g}")
+              ErrorGoal(c, s"Error in InferApp None ${t1}")
           }
         }
         ResultGoalContext(
@@ -1355,8 +1368,8 @@ object TypeChecker {
     CheckIf || CheckMatch || InferEitherMatch || InferError || InferBinBoolPrimitive || InferUnBoolPrimitive || InferLeft || InferRight ||
     InferFix || InferIntersection|| ReplaceLet || NatInequalityResolve || GoodArithmeticResolve ||  ReflexivityResolve || NoName1Resolve || NoName2Resolve || InContextResolve || EqualityResolve || CheckSigma || CheckReflexive || InferDropRefinement || PrintRule
 
-  val tdebug = false
-  val edebug = true
+  val tdebug = true
+  val edebug = false
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context(List(), Map(), Set(), List(), max), t, 0)
