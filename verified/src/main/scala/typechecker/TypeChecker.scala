@@ -1229,6 +1229,51 @@ case object InContextResolve extends Rule {
   }
 }
 
+case object ReflexivityResolve extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+
+    g match  {
+      case EqualityGoal(c, t1, t2, l) if t1 == t2 =>
+        TypeChecker.equalityDebug(s"Context:\n${c}\n")
+        TypeChecker.equalityDebug(s"COOL : ${t1} is ${t2} hence equality holds.\n\n")
+          ResultGoalContext(
+            Nil(),
+            Map(g -> EqualityResult(true)),
+            (rc: ResultGoalContext) => { rc.updateResults(g, EqualityResult(true)) }
+          )
+      case _ => errorContext
+    }
+  }
+}
+
+case object GoodArithmeticResolve extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+
+    g match  {
+      case EqualityGoal(c, Primitive(Lt, Cons(n1, Cons(Primitive(Plus, Cons(n2, Cons(NatLiteral(n3), Nil()))), Nil()))), t2, l) if n1 == n2 && n3 > 0 =>
+        TypeChecker.equalityDebug(s"Context:\n${c}\n")
+        TypeChecker.equalityDebug(s"${n1} < n + ${n3} where x > 0 holds\n\n")
+        val subgoal =  CheckGoal(c, n1, NatType, g.level + 1)
+        val subgoal2 = (rc: ResultGoalContext) => {
+          rc.results.get(subgoal) match {
+            case Some(CheckResult(true)) => EqualityGoal(c, BoolLiteral(true), t2, l + 1)
+            case _ => ErrorGoal(c, s"Error in CheckEitherMatch ${g}")
+          }
+        }
+          ResultGoalContext(
+            List((rc: ResultGoalContext) => subgoal, subgoal2),
+            Map(),
+            (rc: ResultGoalContext) =>
+              rc.results.get(subgoal2(rc)) match {
+                case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
+                case _ => rc
+              }
+          )
+      case _ => errorContext
+    }
+  }
+}
+
 
 
 case object EqualityResolve extends Rule {
@@ -1260,7 +1305,7 @@ object TypeChecker {
   val rule = InferBool || InferNat || InferApp || InferUnit || InferVar || InferLambda || CheckLeft || CheckRefinement || CheckPi ||
        CheckRight || NewErrorGoalRule || InferBinNatPrimitive || InferLet || InferIf || InferPair || InferFirst || InferSecond || InferMatch ||
     CheckIf || CheckMatch || InferEitherMatch || InferError || InferBinBoolPrimitive || InferUnBoolPrimitive || InferLeft || InferRight ||
-    InferFix || InferIntersection|| ReplaceLet || NoName1Resolve || NoName2Resolve || InContextResolve || EqualityResolve || CheckSigma || CheckReflexive || InferDropRefinement || PrintRule
+    InferFix || InferIntersection|| ReplaceLet || GoodArithmeticResolve ||  ReflexivityResolve || NoName1Resolve || NoName2Resolve || InContextResolve || EqualityResolve || CheckSigma || CheckReflexive || InferDropRefinement || PrintRule
 
   val tdebug = false
   val edebug = true

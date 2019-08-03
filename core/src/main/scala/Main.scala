@@ -28,7 +28,7 @@ object Main {
 
   def typeCheckFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val it = (s).toIterator
+    val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
