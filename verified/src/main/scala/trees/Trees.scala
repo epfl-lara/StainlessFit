@@ -444,6 +444,7 @@ case class Primitive(op: Operator, args: List[Tree]) extends Tree {
       case Cons(n1, Nil()) => op.toString + "(" + n1.toString + ")"
       case Cons(n1, Cons(n2, Nil())) =>
         "(" + n1.toString + ")" + op.toString + "(" + n2.toString + ")"
+      case _ => throw new java.lang.Exception("Primitive operations have one or two arguments.")
     }
   }
 }
