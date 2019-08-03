@@ -7,3 +7,5 @@ resolvers ++= Seq(
 val StainlessVersion = "0.3.1"
 
 addSbtPlugin("ch.epfl.lara" % "sbt-stainless" % StainlessVersion)
+
+addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.10")

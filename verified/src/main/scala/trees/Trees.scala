@@ -369,11 +369,11 @@ case class Bind(id: Identifier, body: Tree) extends Tree {
 
 case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
-    "if(" + cond.toString + ") {\n" +
+    "if (" + cond.toString + ") {\n" +
     "  " + t1.toString.replaceAll("\n", "\n  ") + "\n" +
-    "}" +
-    "else {" +
-    "  " + t2.toString.replaceAll("\n", "\n  ") + "\n"
+    "}" + "\n" +
+    "else {" + "\n" +
+    "  " + t2.toString.replaceAll("\n", "\n  ") + "\n" +
     "}"
   }
 }
@@ -488,8 +488,9 @@ case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree {
 
 
 case class ErrorTree(s: String, t: Option[Tree]) extends Tree {
-  override def toString: String = {
-    "Error(" + s + ")"
+  override def toString: String = t match {
+    case None() => s"Error($s)"
+    case Some(tp) => s"Error[$tp]($s)"
   }
 }
 

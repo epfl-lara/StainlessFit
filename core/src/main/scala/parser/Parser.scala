@@ -351,8 +351,11 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val error: Parser[Tree] = {
-    (errorK ~ lpar ~ string ~ rpar).map {
-      case _ ~ _ ~ s ~ _ => ErrorTree(s, stainlessNone())
+    (errorK ~ opt(lsbra ~ typeExpr ~ rsbra) ~ lpar ~ string ~ rpar).map {
+      case _ ~ tpe ~ _ ~ s ~ _ => tpe match {
+        case None => ErrorTree(s, stainlessNone())
+        case Some(_ ~ tp ~ _) => ErrorTree(s, stainlessSome(tp))
+      }
     }
   }
 

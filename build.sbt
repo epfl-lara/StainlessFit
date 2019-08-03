@@ -13,6 +13,8 @@ lazy val core = project
   .in(file("core"))
   .settings(
     name := "stainlesscore",
+    assemblyJarName in assembly := "stainless-core.jar",
+    test in assembly := {}
   )
   .dependsOn(verified)
 

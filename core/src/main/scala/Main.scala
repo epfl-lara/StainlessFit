@@ -1,15 +1,19 @@
 import trees._
 import interpreter._
 import typechecker._
+import typechecker.Derivation._
 
 import parser.ScalaParser
 import parser.ScalaLexer
 
 import java.io.File
 
+import stainless.collection._
+import stainless.lang._
+
 object Main {
 
-  val assertFun = """def assert(b: Bool): Unit = { if(b) () else val x = Error("Assertion failed") in () }"""
+  val assertFun = """def assert(b: Bool): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
 
   def evalFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
@@ -18,32 +22,41 @@ object Main {
       case ScalaParser.Parsed(value, _) =>
         val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
         Interpreter.evaluate(t, 1000) match {
-          case ErrorTree(error, _) => throw new Exception(s"Error during evaluation.\n${error}")
+          case ErrorTree(error, _) => throw new java.lang.Exception(s"Error during evaluation.\n${error}")
           case v => v
         }
       case t =>
-        throw new Exception("Error during parsing:\n" + t)
+        throw new java.lang.Exception("Error during parsing:\n" + t)
     }
   }
 
-  def typeCheckFile(f: File): Tree = {
+  def typeCheckFile(f: File): Unit = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
         TypeChecker.infer(t, max) match {
-          case InferResult(ty) => ty
-          case _ => throw new Exception("Cannot typecheck file.\n")
+          case None() => throw new java.lang.Exception(s"Could not type check: $f")
+          case Some((success, trees)) =>
+            if (success)
+              println(s"Type checked file $f successfully.")
+            else
+              println(s"Error while type checking file $f.")
+
+            Derivation.makeHTMLFile(
+              s"$f.html",
+              List(trees)
+            )
         }
       case t =>
-        throw new Exception("Error during parsing:\n" + t)
+        throw new java.lang.Exception("Error during parsing:\n" + t)
     }
   }
 
   def evalFile(s: String): Tree = evalFile(new File(s))
 
-  def typeCheckFile(s: String): Tree = typeCheckFile(new File(s))
+  def typeCheckFile(s: String): Unit = typeCheckFile(new File(s))
 
   def printHelp() = {
     println(
@@ -59,9 +72,12 @@ object Main {
         case "eval" if (args.length == 2) =>
           println(evalFile(args(1)))
         case "typecheck" if (args.length == 2) =>
-          val t = typeCheckFile(args(1))
-          println("=======")
-          println(t)
+          typeCheckFile(args(1))
+        case "typecheckWatch" if (args.length == 2) =>
+          new util.FileWatcher(
+            scala.collection.immutable.Set(new java.io.File(args(1))),
+            () => typeCheckFile(args(1))
+          ).run()
         case _ =>
           printHelp()
       }
