@@ -177,6 +177,17 @@ object Tree {
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newT2, m2, max2) = setId(t2, m1, max1)
         (Inst(newT1, newT2), m2, max2)
+      case Fold(Some(tp), t) =>
+        val (newTp, m1, max1) = setId(tp, m, max)
+        val (newT, m2, max2) = setId(t, m1, max1)
+        (Fold(Some(newTp), newT), m2, max2)
+      case Fold(None(), t) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        (Fold(None(), newT), m1, max1)
+      case Unfold(t, bind) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (Unfold(newT, newBind), m2, max2)
       case SumType(t1, t2) =>
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newT2, m2, max2) = setId(t2, m1, max1)
