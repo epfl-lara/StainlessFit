@@ -157,6 +157,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   val stainlessNone = stainless.lang.None
   val stainlessSome = stainless.lang.Some
+  var id = 0
 
   override def getKind(token: Token): TokenClass = token match {
     case SeparatorToken(value, range) => SeparatorClass(value)
@@ -170,6 +171,11 @@ object ScalaParser extends Parsers[Token, TokenClass]
     case TypeToken(content, range) => TypeClass(content)
     case StringToken(content, range) => StringClass
     case _ => NoClass
+  }
+
+  def newId: Int = {
+    id = id + 1
+    id
   }
 
   val assignation = elem(AssignationClass)
@@ -220,7 +226,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         else {
           val h = l.reverse.head
           val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(0, "Y"), acc)) }
+          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(newId, "_S"), acc)) }
         }
     }
   }
@@ -233,13 +239,16 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val piType = accept(SeparatorClass("=>")) {
     case s =>
-      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(Identifier(0, "Z"), y))
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => PiType(x, Bind(Identifier(newId, "_X"), y))
       f
   }
 
   lazy val recType: Parser[Tree] = {
-    (recK ~ lpar ~ variable ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ Var(n) ~ _ ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t), UnitType)
+    (recK ~ opt(lpar ~ variable ~ rpar) ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
+      case _ ~ None ~ _ ~ Var(alpha) ~  _ ~ t ~ _ =>
+        val n = Identifier(newId, "_N")
+        IntersectionType(NatType, Bind(n, RecType(n, Bind(alpha, t), UnitType)))
+      case _ ~ Some(_ ~ Var(n) ~ _) ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t), UnitType)
     }
   }
 
@@ -256,7 +265,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     )
   }
 
-  lazy val simpleTypeExpr = basicType | recType | refinementType
+  lazy val simpleTypeExpr = basicType | recType | refinementType | variable
 
   lazy val typeExpr: Parser[Tree] = recursive {
     operatorType
@@ -368,7 +377,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (fixK ~ opt(lsbra ~ variable ~ arrow ~ typeExpr ~ rsbra) ~
     lpar ~ variable ~ arrow ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
-        println("WARNING : We won't be able to typechecks the fixpoint ${x} without type annotation.")
+        println(s"WARNING : We won't be able to typechecks the fixpoint ${x} without type annotation.")
         val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
         Fix(stainlessNone(), Bind(Identifier(0, "_"), Bind(x, body)))
       case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
@@ -388,7 +397,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (foldK ~ opt(lsbra ~ typeExpr ~ rsbra) ~
     lpar ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ e ~ _  =>
-        println("WARNING : We won't be able to typechecks the Fold ${e} without type annotation.\n")
+        println(s"WARNING : We won't be able to typechecks the Fold ${e} without type annotation.\n")
         Fold(stainlessNone(), e)
       case _ ~ Some(_ ~ tp ~ _) ~ _ ~ e ~ _ => Fold(stainlessSome(tp), e)
     }
