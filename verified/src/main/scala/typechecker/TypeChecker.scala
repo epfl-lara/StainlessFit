@@ -1,7 +1,6 @@
 package typechecker
 
 import _root_.trees._
-import _root_.interpreter._
 
 import stainless.annotation._
 import stainless.collection._
@@ -126,15 +125,15 @@ object TypeSimplification {
       case (BoolType, BoolType) => BoolType
       case (TopType, TopType) => TopType
       case (PiType(a1, Bind(x, b1)), PiType(a2, Bind(x2, b2))) =>
-        PiType(simpl(a1, a2, f), Bind(x, simpl(b1, Interpreter.replace(x2, Var(x), b2), f)))
+        PiType(simpl(a1, a2, f), Bind(x, simpl(b1, Tree.replace(x2, Var(x), b2), f)))
       case (IntersectionType(a1, Bind(x, b1)), IntersectionType(a2, Bind(x2, b2))) =>
-        IntersectionType(simpl(a1, a2, f), Bind(x, simpl(b1, Interpreter.replace(x2, Var(x), b2), f)))
+        IntersectionType(simpl(a1, a2, f), Bind(x, simpl(b1, Tree.replace(x2, Var(x), b2), f)))
       case (PolyForallType(Bind(x, b1)), PolyForallType(Bind(x2, b2))) =>
-        PolyForallType(Bind(x, simpl(b1, Interpreter.replace(x2, Var(x), b2), f)))
+        PolyForallType(Bind(x, simpl(b1, Tree.replace(x2, Var(x), b2), f)))
       case (SigmaType(a1, Bind(x, b1)), SigmaType(a2, Bind(x2, b2))) =>
-        SigmaType(simpl(a1, a2, f), Bind(x, simpl(b1, Interpreter.replace(x2, Var(x), b2), f)))
+        SigmaType(simpl(a1, a2, f), Bind(x, simpl(b1, Tree.replace(x2, Var(x), b2), f)))
       case (RefinementType(a1, Bind(x, p1)), RefinementType(a2, Bind(x2, p2))) =>
-        RefinementType(simpl(a1, a2, f), Bind(x, f(p1, Interpreter.replace(x2, Var(x), p2))))
+        RefinementType(simpl(a1, a2, f), Bind(x, f(p1, Tree.replace(x2, Var(x), p2))))
       case (RefinementType(a1, Bind(x, p1)), t3) => RefinementType(simpl(a1, t3, f), Bind(x, p1))
       case (t3, RefinementType(a1, Bind(x, p1))) => RefinementType(simpl(a1, t3, f), Bind(x, p1))
       case (EqualityType(t11, t12), EqualityType(t21, t22)) =>
@@ -782,7 +781,7 @@ case object InferFix extends Rule {
           PiType(UnitType, Bind(Identifier(0, "_"),
             IntersectionType(
               RefinementType(NatType, Bind(m, Primitive(Lt, List(Var(m), Var(n))))),
-              Bind(m, Interpreter.replace(n, Var(m), ty)))) // TODO ty with n replaced by m
+              Bind(m, Tree.replace(n, Var(m), ty)))) // TODO ty with n replaced by m
           )
         ).addEquality(
           Var(y),
@@ -1136,7 +1135,7 @@ case object NoName1Resolve extends Rule {
   def replace(c: Context, t: Tree): Tree = {
     val t1 = c.termEqualities.foldLeft(t) { case (acc, (v1, v2)) =>
       v1 match {
-        case Var(id) => Interpreter.replace(id, v2, acc)
+        case Var(id) => Tree.replace(id, v2, acc)
         case _ => acc
       }
     }
@@ -1180,7 +1179,7 @@ case object NoName2Resolve extends Rule {
     val c1 = c.variables.foldLeft(c) { case (acc, x) =>
       c.getTypeOf(x) match {
         case Some(RefinementType(ty, Bind(y, t2))) =>
-          val t2p = Interpreter.replace(y, Var(x), t2)
+          val t2p = Tree.replace(y, Var(x), t2)
           c.copy(
             termVariables = c.termVariables.updated(x, ty),
             termEqualities = (t2p, BoolLiteral(true))::c.termEqualities

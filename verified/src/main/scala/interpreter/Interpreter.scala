@@ -10,122 +10,53 @@ import stainless.lang._
 
 object Interpreter {
 
-  def isError(e: Tree): Boolean = {
-    decreases(e)
-    e match {
-      case ErrorTree(_, _) => true
-      case _ => false
-    }
-  }
-
-  def isValue(e: Tree): Boolean = {
-    decreases(e)
-    e match {
-      case UnitLiteral => true
-      case NatLiteral(_) => true
-      case BoolLiteral(_) => true
-      case Var(_) => true
-      case Lambda(_, _) => true
-      case Pair(t1, t2) => isValue(t1) && isValue(t2)
-      case RightTree(t) => isValue(t)
-      case LeftTree(t) => isValue(t)
-      case _ => false
-    }
-  }
-
-  def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
-
-  def replaceBind(bind: Tree, v: Tree): Tree = {
-    require(isBind(bind))
-    bind match {
-      case Bind(id, body) => replace(id, v, body)
-      case t => t
-    }
-
-  }
-
-  def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
-    body match {
-      case Var(yvar) if yvar == xvar => v
-      case IfThenElse(cond, t1, t2) =>
-        IfThenElse(replace(xvar, v, cond), replace(xvar, v, t1), replace(xvar, v, t2))
-      case App(t1, t2) =>
-        App(replace(xvar, v, t1), replace(xvar, v, t2))
-      case Pair(t1, t2) => Pair(replace(xvar, v, t1), replace(xvar, v, t2))
-      case First(t) => First(replace(xvar, v, t))
-      case Second(t) => Second(replace(xvar, v, t))
-      case LeftTree(t) => LeftTree(replace(xvar, v, t))
-      case RightTree(t) => RightTree(replace(xvar, v, t))
-      case Because(t1, t2) => Because(replace(xvar, v, t1), replace(xvar, v, t2))
-      case Bind(yvar, e) if (xvar == yvar) => body
-      case Bind(yvar, e) => Bind(yvar, replace(xvar, v, e))
-      case Lambda(None(), bind) => Lambda(None(), replace(xvar, v, bind))
-      case Lambda(Some(tp), bind) => Lambda(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
-      case Fix(None(), bind) => Fix(None(), replace(xvar, v, bind))
-      case Fix(Some(tp), bind) => Fix(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
-      case LetIn(None(), v1, bind) => LetIn(None(), replace(xvar, v, v1), replace(xvar, v, bind))
-      case LetIn(Some(tp), v1, bind) => LetIn(Some(replace(xvar, v, tp)), replace(xvar, v, v1), replace(xvar, v, bind))
-      case Match(t, t0, bind) => Match(replace(xvar, v, t), replace(xvar, v, t0), replace(xvar, v, bind))
-      case EitherMatch(t, bind1, bind2) => EitherMatch(replace(xvar, v, t), replace(xvar, v, bind1), replace(xvar, v, bind2))
-      case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
-      case Inst(t1, t2) => Inst(replace(xvar, v, t1), replace(xvar, v, t2))
-      case SumType(t1, t2) => SumType(replace(xvar, v, t1), replace(xvar, v, t2))
-      case PiType(t1, bind) => PiType(replace(xvar, v, t1), replace(xvar, v, bind))
-      case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
-      case IntersectionType(t1, bind) => IntersectionType(replace(xvar, v, t1), replace(xvar, v, bind))
-      case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
-      case _ => body
-    }
-  }
-
-
   def smallStep(e: Tree): Tree = {
     e match {
       case IfThenElse(BoolLiteral(true), t1, t2) => t1
       case IfThenElse(BoolLiteral(false), t1, t2) => t2
       case IfThenElse(ErrorTree(s, t), _, _) => ErrorTree(s, t)
-      case IfThenElse(t, _, _) if isValue(t) => ErrorTree("Waiting bool in if", Some(BoolType))
+      case IfThenElse(t, _, _) if Tree.isValue(t) => ErrorTree("Waiting bool in if", Some(BoolType))
       case IfThenElse(t, tt, tf) => IfThenElse(smallStep(t), tt, tf)
 
       case Pair(ErrorTree(s, t), _) => ErrorTree(s, t)
       case Pair(_, ErrorTree(s, t)) => ErrorTree(s, t)
-      case Pair(t1, t2) if isValue(t1) => Pair(t1, smallStep(t2))
+      case Pair(t1, t2) if Tree.isValue(t1) => Pair(t1, smallStep(t2))
       case Pair(t1, t2) => Pair(smallStep(t1), t2)
 
       case First(ErrorTree(s, t)) => ErrorTree(s, t)
       case First(Pair(t1, t2)) => t1
-      case First(t) if isValue(t) => ErrorTree("First wait a Pair", None())
+      case First(t) if Tree.isValue(t) => ErrorTree("First wait a Pair", None())
       case First(t) => First(smallStep(t))
 
       case Second(ErrorTree(s, t)) => ErrorTree(s, t)
       case Second(Pair(t1, t2)) => t2
-      case Second(t) if isValue(t) => ErrorTree("Second wait a Pair", None())
+      case Second(t) if Tree.isValue(t) => ErrorTree("Second wait a Pair", None())
       case Second(t) => Second(smallStep(t))
 
       case App(ErrorTree(s, t), _) => ErrorTree(s, t)
       case App(_, ErrorTree(s, t)) => ErrorTree(s, t)
-      case App(Lambda(_, bind), v) if isValue(v) && isBind(bind) => replaceBind(bind, v)
+      case App(Lambda(_, bind), v) if Tree.isValue(v) && Tree.isBind(bind) => Tree.replaceBind(bind, v)
       case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
-      case App(f, _) if isValue(f) => ErrorTree("App wait a lambda abstraction", None()) // f is a value and not a lambda
+      case App(f, _) if Tree.isValue(f) => ErrorTree("App wait a lambda abstraction", None()) // f is a value and not a lambda
       case App(f, v) => App(smallStep(f), v)
-      case Fix(_, Bind(id, bind)) if isBind(bind) => replaceBind(bind, Lambda(None(), Bind(Identifier(0, "_"), e)))
+      case Fix(_, Bind(id, bind)) if Tree.isBind(bind) => Tree.replaceBind(bind, Lambda(None(), Bind(Identifier(0, "_"), e)))
 
       case Match(ErrorTree(s, t), _, _) => ErrorTree(s, t)
       case Match(NatLiteral(BigInt(0)), t0, _) => t0
-      case Match(NatLiteral(n), _, bind) if isBind(bind) => replaceBind(bind, NatLiteral(n - 1))
-      case Match(t, _, _) if isValue(t) => ErrorTree("Match wait a nat", Some(NatType))
+      case Match(NatLiteral(n), _, bind) if Tree.isBind(bind) => Tree.replaceBind(bind, NatLiteral(n - 1))
+      case Match(t, _, _) if Tree.isValue(t) => ErrorTree("Match wait a nat", Some(NatType))
       case Match(t, t0, bind) => Match(smallStep(t), t0, bind)
       //case Match(t, t0, notBind) => ErrorTree("Match wait a bind", None())
 
       case EitherMatch(ErrorTree(s, t), _, _) => ErrorTree(s, t)
-      case EitherMatch(LeftTree(v), bind, _) if isBind(bind) => replaceBind(bind, v)
-      case EitherMatch(RightTree(v), _, bind) if isBind(bind) => replaceBind(bind, v)
-      case EitherMatch(t, _, _) if isValue(t) => ErrorTree("EitherMatch Wait a Left or a Right", None())
+      case EitherMatch(LeftTree(v), bind, _) if v.isValue && Tree.isBind(bind) => Tree.replaceBind(bind, v)
+      case EitherMatch(RightTree(v), _, bind) if v.isValue && Tree.isBind(bind) => Tree.replaceBind(bind, v)
+      case EitherMatch(t, _, _) if Tree.isValue(t) => ErrorTree("EitherMatch Wait a Left or a Right with binds.", None())
       case EitherMatch(t, b1, b2) => EitherMatch(smallStep(t), b1, b2)
 
       case LetIn(tp, ErrorTree(s, t), bind) => ErrorTree(s, t)
-      case LetIn(tp, v, bind) if isValue(v) && isBind(bind) => replaceBind(bind, v)
-      case LetIn(tp, t, bind) if isValue(t) => ErrorTree("LetIn should have a bind", None())
+      case LetIn(tp, v, bind) if Tree.isValue(v) && Tree.isBind(bind) => Tree.replaceBind(bind, v)
+      case LetIn(tp, t, bind) if Tree.isValue(t) => ErrorTree("LetIn should have a bind", None())
       case LetIn(tp, t, bind) => LetIn(tp, smallStep(t), bind)
 
       case Primitive(Not, Cons(BoolLiteral(b), Nil())) => BoolLiteral(!b)
@@ -144,14 +75,19 @@ object Interpreter {
       case Primitive(Mul, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 * n2)
       case Primitive(Div, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) if n2 != 0 => NatLiteral(n1 / n2)
 
-      case Primitive(p, Cons(x, Nil())) if !isValue(x) => Primitive(p, Cons(smallStep(x), Nil()))
-      case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(x) => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
-      case Primitive(p, Cons(x, Cons(y, Nil()))) if !isValue(y) => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
+      case Primitive(p, Cons(x, Nil())) if !Tree.isValue(x) => Primitive(p, Cons(smallStep(x), Nil()))
+      case Primitive(p, Cons(x, Cons(y, Nil()))) if !Tree.isValue(x) => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
+      case Primitive(p, Cons(x, Cons(y, Nil()))) if !Tree.isValue(y) => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
       case Primitive(_, _) => ErrorTree("Bad Primitive operations", None())
 
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))
       case Inst(t1, t2) => t1
+
+      case Unfold(ErrorTree(s, t), _) => ErrorTree(s, t)
+      case Unfold(Fold(tp, v), bind) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
+      case Unfold(Fold(tp, v), bind) if v.isValue => ErrorTree("Unfold should have a bind", None())
+      case Unfold(Fold(tp, t), bind) => Unfold(Fold(tp, smallStep(t)), bind)
 
       case _ => e
     }
@@ -160,7 +96,7 @@ object Interpreter {
   def evaluate(e: Tree, fuel: BigInt): Tree = {
     require(fuel >= 0)
     decreases(fuel)
-    if(isValue(e) || isError(e)) e
+    if(Tree.isValue(e) || Tree.isError(e)) e
     else if(fuel == 0) ErrorTree("No more fuel", Some(BottomType))
     else evaluate(smallStep(e), fuel - 1)
   }

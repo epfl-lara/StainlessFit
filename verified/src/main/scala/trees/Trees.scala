@@ -200,12 +200,80 @@ object Tree {
       case _ => (t, m, max)
     }
   }
+
+  def replaceBind(bind: Tree, v: Tree): Tree = {
+    require(isBind(bind))
+    bind match {
+      case Bind(id, body) => replace(id, v, body)
+      case t => t
+    }
+
+  }
+
+  def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
+    body match {
+      case Var(yvar) if yvar == xvar => v
+      case IfThenElse(cond, t1, t2) =>
+        IfThenElse(replace(xvar, v, cond), replace(xvar, v, t1), replace(xvar, v, t2))
+      case App(t1, t2) =>
+        App(replace(xvar, v, t1), replace(xvar, v, t2))
+      case Pair(t1, t2) => Pair(replace(xvar, v, t1), replace(xvar, v, t2))
+      case First(t) => First(replace(xvar, v, t))
+      case Second(t) => Second(replace(xvar, v, t))
+      case LeftTree(t) => LeftTree(replace(xvar, v, t))
+      case RightTree(t) => RightTree(replace(xvar, v, t))
+      case Because(t1, t2) => Because(replace(xvar, v, t1), replace(xvar, v, t2))
+      case Bind(yvar, e) if (xvar == yvar) => body
+      case Bind(yvar, e) => Bind(yvar, replace(xvar, v, e))
+      case Lambda(None(), bind) => Lambda(None(), replace(xvar, v, bind))
+      case Lambda(Some(tp), bind) => Lambda(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
+      case Fix(None(), bind) => Fix(None(), replace(xvar, v, bind))
+      case Fix(Some(tp), bind) => Fix(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
+      case LetIn(None(), v1, bind) => LetIn(None(), replace(xvar, v, v1), replace(xvar, v, bind))
+      case LetIn(Some(tp), v1, bind) => LetIn(Some(replace(xvar, v, tp)), replace(xvar, v, v1), replace(xvar, v, bind))
+      case Match(t, t0, bind) => Match(replace(xvar, v, t), replace(xvar, v, t0), replace(xvar, v, bind))
+      case EitherMatch(t, bind1, bind2) => EitherMatch(replace(xvar, v, t), replace(xvar, v, bind1), replace(xvar, v, bind2))
+      case Primitive(op, args) => Primitive(op, args.map(replace(xvar, v, _)))
+      case Inst(t1, t2) => Inst(replace(xvar, v, t1), replace(xvar, v, t2))
+      case SumType(t1, t2) => SumType(replace(xvar, v, t1), replace(xvar, v, t2))
+      case PiType(t1, bind) => PiType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case IntersectionType(t1, bind) => IntersectionType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
+      case _ => body
+    }
+  }
+
+  def isError(e: Tree): Boolean = {
+    decreases(e)
+    e match {
+      case ErrorTree(_, _) => true
+      case _ => false
+    }
+  }
+
+  def isValue(e: Tree): Boolean = {
+    decreases(e)
+    e match {
+      case UnitLiteral => true
+      case NatLiteral(_) => true
+      case BoolLiteral(_) => true
+      case Var(_) => true
+      case Lambda(_, _) => true
+      case Pair(t1, t2) => isValue(t1) && isValue(t2)
+      case RightTree(t) => isValue(t)
+      case LeftTree(t) => isValue(t)
+      case _ => false
+    }
+  }
+
+  def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 }
 
 case class Identifier(id: Int, name: String) {
   override def toString: String = name.toString + "#" + id.toString
 
- def isFreeIn(e: Tree): Boolean = {
+  def isFreeIn(e: Tree): Boolean = {
     e match {
       case Var(id) if id == this => true
       case IfThenElse(cond, t1, t2) =>
@@ -240,7 +308,13 @@ case class Identifier(id: Int, name: String) {
   }
 }
 
-sealed abstract class Tree
+sealed abstract class Tree {
+  def isBind: Boolean = Tree.isBind(this)
+
+  def isError: Boolean = Tree.isError(this)
+
+  def isValue: Boolean = Tree.isValue(this)
+}
 
 case class Var(id: Identifier) extends Tree {
   override def toString: String = id.toString
@@ -509,9 +583,9 @@ case class RecType(n: Identifier, t0: Tree, t: Tree) extends Tree
 
 case class Because(t1: Tree, t2: Tree) extends Tree
 
-case class Fold(t: Tree) extends Tree
+case class Fold(tp: Option[Tree], t: Tree) extends Tree
 
-case class Unfold(tp: Option[Tree], t: Tree) extends Tree
+case class Unfold(t: Tree, bind: Tree) extends Tree
 
 
 //case class RefinementByType(t: Tree, cond: Tree) extends Tree

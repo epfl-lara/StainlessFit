@@ -5,7 +5,6 @@ import scallion.lexing._
 import scallion.parsing._
 
 import trees._
-import interpreter._
 
 import scallion.parsing.visualization.Graphs
 import scallion.parsing.visualization.Grammars
@@ -316,7 +315,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
         Identifier(0, "_"),
         Bind(
           name,
-          Interpreter.replace(name, App(Var(name), UnitLiteral), body)
+          Tree.replace(name, App(Var(name), UnitLiteral), body)
         )
       )
     )
@@ -367,10 +366,10 @@ object ScalaParser extends Parsers[Token, TokenClass]
     lpar ~ variable ~ arrow ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
         println("WARNING : We won't be able to typechecks the fixpoint ${x} without type annotation.")
-        val body = Interpreter.replace(x, App(Var(x), UnitLiteral), e)
+        val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
         Fix(stainlessNone(), Bind(Identifier(0, "_"), Bind(x, body)))
       case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
-        val body = Interpreter.replace(
+        val body = Tree.replace(
           x,
           Inst(
             App(Var(x), UnitLiteral),
