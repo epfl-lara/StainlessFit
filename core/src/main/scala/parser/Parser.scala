@@ -203,7 +203,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val instK = elem(KeyWordClass("Inst"))
   val fixdefK = elem(KeyWordClass("fixdef"))
   val foldK = elem(KeyWordClass("Fold"))
-  val unfoldK = elem(KeyWordClass("unfold"))
+  val unfoldK = elem(KeyWordClass("Unfold"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
@@ -489,7 +489,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (lbra ~ expression ~ rbra).map { case _ ~ e ~ _ => e }
   }
 
-  lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second | error | instantiate
+  lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second |
+    error | instantiate | fold | unfold
 
   lazy val expression: Parser[Tree] = recursive {
     condition | eitherMatch | letIn | defFunction | operator
