@@ -277,6 +277,7 @@ object Tree {
       case Pair(t1, t2) => isValue(t1) && isValue(t2)
       case RightTree(t) => isValue(t)
       case LeftTree(t) => isValue(t)
+      case Fold(_, t) => isValue(t)
       case _ => false
     }
   }
