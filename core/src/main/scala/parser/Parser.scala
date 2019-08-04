@@ -94,7 +94,8 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
       // Keywords
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
-    word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst")
+    word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst") | word("Fold") |
+    word("Unfold")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -201,6 +202,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val errorK = elem(KeyWordClass("Error"))
   val instK = elem(KeyWordClass("Inst"))
   val fixdefK = elem(KeyWordClass("fixdef"))
+  val foldK = elem(KeyWordClass("Fold"))
+  val unfoldK = elem(KeyWordClass("unfold"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
@@ -378,6 +381,22 @@ object ScalaParser extends Parsers[Token, TokenClass]
           e
         )
         Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(x, body)))
+    }
+  }
+
+  lazy val fold: Parser[Tree] = recursive {
+    (foldK ~ opt(lsbra ~ typeExpr ~ rsbra) ~
+    lpar ~ expression ~ rpar).map {
+      case _ ~ None ~ _ ~ e ~ _  =>
+        println("WARNING : We won't be able to typechecks the Fold ${e} without type annotation.\n")
+        Fold(stainlessNone(), e)
+      case _ ~ Some(_ ~ tp ~ _) ~ _ ~ e ~ _ => Fold(stainlessSome(tp), e)
+    }
+  }
+
+  lazy val unfold: Parser[Tree] = recursive {
+    (unfoldK ~ lpar ~ expression ~ rpar ~ inK ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
+      case _ ~ _ ~ e ~ _ ~ _ ~ _ ~ Var(x) ~ _ ~ f ~ _ => Unfold(e, Bind(x, f))
     }
   }
 
