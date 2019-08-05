@@ -1395,3 +1395,42 @@ object TypeChecker {
     if(edebug) println(s)
   }
 }
+
+
+case object InferFold extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+
+    g match  {
+      case InferGoal(c, Fold(Some(RecType(n, Bind(a, ty))), t), l) =>
+        TypeChecker.typeCheckDebug(s"${"   " * g.level}Current goal InferFold : ${g.toString.replaceAll("\n", s"\n${"   " * g.level}")}\n")
+        val checkN = CheckGoal(c, n, NatType, l + 1)
+        val c1 = c.addEquality(n, NatLiteral(0))
+        val checkBase = CheckGoal(c1, t, TypeSimplification.basetype(a, ty), l + 1)
+        val (id, c2) = c.bindFresh("_n", NatType)
+        val n2 = Var(id)
+        val c3 = c.addEquality(
+          n2,
+          Primitive(Plus, List(n, NatLiteral(1)))
+        )
+        val nTy = RecType(n2, Bind(a, ty))
+        val check = CheckGoal(c3, t, Tree.replace(a, nTy, ty), l + 1)
+        ResultGoalContext(
+          List(
+            (r: ResultGoalContext) => checkN,
+            (r: ResultGoalContext) => checkBase,
+            (r: ResultGoalContext) => check
+          ),
+          Map(),
+          (rc: ResultGoalContext) => {
+             (rc.results.get(checkN), rc.results.get(checkBase), rc.results.get(check)) match {
+              case (Some(CheckResult(true)), Some(CheckResult(true)), Some(CheckResult(true))) =>
+                rc.updateResults(g, InferResult(RecType(n, Bind(a, ty))))
+              case _ => rc
+            }
+          }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
