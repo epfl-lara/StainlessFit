@@ -100,6 +100,12 @@ object TypeOperators {
       case (NatType, NatType) => Some(NatType)
       case (BoolType, BoolType) => Some(BoolType)
       case (TopType, TopType) => Some(TopType)
+      case (SumType(t11, t12), SumType(t21, t22)) =>
+        binop(t11, t21, f).flatMap { t1 =>
+          binop(t12, t22, f).map { t2 =>
+            SumType(t1, t2)
+          }
+        }
       case (PiType(a1, Bind(x, b1)), PiType(a2, Bind(x2, b2))) =>
         binop(a1, a2, f).flatMap { a =>
           binop(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
@@ -392,6 +398,32 @@ object Rule {
             (true, InferJudgment(c, e, Some(retType)))
           case _ =>
             (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case _ => None()
+  }
+
+val InferMatch = Rule {
+    case InferGoal(c, e @ Match(t, t0, Bind(id, tn))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferEitherMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel()
+      val inferN = CheckGoal(c0, t, NatType)
+      val inferT0 = InferGoal(c0, t0)
+      val cn = c0.bind(id, NatType).addEquality(Var(id),Primitive(Plus, List(t, NatLiteral(1))))
+      val inferTn = InferGoal(cn, tn)
+      Some((
+        List(_ => inferN, _ => inferT0, _ => inferTn), {
+          case Cons(CheckJudgment(_, _, _),
+            Cons(InferJudgment(_, _, Some(ty0)),
+            Cons(InferJudgment(_, _, Some(tyn)), _
+          ))) =>
+            TypeOperators.matchSimpl(t, ty0, id, tyn) match {
+              case None() => (false, ErrorJudgment(c, s"Could not unify types $ty0 and $tyn."))
+              case Some(ty) => (true, InferJudgment(c, e, Some(ty)))
+            }
+
+          case _ => (false, ErrorJudgment(c, e))
         }
       ))
 
@@ -765,40 +797,6 @@ case object InferDropRefinement extends Rule {
   }
 }
 
-
-case object InferMatch extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, Match(t, t0, Bind(id, tn)), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val c1 = c.addEquality(tn, NatLiteral(0))
-        val c2 = c.bind(id, NatType).addEquality(
-          tn,
-          Primitive(
-            Plus,
-            List(Var(id), NatLiteral(1))
-          )
-        )
-        val checkCond = CheckGoal(c, t, NatType)
-        val inferT0 = InferGoal(c1, t0)
-        val inferTn = InferGoal(c2, tn)
-        ResultGoalContext(
-          List((r: ResultGoalContext) => checkCond, (r: ResultGoalContext) => inferT0, (r: ResultGoalContext) => inferTn),
-          Map(),
-          (rc: ResultGoalContext) => {
-             (rc.results.get(checkCond), rc.results.get(inferT0), rc.results.get(inferTn)) match {
-              case (Some(CheckResult(true)), Some(InferResult(ty0)), Some(InferResult(tyn))) =>
-                val retTy = TypeOperators.matchSimpl(t, ty0, id, tyn)
-                rc.updateResults(g, InferResult(retTy))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
 
 case object InferIntersection extends Rule {
   def apply(g: Goal): ResultGoalContext = {
@@ -1319,6 +1317,7 @@ object TypeChecker {
     InferLambda.t ||
     InferIf.t ||
     InferBinNatPrimitive.t ||
+    InferMatch.t ||
     InferEitherMatch.t ||
     InferFix.t ||
     CheckLeft.t ||
