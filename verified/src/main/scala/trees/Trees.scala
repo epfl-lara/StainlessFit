@@ -644,7 +644,7 @@ case class SigmaType(t1: Tree, t2: Tree) extends Tree {
     t2 match {
       case Bind(x, t2) =>
         "(Σ" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<No bind in PiType>"
+      case _ => "<No bind in SigmaType>"
     }
   }
 }

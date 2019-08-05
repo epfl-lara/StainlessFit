@@ -35,13 +35,14 @@ case class Context(
   def incrementLevel() = copy(level = level + 1)
 
   override def toString: String = {
-    "Term equalities:\n" ++
+    /*"Term equalities:\n" ++
     termEqualities.foldLeft("") {
       case (acc, (a, b)) => acc + s"${a} = ${b}\n"
     } ++ "Term variables:\n" ++
     variables.foldLeft("") {
       case (acc, id) => acc + s"${id}: ${termVariables(id)}\n"
-    }
+    }*/
+    ""
   }
 
   def containsVarEqualities: Boolean = {
@@ -424,14 +425,14 @@ object Rule {
 
   val InferMatch = Rule {
     case InferGoal(c, e @ Match(t, t0, Bind(id, tn))) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferEitherMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val c0 = c.incrementLevel()
-      val inferN = CheckGoal(c0, t, NatType)
+      val checkN = CheckGoal(c0, t, NatType)
       val inferT0 = InferGoal(c0, t0)
       val cn = c0.bind(id, NatType).addEquality(Var(id),Primitive(Plus, List(t, NatLiteral(1))))
       val inferTn = InferGoal(cn, tn)
       Some((
-        List(_ => inferN, _ => inferT0, _ => inferTn), {
+        List(_ => checkN, _ => inferT0, _ => inferTn), {
           case Cons(CheckJudgment(_, _, _),
             Cons(InferJudgment(_, _, Some(ty0)),
             Cons(InferJudgment(_, _, Some(tyn)), _
@@ -516,6 +517,41 @@ object Rule {
             (true, InferJudgment(c, e, Some(IntersectionType(NatType, Bind(n, ty)))))
           case _ =>
             (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case _ => None()
+  }
+
+  val InferForallInstantiation = Rule {
+    case InferGoal(c, e @ Inst(t1, t2)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferForallInstantiation : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel()
+      val g1 = InferGoal(c0, t1)
+      val fg2: List[Judgment] => Goal = {
+        case Cons(InferJudgment(_, _, Some(ty)), _) =>
+          dropRefinements(ty) match {
+            case IntersectionType(ty2, Bind(_, _)) => CheckGoal(c0, t2, ty2)
+            case _ => ErrorGoal(c, s"Expecting an intersection type for $t1, found $ty.")
+          }
+        case _ =>
+         ErrorGoal(c, s"Could not infer a type for $t1.")
+      }
+      Some((
+        List(_ => g1, fg2), {
+          case Cons(InferJudgment(_, _, Some(ty)),
+            Cons(CheckJudgment(_, _, _), _)) =>
+
+            dropRefinements(ty) match {
+              case IntersectionType(_, Bind(x, ty)) =>
+                TypeOperators.letIn(x, None(), t2, ty) match {
+                  case None() => (false, ErrorJudgment(c, s"Error in letIn($x, $t2, $ty)"))
+                  case Some(t) => (true, InferJudgment(c, e, Some(t)))
+                }
+              case _ => (false, ErrorJudgment(c, s"Expecting an intersection type for $t1, found $ty."))
+            }
+
+          case _ => (false, ErrorJudgment(c, e))
         }
       ))
 
@@ -744,162 +780,118 @@ object Rule {
     case g =>
       None()
   }
+
+  val CheckPi = Rule {
+    case g @ CheckGoal(c, e @ t, tpe @ PiType(ty1, Bind(id,ty2))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val (freshId, c1) = c.bindFresh(id.name, ty1)
+      val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2)
+      Some((List(_ => subgoal),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, e, tpe))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val CheckIf = Rule {
+    case CheckGoal(c, e @ IfThenElse(tc, t1, t2), ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckIf : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel()
+      val c1 = c0.addEquality(tc, BoolLiteral(true))
+      val c2 = c0.addEquality(tc, BoolLiteral(false))
+      val checkCond = CheckGoal(c0, tc, BoolType)
+      val checkT1 = CheckGoal(c1, t1, ty)
+      val checkT2 = CheckGoal(c2, t2, ty)
+      Some((
+        List(_ => checkCond, _ => checkT1, _ => checkT2),
+        {
+          case Cons(CheckJudgment(_, _, _),
+            Cons(CheckJudgment(_, _, _),
+            Cons(InferJudgment(_, _, _),
+            _
+          ))) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case g =>
+      None()
+  }
+
+  val CheckMatch = Rule {
+    case CheckGoal(c, e @ Match(t, t0, Bind(id, tn)), ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckkMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel()
+      val checkN = CheckGoal(c0, t, NatType)
+      val checkT0 = CheckGoal(c0, t0, ty)
+      val cn = c0.bind(id, NatType).addEquality(Var(id),Primitive(Plus, List(t, NatLiteral(1))))
+      val checkTn = CheckGoal(cn, tn, ty)
+      Some((
+        List(_ => checkN, _ => checkT0, _ => checkTn), {
+          case Cons(CheckJudgment(_, _, _),
+            Cons(CheckJudgment(_, _, _),
+            Cons(CheckJudgment(_, _, _), _
+          ))) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ => (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case _ => None()
+  }
+
+  val CheckEitherMatch = Rule {
+    case CheckGoal(c, e @ EitherMatch(t, Bind(id1, t1), Bind(id2, t2)), tpe) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckEitherMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel()
+      val inferScrutinee = InferGoal(c0, t)
+      val fcheckT1: List[Judgment] => Goal = {
+        case Cons(InferJudgment(_, _, Some(ty)), _) =>
+          dropRefinements(ty) match {
+            case SumType(ty1, ty2) =>
+              val c1 = c0.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
+              CheckGoal(c1, t1, tpe)
+            case _ => ErrorGoal(c, s"Expecting a sum type for $t, found $ty.")
+          }
+        case _ => ErrorGoal(c, s"Could not infer a type for $t.")
+      }
+      val fcheckT2: List[Judgment] => Goal = {
+        case Cons(InferJudgment(_, _, Some(ty)), _) =>
+          dropRefinements(ty) match {
+            case SumType(ty1, ty2) =>
+              val c2 = c0.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
+              CheckGoal(c2, t2, tpe)
+            case _ => ErrorGoal(c, s"Expecting a sum type for $t, found $ty.")
+          }
+        case _ => ErrorGoal(c, s"Could not infer a type for $t.")
+      }
+      Some((
+        List(_ => inferScrutinee, fcheckT1, fcheckT2), {
+          case Cons(InferJudgment(_, _, _),
+            Cons(CheckJudgment(_, _, _),
+            Cons(CheckJudgment(_, _, _), _
+          ))) =>
+            (true, CheckJudgment(c, e, tpe))
+
+          case _ => (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case _ => None()
+  }
+
 }
+
 
 /*
 
-case object InferDropRefinement extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-    g match  {
-      case InferGoal(c, t, l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferDropRefinement : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val inferGoal = InferGoal(c, t)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => inferGoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(inferGoal) match {
-              case Some(InferResult(RefinementType(ty, _))) => rc.updateResults(g, InferResult(ty))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object InferIntersection extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, Inst(t1, t2), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferIntersection : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val inferT1 = InferGoal(c, t1)
-        val fcheckT2 = (rc: ResultGoalContext) => {
-          rc.results.get(inferT1) match {
-            case Some(InferResult(IntersectionType(ty1, Bind(_, ty)))) =>
-              CheckGoal(c, t2, ty1, l + 1)
-            case _ => ErrorGoal(c, s"Error in Intersection ${g}")
-          }
-        }
-        ResultGoalContext(
-          List((r: ResultGoalContext) => inferT1, fcheckT2),
-          Map(),
-          (rc: ResultGoalContext) => {
-            (rc.results.get(inferT1), rc.results.get(fcheckT2(rc))) match {
-              case (Some(InferResult(IntersectionType(ty1, Bind(x, ty)))), Some(CheckResult(true))) =>
-                val t = TypeOperators.letIn(x, None(), t2, ty)
-                rc.updateResults(g, InferResult(t))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object CheckIf extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, IfThenElse(tc, t1, t2), ty, l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckIf : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val c1 = c.addEquality(tc, BoolLiteral(true))
-        val c2 = c.addEquality(tc, BoolLiteral(false))
-        val checkCond = CheckGoal(c, tc, BoolType)
-        val checkT1 = CheckGoal(c1, t1, ty)
-        val checkT2 = CheckGoal(c2, t2, ty)
-        ResultGoalContext(
-          List((r: ResultGoalContext) => checkCond, (r: ResultGoalContext) => checkT1, (r: ResultGoalContext) => checkT2),
-          Map(),
-          (rc: ResultGoalContext) => {
-             (rc.results.get(checkCond), rc.results.get(checkT1), rc.results.get(checkT2)) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true)), Some(CheckResult(true))) =>
-                rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object CheckMatch extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, Match(t, t0, Bind(id, tn)), ty, l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val c1 = c.addEquality(tn, NatLiteral(0))
-        val c2 = c.bind(id, NatType).addEquality(
-          tn,
-          Primitive(
-            Plus,
-            List(Var(id), NatLiteral(1))
-          )
-        )
-        val checkCond = CheckGoal(c, t, NatType)
-        val checkT0 = CheckGoal(c1, t0, ty)
-        val checkTn = CheckGoal(c2, tn, ty)
-        ResultGoalContext(
-          List((r: ResultGoalContext) => checkCond, (r: ResultGoalContext) => checkT0, (r: ResultGoalContext) => checkTn),
-          Map(),
-          (rc: ResultGoalContext) => {
-             (rc.results.get(checkCond), rc.results.get(checkT0), rc.results.get(checkTn)) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true)), Some(CheckResult(true))) =>
-                rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object CheckEitherMatch extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, EitherMatch(t, Bind(id1, t1), Bind(id2, t2)), ty, l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckEitherMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val inferVar = InferGoal(c, t)
-        val fcheckT1 = (rc: ResultGoalContext) => {
-          rc.results.get(inferVar) match {
-            case Some(InferResult(SumType(ty1, ty2))) =>
-              val c1 = c.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
-              CheckGoal(c1, t1, ty)
-            case _ => ErrorGoal(c, s"Error in CheckEitherMatch ${g}")
-          }
-        }
-        val fcheckT2 = (rc: ResultGoalContext) => {
-          rc.results.get(inferVar) match {
-            case Some(InferResult(SumType(ty1, ty2))) =>
-              val c2 = c.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
-              CheckGoal(c2, t2, ty)
-            case _ => ErrorGoal(c, s"Error in CheckEitherMatch ${g}")
-          }
-        }
-        ResultGoalContext(
-          List((r: ResultGoalContext) => inferVar, fcheckT1, fcheckT2),
-          Map(),
-          (rc: ResultGoalContext) => {
-             (rc.results.get(fcheckT1(rc)), rc.results.get(fcheckT2(rc))) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true))) =>
-                rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
 
 case object CheckLet extends Rule {
   def apply(g: Goal): ResultGoalContext = {
@@ -971,30 +963,6 @@ case object CheckIntersection extends Rule {
 }
 
 
-case object CheckPi extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, t, PiType(ty1, Bind(id, ty2)), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val (freshId, c1) = c.bindFresh(id.name, ty1)
-        val subgoal = CheckGoal(c1, App(t, Var(freshId)), ty2)
-        ResultGoalContext(
-          List((r: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-             rc.results.get(subgoal) match {
-              case Some(CheckResult(true)) =>
-                rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
 case object CheckSigma extends Rule {
   def apply(g: Goal): ResultGoalContext = {
 
@@ -1025,6 +993,28 @@ case object CheckSigma extends Rule {
     }
   }
 }
+
+case object InferDropRefinement extends Rule {
+  def apply(g: Goal): ResultGoalContext = {
+    g match  {
+      case InferGoal(c, t, l) =>
+        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferDropRefinement : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+        val inferGoal = InferGoal(c, t)
+        ResultGoalContext(
+          List((rc: ResultGoalContext) => inferGoal),
+          Map(),
+          (rc: ResultGoalContext) => {
+            rc.results.get(inferGoal) match {
+              case Some(InferResult(RefinementType(ty, _))) => rc.updateResults(g, InferResult(ty))
+              case _ => rc
+            }
+          }
+        )
+      case _ => errorContext
+    }
+  }
+}
+
 
 case object NoName1Resolve extends Rule {
   def replace(c: Context, t: Tree): Tree = {
@@ -1293,8 +1283,13 @@ object TypeChecker {
     InferMatch.t ||
     InferEitherMatch.t ||
     InferFix.t ||
+    InferForallInstantiation.t ||
     CheckLeft.t ||
     CheckRight.t ||
+    CheckPi.t ||
+    CheckIf.t ||
+    CheckMatch.t ||
+    CheckEitherMatch.t ||
     CheckRefinement.t ||
     CheckReflexive.t ||
     UnsafeIgnoreEquality.t ||
