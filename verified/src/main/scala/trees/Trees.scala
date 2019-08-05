@@ -97,7 +97,6 @@ object Operator {
   }
 }
 
-
 object Tree {
   def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Map[Identifier, Identifier], Int) = {
     t match {
@@ -284,6 +283,44 @@ object Tree {
   }
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
+
+  def isEvidentSubType(ty1: Tree, ty2: Tree): Boolean = {
+    (ty1, ty2) match {
+      case (BottomType, _) => true
+      case (ty1, ty2) if ty1 == ty2 => true
+      case (RefinementType(ty, Bind(a, t)), ty2) => isEvidentSubType(ty, ty2)
+      case (SumType(l1, r1), SumType(l2, r2)) => isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2)
+      case (SigmaType(l1, Bind(x, r1)), SigmaType(l2, Bind(y, r2))) =>
+        isEvidentSubType(l1, l2) && isEvidentSubType(r1, Tree.replace(y, Var(x), r2))
+      case (PiType(ty1, Bind(x, ty1b)), PiType(ty2, Bind(y, ty2b))) =>
+        isEvidentSubType(ty1, ty2) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
+      case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
+        isEvidentSubType(ty1, ty2) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
+      case (RecType(n, Bind(x, ty1)), PiType(m, Bind(y, ty2))) =>
+        n == m && isEvidentSubType(ty1, Tree.replace(y, Var(x), ty2))
+      case _ => false
+    }
+  }
+
+  def isType(t: Tree): Boolean = {
+    t match {
+      case NatType => true
+      case BoolType => true
+      case BottomType => true
+      case TopType => true
+      case UnitType => true
+      case RefinementType(_, _) => true
+      case SumType(_, _) => true
+      case PiType(_, _) => true
+      case IntersectionType(_, _) => true
+      case RecType(_, _) => true
+      case PolyForallType(_) => true
+      case UnionType(_, _) => true
+      case EqualityType(_, _) => true
+      case SingletonType(_) => true
+      case _ => false
+    }
+  }
 }
 
 case class Identifier(id: Int, name: String) {
