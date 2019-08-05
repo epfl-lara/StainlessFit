@@ -481,7 +481,7 @@ object Rule {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
           dropRefinements(ty) match {
             case PiType(ty2, Bind(_, _)) => CheckGoal(c0, t2, ty2)
-            case _ => ErrorGoal(c, s"Expecting a sum type for $t1, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a pi type for $t1, found $ty.")
           }
         case _ =>
          ErrorGoal(c, s"Could not infer a type for $t1.")
@@ -497,7 +497,7 @@ object Rule {
                   case None() => (false, ErrorJudgment(c, s"Error in letIn($x, $t2, $ty)"))
                   case Some(t) => (true, InferJudgment(c, e, Some(t)))
                 }
-              case _ => (false, ErrorJudgment(c, s"Expecting a sum type for $t1, found $ty."))
+              case _ => (false, ErrorJudgment(c, s"Expecting a pi type for $t1, found $ty."))
             }
 
           case _ => (false, ErrorJudgment(c, e))
@@ -572,6 +572,38 @@ object Rule {
     case g =>
       throw new java.lang.Exception(s"Goal is not handled:\n$g")
   }
+
+  val InferLeft = Rule {
+    case g @ InferGoal(c, e @ LeftTree(t)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel(), t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(tpe)), _) =>
+            (true, InferJudgment(c, e, Some(SumType(tpe, BottomType))))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+    val InferRight = Rule {
+    case g @ InferGoal(c, e @ RightTree(t)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel(), t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(tpe)), _) =>
+            (true, InferJudgment(c, e, Some(SumType(BottomType, tpe))))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
 }
 
 /*
@@ -634,52 +666,6 @@ case object InferDropRefinement extends Rule {
           (rc: ResultGoalContext) => {
             rc.results.get(inferGoal) match {
               case Some(InferResult(RefinementType(ty, _))) => rc.updateResults(g, InferResult(ty))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object InferLeft extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, LeftTree(t), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val subgoal = InferGoal(c, t)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(InferResult(ty1)) =>
-                rc.updateResults(g, InferResult(SumType(ty1, BottomType)))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object InferRight extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, RightTree(t), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferRight : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val subgoal = InferGoal(c, t)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(InferResult(ty2)) =>
-              rc.updateResults(g, InferResult(SumType(BottomType, ty2)))
               case _ => rc
             }
           }
@@ -1356,6 +1342,8 @@ object TypeChecker {
     InferBinNatPrimitive.t ||
     InferEitherMatch.t ||
     InferFix.t ||
+    InferLeft.t ||
+    InferRight.t ||
     CheckRefinement.t ||
     CheckReflexive.t ||
     UnsafeIgnoreEquality.t ||

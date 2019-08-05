@@ -13,7 +13,7 @@ import stainless.lang._
 
 object Main {
 
-  val assertFun = """def assert(b: Bool): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
+  val assertFun = """def assert(b: {b: Bool, b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
 
   def evalFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
