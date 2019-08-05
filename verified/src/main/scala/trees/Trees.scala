@@ -519,6 +519,27 @@ case class Refl(t1: Tree, t2: Tree) extends Tree {
 }
 
 
+case class Fold(tp: Option[Tree], t: Tree) extends Tree {
+  override def toString: String = {
+    val typeString = tp match {
+      case Some(ty) => "[" + ty.toString + "]"
+      case _ => ""
+    }
+    "Fold(" + typeString + t.toString
+  }
+}
+
+case class Unfold(t: Tree, bind: Tree) extends Tree {
+  override def toString: String = {
+    bind match {
+      case Bind(_, _) => "Unfold " + t.toString + " in " + bind.toString + ")"
+      case _ => "Missing bind in Fold>"
+    }
+  }
+}
+
+
+
 case object BottomType extends Tree {
   override def toString: String = "⊥"
 }
@@ -585,6 +606,16 @@ case class RefinementType(t1: Tree, t2: Tree) extends Tree {
   }
 }
 
+case class RecType(n: Tree, bind: Tree) extends Tree {
+  override def toString: String = {
+    bind match {
+      case Bind(a, ty) =>
+        "(Rec(" + n.toString + ")(" + a.toString + " => " + ty.toString + ")"
+      case _ => "<Missing bind in RecType>"
+    }
+  }
+}
+
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 
 case class PolyForallType(t1: Tree) extends Tree
@@ -593,15 +624,10 @@ case class EqualityType(t1: Tree, t2: Tree) extends Tree
 
 case class SingletonType(t: Tree) extends Tree
 
-case class RecType(n: Tree, bind: Tree) extends Tree
 
 
 
 case class Because(t1: Tree, t2: Tree) extends Tree
-
-case class Fold(tp: Option[Tree], t: Tree) extends Tree
-
-case class Unfold(t: Tree, bind: Tree) extends Tree
 
 
 //case class RefinementByType(t: Tree, cond: Tree) extends Tree

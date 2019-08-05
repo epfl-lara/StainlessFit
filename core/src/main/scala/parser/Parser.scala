@@ -374,7 +374,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (fixK ~ opt(lsbra ~ variable ~ arrow ~ typeExpr ~ rsbra) ~
     lpar ~ variable ~ arrow ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
-        println(s"WARNING : We won't be able to typechecks the fixpoint ${x} without type annotation.")
+        //println(s"WARNING : We won't be able to typechecks the fixpoint ${x} without type annotation.")
         val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
         Fix(stainlessNone(), Bind(Identifier(0, "_"), Bind(x, body)))
       case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
@@ -394,7 +394,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     (foldK ~ opt(lsbra ~ typeExpr ~ rsbra) ~
     lpar ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ e ~ _  =>
-        println(s"WARNING : We won't be able to typechecks the Fold ${e} without type annotation.\n")
+        //println(s"WARNING : We won't be able to typechecks the Fold ${e} without type annotation.\n")
         Fold(stainlessNone(), e)
       case _ ~ Some(_ ~ tp ~ _) ~ _ ~ e ~ _ => Fold(stainlessSome(tp), e)
     }
