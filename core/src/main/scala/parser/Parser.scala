@@ -244,11 +244,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val recType: Parser[Tree] = {
-    (recK ~ opt(lpar ~ variable ~ rpar) ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
-      case _ ~ None ~ _ ~ Var(alpha) ~  _ ~ t ~ _ =>
-        val n = Identifier(newId, "_N")
-        IntersectionType(NatType, Bind(n, RecType(n, Bind(alpha, t), UnitType)))
-      case _ ~ Some(_ ~ Var(n) ~ _) ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t), UnitType)
+    (recK ~ lpar ~ variable ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ n ~ _ ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t))
     }
   }
 

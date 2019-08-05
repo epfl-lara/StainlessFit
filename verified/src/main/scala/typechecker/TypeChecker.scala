@@ -162,6 +162,17 @@ object TypeSimplification {
     }
     simpl(t, t, f)
   }
+
+  def basetype(a: Identifier, t: Tree): Tree = {
+    t match {
+      case SigmaType(ty1, Bind(x, ty2)) =>
+        SigmaType(basetype(a, ty1), Bind(x, basetype(a, ty2)))
+      case SumType(ty1, ty2) =>
+        SumType(basetype(a, ty1), basetype(a, ty2))
+      case ty if a.isFreeIn(ty) => TopType
+      case ty => ty
+    }
+  }
 }
 
 trait Rule {

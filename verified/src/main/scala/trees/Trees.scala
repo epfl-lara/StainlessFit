@@ -254,7 +254,7 @@ object Tree {
       case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
       case IntersectionType(t1, bind) => IntersectionType(replace(xvar, v, t1), replace(xvar, v, bind))
       case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
-      case RecType(n, a, t) if n != xvar => RecType(n, replace(xvar, v, a), replace(xvar, v, t))
+      case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
       case _ => body
     }
   }
@@ -593,7 +593,7 @@ case class EqualityType(t1: Tree, t2: Tree) extends Tree
 
 case class SingletonType(t: Tree) extends Tree
 
-case class RecType(n: Identifier, t0: Tree, t: Tree) extends Tree
+case class RecType(n: Tree, bind: Tree) extends Tree
 
 
 
