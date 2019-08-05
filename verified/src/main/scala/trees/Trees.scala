@@ -5,7 +5,25 @@ import stainless.collection._
 import stainless.lang._
 
 
-sealed abstract class Operator
+sealed abstract class Operator {
+  def isNatToNatBinOp: Boolean = Operator.isNatToNatBinOp(this)
+
+  def isNatToBoolBinOp: Boolean = Operator.isNatToBoolBinOp(this)
+
+  def isNatBinOp: Boolean = Operator.isNatBinOp(this)
+
+  def isBoolBinOp: Boolean = Operator.isBoolBinOp(this)
+
+  def isBoolUnOp: Boolean = Operator.isBoolBinOp(this)
+
+  def returnedType: Tree = Operator.returnedType(this)
+
+  def operandsType: Tree = Operator.operandsType(this)
+
+  def isBinOp: Boolean = Operator.isBinOp(this)
+
+  def isUnOp: Boolean = Operator.isUnOp(this)
+}
 
 case object Not extends Operator {
   override def toString = "!"
@@ -94,6 +112,29 @@ object Operator {
       case Not => true
       case _ => false
     }
+  }
+
+  def isBinOp(op: Operator): Boolean = {
+    isNatBinOp(op) || isBoolBinOp(op)
+  }
+
+  def isUnOp(op: Operator): Boolean = {
+    isBoolUnOp(op)
+  }
+
+  def returnedType(op: Operator): Tree = {
+    if(isNatToNatBinOp(op)) return NatType
+    else if(isNatToBoolBinOp(op)) return BoolType
+    else if(isBoolBinOp(op)) return BoolType
+    else if(isBoolUnOp(op)) return BoolType
+    else return BottomType
+  }
+
+  def operandsType(op: Operator): Tree = {
+    if(isNatBinOp(op)) return NatType
+    else if(isBoolBinOp(op)) return BoolType
+    else if(isBoolUnOp(op)) return BoolType
+    else return BottomType
   }
 }
 

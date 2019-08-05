@@ -385,17 +385,17 @@ object Rule {
       None()
   }
 
-  val InferBinNatPrimitive = Rule {
-    case InferGoal(c, e  @  Primitive(op, Cons(n1, Cons(n2, Nil())))) if Operator.isNatBinOp(op) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferBinNatPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val checkN1 = CheckGoal(c, n1, NatType)
-      val checkN2 = CheckGoal(c, n2, NatType)
-      val retType = if (Operator.isNatToBoolBinOp(op)) BoolType else NatType
+  val InferBinaryPrimitive = Rule {
+    case InferGoal(c, e @ Primitive(op, Cons(n1, Cons(n2, Nil())))) if op.isBinOp =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferBinaryPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val opType = op.operandsType
+      val checkN1 = CheckGoal(c, n1, opType)
+      val checkN2 = CheckGoal(c, n2, opType)
       Some((
         List(_ => checkN1, _ => checkN2),
         {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
-            (true, InferJudgment(c, e, Some(retType)))
+            (true, InferJudgment(c, e, Some(op.returnedType)))
           case _ =>
             (false, ErrorJudgment(c, e))
         }
@@ -404,7 +404,25 @@ object Rule {
     case _ => None()
   }
 
-val InferMatch = Rule {
+  val InferUnaryPrimitive = Rule {
+    case InferGoal(c, e @ Primitive(op, Cons(n1, Nil()))) if op.isUnOp =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferUnaryPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val opType = op.operandsType
+      val checkN1 = CheckGoal(c, n1, opType)
+      Some((
+        List(_ => checkN1),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, InferJudgment(c, e, Some(op.returnedType)))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case _ => None()
+  }
+
+  val InferMatch = Rule {
     case InferGoal(c, e @ Match(t, t0, Bind(id, tn))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferEitherMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val c0 = c.incrementLevel()
@@ -729,52 +747,6 @@ val InferMatch = Rule {
 }
 
 /*
-
-case object InferBinBoolPrimitive extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, Primitive(op, Cons(b1, Cons(b2, Nil()))), l) if Operator.isBoolBinOp(op) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferBinBoolPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val checkB1 = CheckGoal(c, b1, BoolType)
-        val checkB2 = CheckGoal(c, b2, BoolType)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => checkB1, (rc: ResultGoalContext) => checkB2),
-          Map(),
-          (rc: ResultGoalContext) => {
-            (rc.results.get(checkB1), rc.results.get(checkB2)) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true))) => rc.updateResults(g, InferResult(BoolType))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object InferUnBoolPrimitive extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, Primitive(op, Cons(b, Nil())), l) if Operator.isBoolUnOp(op) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferUnBoolPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val checkB = CheckGoal(c, b, BoolType)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => checkB),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(checkB) match {
-              case Some(CheckResult(true)) => rc.updateResults(g, InferResult(BoolType))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
 
 case object InferDropRefinement extends Rule {
   def apply(g: Goal): ResultGoalContext = {
@@ -1316,7 +1288,8 @@ object TypeChecker {
     InferApp.t ||
     InferLambda.t ||
     InferIf.t ||
-    InferBinNatPrimitive.t ||
+    InferBinaryPrimitive.t ||
+    InferUnaryPrimitive.t ||
     InferMatch.t ||
     InferEitherMatch.t ||
     InferFix.t ||
