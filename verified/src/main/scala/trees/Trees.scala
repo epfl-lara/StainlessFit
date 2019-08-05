@@ -288,14 +288,14 @@ object Tree {
     (ty1, ty2) match {
       case (BottomType, _) => true
       case (ty1, ty2) if ty1 == ty2 => true
-      case (RefinementType(ty, Bind(a, t)), ty2) => isEvidentSubType(ty, ty2)
+      case (ty2, RefinementType(ty, Bind(a, t))) => isEvidentSubType(ty, ty2)
       case (SumType(l1, r1), SumType(l2, r2)) => isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2)
       case (SigmaType(l1, Bind(x, r1)), SigmaType(l2, Bind(y, r2))) =>
         isEvidentSubType(l1, l2) && isEvidentSubType(r1, Tree.replace(y, Var(x), r2))
       case (PiType(ty1, Bind(x, ty1b)), PiType(ty2, Bind(y, ty2b))) =>
         isEvidentSubType(ty1, ty2) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
       case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty1, ty2) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
+        isEvidentSubType(ty1, ty2) && isEvidentSubType(ty2b, Tree.replace(y, Var(x), ty1b))
       case (RecType(n, Bind(x, ty1)), PiType(m, Bind(y, ty2))) =>
         n == m && isEvidentSubType(ty1, Tree.replace(y, Var(x), ty2))
       case _ => false

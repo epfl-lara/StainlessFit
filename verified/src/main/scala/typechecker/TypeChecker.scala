@@ -573,6 +573,59 @@ object Rule {
       throw new java.lang.Exception(s"Goal is not handled:\n$g")
   }
 
+    val InferPair = Rule {
+    case g @ InferGoal(c, e @ Pair(t1, t2)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferPair : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+        val inferFirst = InferGoal(c.incrementLevel, t1)
+        val inferSecond = InferGoal(c.incrementLevel, t2)
+      Some((List(_ => inferFirst, _ => inferSecond),
+        {
+          case Cons(InferJudgment(_, _, Some(ty1)), Cons(InferJudgment(_, _, Some(ty2)), _)) =>
+            val inferedType = SigmaType(ty1, Bind(Identifier(0, "X"), ty2))
+            (true, InferJudgment(c, e, Some(inferedType)))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val InferFirst = Rule {
+    case g @ InferGoal(c, e @ First(t)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferFirst : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel(), t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(SigmaType(ty, _))), _) =>
+            (true, InferJudgment(c, e, Some(ty)))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val InferSecond = Rule {
+    case g @ InferGoal(c, e @ Second(t)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferSecond : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel(), t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(SigmaType(_, Bind(x, ty)))), _) =>
+            TypeOperators.letIn(x, None(), First(t), ty) match {
+                  case None() => (false, ErrorJudgment(c, s"Error in letIn($x, ${First(t)}, $ty)"))
+                  case Some(t) => (true, InferJudgment(c, e, Some(t)))
+                }
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
   val InferLeft = Rule {
     case g @ InferGoal(c, e @ LeftTree(t)) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
@@ -582,7 +635,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(tpe, BottomType))))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, e))
         }
       ))
     case g =>
@@ -598,7 +651,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(BottomType, tpe))))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, e))
         }
       ))
     case g =>
@@ -614,6 +667,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(SumType(ty, _))), _) if ty == ty1 =>
             (true, CheckJudgment(c, e, tpe))
           case Cons(InferJudgment(_, _, ty), _) =>
+            println(s"Bad type ${ty}")
             (false, ErrorJudgment(c, s"Expecting type $tpe for $e, found $ty"))
           case _ =>
             (false, ErrorJudgment(c, t))
@@ -702,78 +756,6 @@ case object InferDropRefinement extends Rule {
           (rc: ResultGoalContext) => {
             rc.results.get(inferGoal) match {
               case Some(InferResult(RefinementType(ty, _))) => rc.updateResults(g, InferResult(ty))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object InferPair extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, Pair(t1, t2), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferPair : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val inferFirst = InferGoal(c, t1)
-        val inferSecond = InferGoal(c, t2)
-        ResultGoalContext(
-          List((r: ResultGoalContext) => inferFirst, (r: ResultGoalContext) => inferSecond),
-          Map(),
-          (rc: ResultGoalContext) => {
-            (rc.results.get(inferFirst), rc.results.get(inferSecond)) match {
-              case (Some(InferResult(ty1)), Some(InferResult(ty2))) =>
-                rc.updateResults(g, InferResult(SigmaType(ty1, Bind(Identifier(0, "X"), ty2))))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object InferFirst extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, First(t), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferFirst : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val subgoal = InferGoal(c, t)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(InferResult(SigmaType(ty1, _))) => rc.updateResults(g, InferResult(ty1))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object InferSecond extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case InferGoal(c, Second(t), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferSecond : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val subgoal = InferGoal(c, t)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(InferResult(SigmaType(ty1, Bind(x, ty2)))) =>
-                val retTy = TypeOperators.letIn(x, None(), First(t), ty2)
-                rc.updateResults(g, InferResult(retTy))
               case _ => rc
             }
           }
@@ -1326,16 +1308,21 @@ object TypeChecker {
     InferNat.t ||
     InferUnit.t ||
     InferVar.t ||
+    InferLeft.t ||
+    InferRight.t ||
     InferError.t ||
     InferLet.t ||
+    InferPair.t ||
+    InferFirst.t ||
+    InferSecond.t ||
     InferApp.t ||
     InferLambda.t ||
     InferIf.t ||
     InferBinNatPrimitive.t ||
     InferEitherMatch.t ||
     InferFix.t ||
-    InferLeft.t ||
-    InferRight.t ||
+    CheckLeft.t ||
+    CheckRight.t ||
     CheckRefinement.t ||
     CheckReflexive.t ||
     UnsafeIgnoreEquality.t ||
