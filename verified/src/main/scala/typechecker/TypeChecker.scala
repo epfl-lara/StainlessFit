@@ -589,7 +589,7 @@ object Rule {
       None()
   }
 
-    val InferRight = Rule {
+  val InferRight = Rule {
     case g @ InferGoal(c, e @ RightTree(t)) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal InferLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val subgoal = InferGoal(c.incrementLevel(), t)
@@ -597,6 +597,42 @@ object Rule {
         {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(BottomType, tpe))))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val CheckLeft = Rule {
+    case g @ CheckGoal(c, e @ LeftTree(t), tpe @ SumType(ty1, _)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel, e)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(SumType(ty, _))), _) if ty == ty1 =>
+            (true, CheckJudgment(c, e, tpe))
+          case Cons(InferJudgment(_, _, ty), _) =>
+            (false, ErrorJudgment(c, s"Expecting type $tpe for $e, found $ty"))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val CheckRight = Rule {
+    case g @ CheckGoal(c, e @ RightTree(t), tpe @ SumType(_, ty2)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckRight : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel, e)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(SumType(ty, _))), _) if ty == ty2 =>
+            (true, CheckJudgment(c, e, tpe))
+          case Cons(InferJudgment(_, _, ty), _) =>
+            (false, ErrorJudgment(c, s"Expecting type $tpe for $e, found $ty"))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1029,50 +1065,6 @@ case object CheckSigma extends Rule {
             (rc.results.get(checkFirst), rc.results.get(fcheckSecond(rc))) match {
               case (Some(CheckResult(true)), Some(CheckResult(true))) =>
                 rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object CheckLeft extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, LeftTree(t), SumType(ty1, ty2), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckLeft : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val subgoal = InferGoal(c, LeftTree(t))
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(InferResult(SumType(typ1, typ2))) => rc.updateResults(g, CheckResult(ty1 == typ1))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-case object CheckRight extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, RightTree(t), SumType(ty1, ty2), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckRight : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val subgoal = InferGoal(c, RightTree(t))
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(InferResult(SumType(typ1, typ2))) => rc.updateResults(g, CheckResult(ty2 == typ2))
               case _ => rc
             }
           }
