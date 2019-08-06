@@ -248,6 +248,10 @@ object Tree {
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newBind, m2, max2) = setId(bind, m1, max1)
         (RefinementType(newT1, newBind), m2, max2)
+      case RecType(n, bind) =>
+        val (newN, m1, max1) = setId(n, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (RecType(newN, newBind), m2, max2)
       case _ => (t, m, max)
     }
   }
