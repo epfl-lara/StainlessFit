@@ -61,7 +61,8 @@ object Main {
   def printHelp() = {
     println(
       """|Usage: run eval FILE
-      |
+         |       run typecheck FILE
+         |       run typecheckWatch FILE
       """.stripMargin)
   }
 

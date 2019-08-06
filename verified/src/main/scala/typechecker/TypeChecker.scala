@@ -140,8 +140,13 @@ object TypeOperators {
         binop(a1, t3, f).map { a =>
           RefinementType(a, Bind(x, p1))
         }
+      case (RecType(n, Bind(x1, b1)), RecType(m, Bind(x2, b2))) if n == m =>
+        binop(b1, Tree.replace(x2, Var(x1), b2), f).map { b =>
+            RecType(n, Bind(x1, b))
+          }
       case (EqualityType(t11, t12), EqualityType(t21, t22)) =>
         Some(EqualityType(f(t11, t21), f(t12, t22)))
+      case (t1, t2) if t1 == t2 => Some(t1)
       case (_, _) => None()
     }
   }
