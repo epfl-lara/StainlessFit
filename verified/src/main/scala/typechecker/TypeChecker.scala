@@ -35,14 +35,13 @@ case class Context(
   def incrementLevel() = copy(level = level + 1)
 
   override def toString: String = {
-    /*"Term equalities:\n" ++
+    "Term equalities:\n" ++
     termEqualities.foldLeft("") {
       case (acc, (a, b)) => acc + s"${a} = ${b}\n"
     } ++ "Term variables:\n" ++
     variables.foldLeft("") {
       case (acc, id) => acc + s"${id}: ${termVariables(id)}\n"
-    }*/
-    ""
+    }
   }
 
   def containsVarEqualities: Boolean = {
@@ -917,55 +916,54 @@ object Rule {
       None()
   }
 
+  val CheckLet = Rule {
+    case g @ CheckGoal(c, e @ LetIn(None(), v, Bind(id, body)), ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckLet : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val gv = InferGoal(c.incrementLevel(), v)
+      val fgb: List[Judgment] => Goal =
+        {
+          case Cons(InferJudgment(_, _, Some(tyv)), _) =>
+            val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel()
+            CheckGoal(c1, body, ty)
+          case _ =>
+            ErrorGoal(c, s"Could not infer type for $v")
+        }
+      Some((
+        List(_ => gv, fgb),
+        {
+          case Cons(_, Cons(CheckJudgment(_, _, _), _)) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case g @ CheckGoal(c, e @ LetIn(Some(tyv), v, Bind(id, body)), ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckLet : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val gv = CheckGoal(c.incrementLevel(), v, tyv)
+      val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel()
+      val gb = CheckGoal(c1, body, ty)
+      Some((
+        List(_ => gv, _ => gb),
+        {
+          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case g =>
+      None()
+  }
+
 }
 
 
 /*
 
 
-case object CheckLet extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
 
-    g match  {
-      case CheckGoal(c, LetIn(None(), v, Bind(id, body)), ty, l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckLet : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val gv = InferGoal(c, v)
-        val fgb = (rc: ResultGoalContext) => {
-          rc.results.get(gv) match {
-            case Some(InferResult(tyv)) =>
-              val c1 = c.bind(id, tyv).addEquality(Var(id), v)
-              CheckGoal(c1, body, ty)
-            case _ => ErrorGoal(c,  s"Error in CheckLet ${g}")
-          }
-        }
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => gv, fgb),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(fgb(rc)) match {
-              case Some(InferResult(ty)) => rc.updateResults(g, InferResult(ty))
-              case _ => rc
-            }
-          }
-        )
-      case CheckGoal(c, LetIn(Some(tyv), v, Bind(id, body)), ty, l) =>
-        val gv = CheckGoal(c, v, tyv)
-        val c1 = c.addEquality(Var(id), v)
-        val gb = CheckGoal(c1, body, ty)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => gv, (rc: ResultGoalContext) => gb),
-          Map(),
-          (rc: ResultGoalContext) => {
-            (rc.results.get(gv), rc.results.get(gb)) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true))) => rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
 
 
 case object InferDropRefinement extends Rule {
@@ -1260,6 +1258,8 @@ object TypeChecker {
     InferForallInstantiation.t ||
     CheckLeft.t ||
     CheckRight.t ||
+    CheckLet.t ||
+    CheckIntersection.t ||
     CheckPi.t ||
     CheckIf.t ||
     CheckMatch.t ||
