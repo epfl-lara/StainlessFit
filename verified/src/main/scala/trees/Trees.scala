@@ -332,6 +332,7 @@ object Tree {
   def isEvidentSubType(ty1: Tree, ty2: Tree): Boolean = {
     (ty1, ty2) match {
       case (BottomType, _) => true
+      case (_, TopType) => true
       case (ty1, ty2) if ty1 == ty2 => true
       case (ty2, RefinementType(ty, Bind(a, t))) => isEvidentSubType(ty, ty2)
       case (SumType(l1, r1), SumType(l2, r2)) => isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2)
@@ -412,6 +413,9 @@ sealed abstract class Tree {
   def isError: Boolean = Tree.isError(this)
 
   def isValue: Boolean = Tree.isValue(this)
+
+  def isEvidentSubType(ty: Tree): Boolean = Tree.isEvidentSubType(this, ty)
+
 }
 
 case class Var(id: Identifier) extends Tree {

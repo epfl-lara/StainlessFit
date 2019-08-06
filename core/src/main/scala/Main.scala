@@ -21,7 +21,7 @@ object Main {
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
-        Interpreter.evaluate(t, 1000) match {
+        Interpreter.evaluate(t, 100000) match {
           case ErrorTree(error, _) => throw new java.lang.Exception(s"Error during evaluation.\n${error}")
           case v => v
         }

@@ -87,8 +87,9 @@ object Interpreter {
       case Unfold(ErrorTree(s, t), _) => ErrorTree(s, t)
       case Unfold(Fold(tp, v), bind) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
       case Unfold(Fold(tp, v), bind) if v.isValue => ErrorTree("Unfold should have a bind", None())
+      case Unfold(v, bind) if v.isValue => ErrorTree("Unfold should have a Fold", None())
       case Unfold(Fold(tp, t), bind) => Unfold(Fold(tp, smallStep(t)), bind)
-
+      case Unfold(t, bind) => Unfold(smallStep(t), bind)
       case _ => e
     }
   }

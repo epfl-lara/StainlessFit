@@ -974,8 +974,8 @@ object Rule {
       val (id, c2) = c.bindFresh("_n", NatType)
       val n2 = Var(id)
       val c3 = c.addEquality(
-        n2,
-        Primitive(Plus, List(n, NatLiteral(1)))
+        n,
+        Primitive(Plus, List(n2, NatLiteral(1)))
       )
       val nTy = RecType(n2, Bind(a, ty))
       val check = CheckGoal(c3.incrementLevel, t, Tree.replace(a, nTy, ty))
@@ -1035,6 +1035,68 @@ object Rule {
     case g =>
       None()
   }
+
+  val InferUnfold = Rule {
+    case g @ InferGoal(c, e @ Unfold(t1, Bind(x, t2))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferUnfold : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel
+      val g1 = InferGoal(c0, t1)
+      val fg2: List[Judgment] => Goal = {
+        case Cons(InferJudgment(_, _, Some(ty)), _) =>
+          dropRefinements(ty) match {
+            case RecType(n, Bind(a, ty)) =>
+              val c1 = c0.bind(x, TypeOperators.basetype(a, ty)).addEquality(
+                t1,
+                Fold(Some(RecType(NatLiteral(0), Bind(a, ty))), Var(x))
+              ).addEquality(n, NatLiteral(0))
+              InferGoal(c1.incrementLevel, t2)
+            case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
+          }
+        case _ =>
+         ErrorGoal(c, s"Could not infer a type for $t1.")
+      }
+      val fg3: List[Judgment] => Goal = {
+        case Cons(InferJudgment(_, _, Some(ty)), _) =>
+          dropRefinements(ty) match {
+            case RecType(n, Bind(a, ty)) =>
+              val (id, c1) = c.bindFresh("_pn", NatType)
+              val pn = Var(id)
+              val nTy = Tree.replace(a, RecType(pn, Bind(a, ty)), ty)
+              val c2 = c.addEquality(
+                n,
+                Primitive(Plus, List(pn, NatLiteral(1)))
+              ).addEquality(
+                t1,
+                Fold(Some(RecType(n, Bind(a, ty))), Var(x))
+              ).bind(x, nTy)
+              InferGoal(c2.incrementLevel, t2)
+            case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
+          }
+        case _ =>
+         ErrorGoal(c, s"Could not infer a type for $t1.")
+      }
+      Some((
+        List(_ => g1, fg2, fg3), {
+          case Cons(InferJudgment(_, _, Some(ty)),
+            Cons(InferJudgment(_, _, Some(ty1)),
+            Cons(InferJudgment(_, _, Some(ty2)), _))) =>
+            dropRefinements(ty) match {
+              case RecType(n, Bind(x, ty)) =>
+                println(ty1)
+                println(ty2)
+                if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
+                else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
+                else (false, ErrorJudgment(c, e))
+              case _ => (false, ErrorJudgment(c, s"Expecting a pi type for $t1, found $ty."))
+            }
+
+          case _ => (false, ErrorJudgment(c, e))
+        }
+      ))
+
+    case _ => None()
+  }
+
 
 }
 
@@ -1298,6 +1360,7 @@ object TypeChecker {
     InferFix.t ||
     InferForallInstantiation.t ||
     InferFold.t ||
+    InferUnfold.t ||
     CheckLeft.t ||
     CheckRight.t ||
     CheckLet.t ||
