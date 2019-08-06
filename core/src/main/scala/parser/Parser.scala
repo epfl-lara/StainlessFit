@@ -244,7 +244,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val recType: Parser[Tree] = {
-    (recK ~ lpar ~ variable ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
+    (recK ~ lpar ~ expression ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
       case _ ~ _ ~ n ~ _ ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t))
     }
   }

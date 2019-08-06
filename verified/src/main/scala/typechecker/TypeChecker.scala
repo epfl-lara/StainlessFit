@@ -626,9 +626,9 @@ object Rule {
   val CheckRefinement = Rule {
     case g @ CheckGoal(c, t, tpe @ RefinementType(ty, Bind(id, b))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckRefinement : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val checkTy = CheckGoal(c, t, ty)
+      val checkTy = CheckGoal(c.incrementLevel, t, ty)
       val c1 = c.bind(id, ty).addEquality(Var(id), t)
-      val checkRef = EqualityGoal(c1, b, BoolLiteral(true))
+      val checkRef = EqualityGoal(c1.incrementLevel, b, BoolLiteral(true))
       Some((
         List(_ => checkTy, _ => checkRef), {
           case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _), _)) =>
@@ -965,13 +965,81 @@ object Rule {
       None()
   }
 
+  val InferFold = Rule {
+    case g @ InferGoal(c, e @ Fold(Some(tpe @ RecType(n, Bind(a, ty))), t)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferFold : ${g.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val checkN = CheckGoal(c.incrementLevel, n, NatType)
+      val c1 = c.addEquality(n, NatLiteral(0))
+      val checkBase = CheckGoal(c1.incrementLevel, t, TypeOperators.basetype(a, ty))
+      val (id, c2) = c.bindFresh("_n", NatType)
+      val n2 = Var(id)
+      val c3 = c.addEquality(
+        n2,
+        Primitive(Plus, List(n, NatLiteral(1)))
+      )
+      val nTy = RecType(n2, Bind(a, ty))
+      val check = CheckGoal(c3.incrementLevel, t, Tree.replace(a, nTy, ty))
+      Some((
+        List(_ => checkN, _ => checkBase, _ => check),
+        {
+          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _))) =>
+            (true, InferJudgment(c, e, Some(tpe)))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val CheckRecursive = Rule {
+    case g @ CheckGoal(c, t, tpe @ RecType(n, Bind(a, ty))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckRecursive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel, t)
+      val fEquality: List[Judgment] => Goal =
+        {
+          case Cons(InferJudgment(_, _, Some(ty)), _) =>
+            dropRefinements(ty) match {
+              case RecType(n2, Bind(b, ty2)) =>
+                EqualityGoal(c.incrementLevel, n, n2)
+              case _ => ErrorGoal(c, s"Expecting a rec type for $t, found $ty.")
+            }
+          case _ =>
+            ErrorGoal(c, s"Could not infer type for $t")
+        }
+      Some((
+        List(_ => subgoal, fEquality),
+        {
+          case Cons(InferJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _), _)) =>
+            (true, CheckJudgment(c, t, tpe))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+
+    case _ => None()
+  }
+
+ val CheckTop2 = Rule {
+    case g @ CheckGoal(c, t, TopType) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckTop : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel, t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, t, TopType))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
 }
 
 
 /*
-
-
-
 
 
 case object InferDropRefinement extends Rule {
@@ -1199,42 +1267,7 @@ case object NatInequalityResolve extends Rule {
   }
 }
 
-case object InferFold extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
 
-    g match  {
-      case InferGoal(c, Fold(Some(RecType(n, Bind(a, ty))), t), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * g.level}Current goal ${g} InferFold : ${g.toString.replaceAll("\n", s"\n${"   " * g.level}")}\n")
-        val checkN = CheckGoal(c, n, NatType, l + 1)
-        val c1 = c.addEquality(n, NatLiteral(0))
-        val checkBase = CheckGoal(c1, t, TypeSimplification.basetype(a, ty), l + 1)
-        val (id, c2) = c.bindFresh("_n", NatType)
-        val n2 = Var(id)
-        val c3 = c.addEquality(
-          n2,
-          Primitive(Plus, List(n, NatLiteral(1)))
-        )
-        val nTy = RecType(n2, Bind(a, ty))
-        val check = CheckGoal(c3, t, Tree.replace(a, nTy, ty), l + 1)
-        ResultGoalContext(
-          List(
-            (r: ResultGoalContext) => checkN,
-            (r: ResultGoalContext) => checkBase,
-            (r: ResultGoalContext) => check
-          ),
-          Map(),
-          (rc: ResultGoalContext) => {
-             (rc.results.get(checkN), rc.results.get(checkBase), rc.results.get(check)) match {
-              case (Some(CheckResult(true)), Some(CheckResult(true)), Some(CheckResult(true))) =>
-                rc.updateResults(g, InferResult(RecType(n, Bind(a, ty))))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
 }
 
 */
@@ -1264,6 +1297,7 @@ object TypeChecker {
     InferEitherMatch.t ||
     InferFix.t ||
     InferForallInstantiation.t ||
+    InferFold.t ||
     CheckLeft.t ||
     CheckRight.t ||
     CheckLet.t ||
@@ -1274,6 +1308,8 @@ object TypeChecker {
     CheckEitherMatch.t ||
     CheckSigma.t ||
     CheckRefinement.t ||
+    CheckRecursive.t ||
+    CheckTop2.t ||
     CheckReflexive.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
