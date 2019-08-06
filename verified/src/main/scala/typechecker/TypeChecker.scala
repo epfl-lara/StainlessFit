@@ -900,6 +900,23 @@ object Rule {
       None()
   }
 
+  val CheckIntersection = Rule {
+    case g @ CheckGoal(c, t, tpe @ IntersectionType(tyid, Bind(id, ty))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckIntersection : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val (freshId, c1) = c.bindFresh(id.name, tyid)
+      val subgoal = CheckGoal(c1.incrementLevel, Inst(t, Var(freshId)), ty)
+      Some((List(_ => subgoal),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, t, tpe))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
 }
 
 
@@ -941,31 +958,6 @@ case object CheckLet extends Rule {
           (rc: ResultGoalContext) => {
             (rc.results.get(gv), rc.results.get(gb)) match {
               case (Some(CheckResult(true)), Some(CheckResult(true))) => rc.updateResults(g, CheckResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object CheckIntersection extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case CheckGoal(c, t, IntersectionType(tyid, Bind(id, ty)), l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal CheckIntersection : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val (freshId, c1) = c.bindFresh(id.name, tyid)
-        val subgoal = CheckGoal(c1, Inst(t, Var(freshId)), ty)
-        ResultGoalContext(
-          List((r: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-             rc.results.get(subgoal) match {
-              case Some(CheckResult(true)) =>
-                rc.updateResults(g, CheckResult(true))
               case _ => rc
             }
           }
