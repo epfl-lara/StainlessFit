@@ -76,6 +76,7 @@ object Derivation {
     fw.write("<html lang=\"en\">")
     fw.write("<head>\n")
     fw.write("<meta charset=\"UTF-8\">\n")
+    fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
     fw.write("</head>\n\n")
     fw.write("<body>\n")
     fw.write(prettyPrint(trees, 0) + "\n")

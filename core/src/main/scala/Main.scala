@@ -76,8 +76,15 @@ object Main {
           typeCheckFile(args(1))
         case "typecheckWatch" if (args.length == 2) =>
           new util.FileWatcher(
-            scala.collection.immutable.Set(new java.io.File(args(1))),
-            () => typeCheckFile(args(1))
+            scala.collection.immutable.Set((new java.io.File(args(1))).getAbsoluteFile),
+            () =>
+              try {
+                typeCheckFile(args(1))
+              } catch {
+                case e: Throwable =>
+                  println("ERROR: An exception was thrown")
+                  e.printStackTrace()
+              }
           ).run()
         case _ =>
           printHelp()

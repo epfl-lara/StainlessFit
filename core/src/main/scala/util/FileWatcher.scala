@@ -19,6 +19,8 @@ import scala.collection.mutable.{ Map => MutableMap }
 class FileWatcher(files: Set[File], action: () => Unit) {
 
   def run(): Unit = {
+    action()
+
     // Watch each individual file for modification through their parent directories
     // (because a WatchService cannot observe files directly..., also we need to keep
     // track of the modification time because we sometimes receive several events
