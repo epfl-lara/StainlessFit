@@ -184,9 +184,10 @@ case class Tactic[T](apply: (Goal, (Goal => Option[T])) => Option[T]) {
   def or(other: Tactic[T]): Tactic[T] =
     Tactic {
       case (g, subgoalSolver) =>
-        apply(g, subgoalSolver).orElse(
-          other.apply(g, subgoalSolver)
-        )
+        apply(g, subgoalSolver) match {
+          case None() => other.apply(g, subgoalSolver)
+          case x => x
+        }
     }
 
   def andThen(other: Tactic[T]): Tactic[T] =
@@ -297,7 +298,6 @@ object Rule {
   val InferLet = Rule {
     case g @ InferGoal(c, e @ LetIn(None(), v, Bind(id, body))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferLet : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      println("LetIn to Infer")
       val gv = InferGoal(c.incrementLevel(), v)
       val fgb: List[Judgment] => Goal =
         {
@@ -511,7 +511,6 @@ object Rule {
           Some(UnitType),
           Bind(Identifier(0, "_Unit"), Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))))
       )
-      println("Fix to infer")
       Some((
         List(_ => CheckGoal(c1, t, ty)), {
           case Cons(CheckJudgment(_, _, _), _) =>
@@ -784,20 +783,12 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val (freshId, c1) = c.bindFresh(id.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2)
-      /*Some((List(_ => subgoal),
+      Some((List(_ => subgoal),
         {
           case Cons(CheckJudgment(_, _, _), _) =>
-            println(s"Réussi $e")
             (true, CheckJudgment(c, e, tpe))
           case _ =>
-            println("Raté")
             (false, ErrorJudgment(c, t))
-        }
-      ))*/
-      Some((Nil(),
-        {
-          case _ =>
-            (true, CheckJudgment(c, e, tpe))
         }
       ))
     case g =>
