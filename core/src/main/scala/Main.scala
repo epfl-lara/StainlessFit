@@ -70,10 +70,6 @@ object Main {
   }
 
   def main(args: Array[String]): Unit = {
-    val xId = Identifier(0, "x")
-    val yId = Identifier(1, "y")
-    val x = Var(xId)
-    val y = Var(yId)
     if (args.length == 0) printHelp()
     else {
       args(0) match {

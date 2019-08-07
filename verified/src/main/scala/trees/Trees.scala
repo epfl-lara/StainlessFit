@@ -262,7 +262,6 @@ object Tree {
       case Bind(id, body) => replace(id, v, body)
       case t => t
     }
-
   }
 
   def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
@@ -334,16 +333,14 @@ object Tree {
       case (BottomType, _) => true
       case (_, TopType) => true
       case (ty1, ty2) if ty1 == ty2 => true
-      case (ty2, RefinementType(ty, Bind(a, t))) => isEvidentSubType(ty, ty2)
+      case (RefinementType(ty, Bind(a, t)), ty2) => isEvidentSubType(ty, ty2)
       case (SumType(l1, r1), SumType(l2, r2)) => isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2)
       case (SigmaType(l1, Bind(x, r1)), SigmaType(l2, Bind(y, r2))) =>
         isEvidentSubType(l1, l2) && isEvidentSubType(r1, Tree.replace(y, Var(x), r2))
       case (PiType(ty1, Bind(x, ty1b)), PiType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty1, ty2) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
+        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
       case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty1, ty2) && isEvidentSubType(ty2b, Tree.replace(y, Var(x), ty1b))
-      case (RecType(n, Bind(x, ty1)), PiType(m, Bind(y, ty2))) =>
-        n == m && isEvidentSubType(ty1, Tree.replace(y, Var(x), ty2))
+        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty2b, Tree.replace(y, Var(x), ty1b))
       case _ => false
     }
   }
@@ -370,8 +367,35 @@ object Tree {
 
   def isEqual(t1: Tree, t2: Tree): Boolean = {
     (t1, t2) match {
-      case (Bind(x1, t1), Bind(x2, t2)) => t1 == Tree.replace(x2, Var(x1), t1)
-      case (t1, t2) => t1 == t2
+      case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
+        isEqual(cond1, cond2) && isEqual(t11, t21) && isEqual(t12, t22)
+      case (App(t11, t12), App(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
+      case (Pair(t11, t12), Pair(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
+      case (First(t1), First(t2)) => isEqual(t1, t2)
+      case (Second(t1), Second(t2)) => isEqual(t1, t2)
+      case (LeftTree(t1), LeftTree(t2)) => isEqual(t1, t2)
+      case (RightTree(t1), RightTree(t2)) => isEqual(t1, t2)
+      case (Because(t11, t12), Because(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
+      case (Bind(x1, t1), Bind(x2, t2)) => isEqual(t1, Tree.replace(x2, Var(x1), t2))
+      case (Lambda(_, bind1), Lambda(_, bind2)) => isEqual(bind1, bind2)
+      case (Fix(_, bind1), Fix(_, bind2)) => isEqual(bind1, bind2)
+      case (LetIn(_, v1, bind1), LetIn(_, v2, bind2)) => isEqual(v1, v2) && isEqual(bind1, bind2)
+      case (Match(n1, t1, bind1), Match(n2, t2, bind2)) => isEqual(n1, n2) && isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (EitherMatch(t1, bind11, bind12), EitherMatch(t2, bind21, bind22)) =>
+        isEqual(t1, t2) && isEqual(bind11, bind21) && isEqual(bind12, bind22)
+      case (Primitive(op1, args1), Primitive(op2, args2)) =>
+        if(op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => isEqual(t1, t2)}
+        else false
+      case (Inst(t11, t12), Inst(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
+      case (Fold(_, t1), Fold(_, t2)) => isEqual(t1, t2)
+      case (Unfold(t1, bind1), Unfold(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (SumType(t1, bind1), SumType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (PiType(t1, bind1), PiType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (RecType(t1, bind1), RecType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case _ => t1 == t2
     }
   }
 }
@@ -403,12 +427,15 @@ case class Identifier(id: Int, name: String) {
         isFreeIn(t)
       case Primitive(op, args) =>
         args.exists(isFreeIn(_))
+      case Fold(tp, t) => isFreeIn(t) || isFreeIn(tp.getOrElse(UnitLiteral))
+      case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case _ => false
     }
   }
@@ -423,7 +450,7 @@ sealed abstract class Tree {
 
   def isEvidentSubType(ty: Tree): Boolean = Tree.isEvidentSubType(this, ty)
 
-  def isEqual(t: Tree): Boolean = Tree.equals(this, t)
+  def isEqual(t: Tree): Boolean = Tree.isEqual(this, t)
 }
 
 case class Var(id: Identifier) extends Tree {
