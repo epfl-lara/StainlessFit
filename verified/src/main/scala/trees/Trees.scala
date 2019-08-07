@@ -367,6 +367,13 @@ object Tree {
       case _ => false
     }
   }
+
+  def isEqual(t1: Tree, t2: Tree): Boolean = {
+    (t1, t2) match {
+      case (Bind(x1, t1), Bind(x2, t2)) => t1 == Tree.replace(x2, Var(x1), t1)
+      case (t1, t2) => t1 == t2
+    }
+  }
 }
 
 case class Identifier(id: Int, name: String) {
@@ -416,6 +423,7 @@ sealed abstract class Tree {
 
   def isEvidentSubType(ty: Tree): Boolean = Tree.isEvidentSubType(this, ty)
 
+  def isEqual(t: Tree): Boolean = Tree.equals(this, t)
 }
 
 case class Var(id: Identifier) extends Tree {
