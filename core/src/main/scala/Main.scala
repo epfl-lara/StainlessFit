@@ -30,7 +30,7 @@ object Main {
     }
   }
 
-  def typeCheckFile(f: File): Unit = {
+  def typeCheckFile(f: File): (Boolean, NodeTree[Judgment]) = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
@@ -38,7 +38,7 @@ object Main {
         val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
         TypeChecker.infer(t, max) match {
           case None() => throw new java.lang.Exception(s"Could not type check: $f")
-          case Some((success, trees)) =>
+          case Some((success, tree)) =>
             if (success)
               println(s"Type checked file $f successfully.")
             else
@@ -46,9 +46,11 @@ object Main {
 
             Derivation.makeHTMLFile(
               f,
-              List(trees),
+              List(tree),
               success
             )
+
+            (success, tree)
         }
       case t =>
         throw new java.lang.Exception("Error during parsing:\n" + t)
@@ -57,7 +59,7 @@ object Main {
 
   def evalFile(s: String): Tree = evalFile(new File(s))
 
-  def typeCheckFile(s: String): Unit = typeCheckFile(new File(s))
+  def typeCheckFile(s: String): (Boolean, NodeTree[Judgment]) = typeCheckFile(new File(s))
 
   def printHelp() = {
     println(
