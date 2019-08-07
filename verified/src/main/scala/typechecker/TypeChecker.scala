@@ -1022,7 +1022,7 @@ object Rule {
 
  val CheckTop2 = Rule {
     case g @ CheckGoal(c, t, TopType) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckTop : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckTop2 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
@@ -1032,6 +1032,14 @@ object Rule {
             (false, ErrorJudgment(c, t))
         }
       ))
+    case g =>
+      None()
+  }
+
+  val CheckTop1 = Rule {
+    case g @ CheckGoal(c, t, TopType) if t.isValue =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckTop1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      Some((List(), _ => (true, CheckJudgment(c, t, TopType))))
     case g =>
       None()
   }
@@ -1361,17 +1369,18 @@ object TypeChecker {
     InferForallInstantiation.t ||
     InferFold.t ||
     InferUnfold.t ||
-    CheckLeft.t ||
-    CheckRight.t ||
-    CheckLet.t ||
-    CheckIntersection.t ||
-    CheckPi.t ||
     CheckIf.t ||
     CheckMatch.t ||
     CheckEitherMatch.t ||
+    CheckLet.t ||
+    CheckLeft.t ||
+    CheckRight.t ||
+    CheckIntersection.t ||
+    CheckPi.t ||
     CheckSigma.t ||
     CheckRefinement.t ||
     CheckRecursive.t ||
+    CheckTop1.t ||
     CheckTop2.t ||
     CheckReflexive.t ||
     UnsafeIgnoreEquality.t ||
