@@ -1090,8 +1090,6 @@ object Rule {
             Cons(InferJudgment(_, _, Some(ty2)), _))) =>
             dropRefinements(ty) match {
               case RecType(n, Bind(x, ty)) =>
-                println(ty1)
-                println(ty2)
                 if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
                 else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
                 else (false, ErrorJudgment(c, e))
