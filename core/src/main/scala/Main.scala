@@ -45,8 +45,9 @@ object Main {
               println(s"Error while type checking file $f.")
 
             Derivation.makeHTMLFile(
-              s"$f.html",
-              List(trees)
+              f,
+              List(trees),
+              success
             )
         }
       case t =>

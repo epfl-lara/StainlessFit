@@ -1,6 +1,7 @@
 package typechecker
 
 import java.io.FileWriter
+import java.io.File
 
 import _root_.trees._
 import _root_.interpreter._
@@ -57,28 +58,44 @@ object Derivation {
   }
 
   def prettyPrint(l: List[NodeTree[Judgment]], depth: Int): String = {
-    "<ul style='list-style-type: none;'>\n" +
-      mkString(l.map(t => prettyPrint(t, depth + 1)), "\n") +
-    "</ul>"
+    val indentation = "  " * depth
+    indentation + "<ul style='list-style-type: none;'>\n" +
+      mkString(l.map(t => prettyPrint(t, depth + 1)), "\n") + "\n" +
+    indentation + "</ul>"
   }
 
   def prettyPrint(t: NodeTree[Judgment], depth: Int): String = {
     val indentation = "  " * depth
     val childrenString = prettyPrint(t.children, depth + 1)
-    indentation + s"<li> <span title='${t.node.c.toString()}'> ${t.node.toString} </span>\n" +
-      childrenString +
+    indentation + s"<li class='node' title='${t.node.c.toString()}'> ${t.node.toString}\n" +
+      childrenString + "\n" +
     indentation + "</li>"
   }
 
-  def makeHTMLFile(fileName: String, trees: List[NodeTree[Judgment]]): Unit = {
-    val fw = new FileWriter(fileName)
+  def makeHTMLFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean): Unit = {
+    val htmlFile = new File(file.getAbsolutePath() + ".html")
+    val fw = new FileWriter(htmlFile)
+    val status = if (success) "Success" else "Failed"
+    val name = file.getName()
     fw.write("<!DOCTYPE html>")
     fw.write("<html lang=\"en\">")
     fw.write("<head>\n")
     fw.write("<meta charset=\"UTF-8\">\n")
-    fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
+    // fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
+    fw.write(s"<title> Type Checking File $name: $status </title>\n")
     fw.write("</head>\n\n")
     fw.write("<body>\n")
+    fw.write("""<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>""")
+    fw.write("<script>\n")
+    fw.write("""|$(document).ready(function () {
+                |  $('.node').click(function(e) {
+                |    e.stopPropagation();
+                |    $(this).find("ul").slideToggle();
+                |  });
+                |});
+                |""".stripMargin)
+    fw.write("</script>\n")
+    fw.write(s"<h1> Type Checking File $name: $status </h1>\n")
     fw.write(prettyPrint(trees, 0) + "\n")
     fw.write("</body>\n")
     fw.write("</html>")
