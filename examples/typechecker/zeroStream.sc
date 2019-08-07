@@ -1,11 +1,7 @@
-fix[n => Unit => Rec(n)(a => (Nat, Unit => a))]
+fix[n => Rec(n)(stream => (Nat, Unit => stream))]
 (zero =>
-  fun(x: Unit) => {
-    Fold[Rec(n)(a => (Nat, Unit => a))](
-      (
-        0,
-        fun(y: Unit) => { zero() }
-      )
-    )
-  }
+  Fold[Rec(n)(stream => (Nat, Unit => stream))]((
+    0,
+    fun(y: Unit) => { zero }
+  ))
 )
