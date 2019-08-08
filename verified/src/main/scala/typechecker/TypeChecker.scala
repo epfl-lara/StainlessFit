@@ -1450,50 +1450,18 @@ object Rule {
       None()
   }
 
-}
-
-
-/*
-
-case object InContextResolve extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case EqualityGoal(c, t1, t2, l) if c.termEqualities.contains((t1, t2)) =>
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${t1} = ${t2}.")
-        TypeChecker.equalityDebug(s"By assumption : ${t1} = ${t2} in context.\n\n")
-          ResultGoalContext(
-            Nil(),
-            Map(g -> EqualityResult(true)),
-            (rc: ResultGoalContext) => { rc.updateResults(g, EqualityResult(true)) }
-          )
-      case _ => errorContext
-    }
+  val NewReflexivity = Rule {
+    case g @ EqualityGoal(c, t1, t2) if t1 == t2 =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewReflexivity: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      Some((List(),
+        {
+          case _ => (true, AreEqualJudgment(c, t1, t2, false))
+        }
+      ))
+    case g =>
+      None()
   }
 }
-
-case object ReflexivityResolve extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case EqualityGoal(c, t1, t2, l) if t1 == t2 =>
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${t1} = ${t2}.")
-        TypeChecker.equalityDebug(s"By reflexivity. Qed\n\n")
-          ResultGoalContext(
-            Nil(),
-            Map(g -> EqualityResult(true)),
-            (rc: ResultGoalContext) => { rc.updateResults(g, EqualityResult(true)) }
-          )
-      case _ => errorContext
-    }
-  }
-}
-
-}
-
-*/
 
 
 object TypeChecker {
@@ -1536,6 +1504,7 @@ object TypeChecker {
     CheckTop1.t ||
     CheckTop2.t ||
     CheckReflexive.t ||
+    NewReflexivity.t ||
     NewEqualityInContext.t ||
     NewUnfoldLet1.t ||
     NewUnfoldLet2.t ||

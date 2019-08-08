@@ -16,5 +16,5 @@ def h() = {
 val q: Nat = h() in
 val x: Nat = 2 in
 val y: Nat  = 4 in
-val z: (Nat, Nat) = (1, 2) in
+val z: Sigma(x: Nat, Nat) = (1, 2) in
 f(x + y + First(z) + f(f(2))) + g(Left(22)) / g(Right(22))

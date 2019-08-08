@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
     word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst") | word("Fold") |
-    word("Unfold") | word("Decreases")
+    word("Unfold") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -211,14 +211,15 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val foldK = elem(KeyWordClass("Fold"))
   val unfoldK = elem(KeyWordClass("Unfold"))
   val decreasesK = elem(KeyWordClass("Decreases"))
+  val piK = elem(KeyWordClass("Pi"))
+  val sigmaK = elem(KeyWordClass("Sigma"))
+  val forallK = elem(KeyWordClass("Forall"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
   val unitType = accept(TypeClass("Unit")) { case _ => UnitType }
 
   val literalType = natType | boolType | unitType
-
-  lazy val basicType = literalType | parTypeExpr
 
   lazy val parTypeExpr: Parser[Tree] = {
     (lpar ~ rep1sep(typeExpr, comma) ~ rpar).map {
@@ -244,6 +245,27 @@ object ScalaParser extends Parsers[Token, TokenClass]
       f
   }
 
+
+  lazy val bPiType: Parser[Tree] = {
+    (piK ~ lpar ~ variable ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ Var(id) ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => PiType(ty1, Bind(id, ty2))
+    }
+  }
+
+  lazy val bSigmaType: Parser[Tree] = {
+    (sigmaK ~ lpar ~ variable ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ Var(id) ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => SigmaType(ty1, Bind(id, ty2))
+    }
+  }
+
+  lazy val bForallType: Parser[Tree] = {
+    (forallK ~ lpar ~ variable ~ opt(colon ~ typeExpr) ~ comma ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ Var(id) ~ Some(_ ~ ty1)~  _ ~ ty2 ~ _ => IntersectionType(ty1, Bind(id, ty2))
+      case _ ~ _ ~ Var(id) ~ None ~ _ ~ ty2 ~ _ => PolyForallType(Bind(id, ty2))
+    }
+  }
+
+
   lazy val recType: Parser[Tree] = {
     (recK ~ lpar ~ expression ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
       case _ ~ _ ~ n ~ _ ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t))
@@ -263,7 +285,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     )
   }
 
-  lazy val simpleTypeExpr = basicType | recType | refinementType | variable
+  lazy val simpleTypeExpr = literalType | parTypeExpr | recType | refinementType | variable | bPiType | bSigmaType //| bForallType
 
   lazy val typeExpr: Parser[Tree] = recursive {
     operatorType
