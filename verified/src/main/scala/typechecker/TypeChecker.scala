@@ -673,7 +673,7 @@ object Rule {
     case g @ EqualityGoal(c, t1, t2) =>
       TypeChecker.equalityDebug(s"Context:\n${c}\n")
       TypeChecker.equalityDebug(s"Ignoring equality ${t1} = ${t2}.\n\n")
-      Some(List(), _ => (true, AreEqualJudgment(c, t1, t2, "IGNORED"))) // s"Ignoring equality ${t1} = ${t2}")))
+      Some(List(), _ => (false, AreEqualJudgment(c, t1, t2, "IGNORED")))
     case g =>
       None()
   }
