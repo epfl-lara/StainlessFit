@@ -142,56 +142,56 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
 }
 
 object TypeOperators {
-  private def binop(t1: Tree, t2: Tree, f: (Tree, Tree) => Tree): Option[Tree] = {
+  private def unify(t1: Tree, t2: Tree, f: (Tree, Tree) => Tree): Option[Tree] = {
     (t1, t2) match {
       case (UnitType, UnitType) => Some(UnitType)
       case (NatType, NatType) => Some(NatType)
       case (BoolType, BoolType) => Some(BoolType)
       case (TopType, TopType) => Some(TopType)
       case (SumType(t11, t12), SumType(t21, t22)) =>
-        binop(t11, t21, f).flatMap { t1 =>
-          binop(t12, t22, f).map { t2 =>
+        unify(t11, t21, f).flatMap { t1 =>
+          unify(t12, t22, f).map { t2 =>
             SumType(t1, t2)
           }
         }
       case (PiType(a1, Bind(x, b1)), PiType(a2, Bind(x2, b2))) =>
-        binop(a1, a2, f).flatMap { a =>
-          binop(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
+        unify(a1, a2, f).flatMap { a =>
+          unify(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
             PiType(a, Bind(x, b))
           }
         }
       case (IntersectionType(a1, Bind(x, b1)), IntersectionType(a2, Bind(x2, b2))) =>
-        binop(a1, a2, f).flatMap { a =>
-          binop(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
+        unify(a1, a2, f).flatMap { a =>
+          unify(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
             IntersectionType(a, Bind(x, b))
           }
         }
       case (PolyForallType(Bind(x, b1)), PolyForallType(Bind(x2, b2))) =>
-        binop(b1, Tree.replace(x2, Var(x), b2), f).map(b =>
+        unify(b1, Tree.replace(x2, Var(x), b2), f).map(b =>
           PolyForallType(Bind(x, b))
         )
       case (SigmaType(a1, Bind(x, b1)), SigmaType(a2, Bind(x2, b2))) =>
-        binop(a1, a2, f).flatMap { a =>
-          binop(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
+        unify(a1, a2, f).flatMap { a =>
+          unify(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
             SigmaType(a, Bind(x, b))
           }
         }
       case (RefinementType(a1, Bind(x, p1)), RefinementType(a2, Bind(x2, p2))) =>
-        binop(a1, a2, f).map { a =>
+        unify(a1, a2, f).map { a =>
           RefinementType(a, Bind(x, f(p1, Tree.replace(x2, Var(x), p2))))
         }
       case (RefinementType(a1, Bind(x, p1)), t3) =>
-        binop(a1, t3, f).map { a =>
+        unify(a1, t3, f).map { a =>
           RefinementType(a, Bind(x, p1))
         }
       case (t3, RefinementType(a1, Bind(x, p1))) =>
-        binop(a1, t3, f).map { a =>
+        unify(a1, t3, f).map { a =>
           RefinementType(a, Bind(x, p1))
         }
       case (RecType(n, Bind(x1, b1)), RecType(m, Bind(x2, b2))) if n == m =>
-        binop(b1, Tree.replace(x2, Var(x1), b2), f).map { b =>
-            RecType(n, Bind(x1, b))
-          }
+        unify(b1, Tree.replace(x2, Var(x1), b2), f).map { b =>
+          RecType(f(n, m), Bind(x1, b))
+        }
       case (EqualityType(t11, t12), EqualityType(t21, t22)) =>
         Some(EqualityType(f(t11, t21), f(t12, t22)))
       case (t1, t2) if t1 == t2 => Some(t1)
@@ -201,15 +201,15 @@ object TypeOperators {
 
   def ifThenElse(tc: Tree, t1: Tree, t2: Tree): Option[Tree] = {
     if (t1 == t2) Some(t1)
-    else binop(t1, t2, (ty1: Tree, ty2: Tree) => IfThenElse(tc, ty1, ty2))
+    else unify(t1, t2, (ty1: Tree, ty2: Tree) => IfThenElse(tc, ty1, ty2))
   }
 
   def matchSimpl(n: Tree, t0: Tree, id: Identifier, tn: Tree): Option[Tree] = {
-    binop(t0, tn, (ty0: Tree, tyn: Tree) => Match(n, ty0, Bind(id, tyn)))
+    unify(t0, tn, (ty0: Tree, tyn: Tree) => Match(n, ty0, Bind(id, tyn)))
   }
 
   def eitherMatch(n: Tree, idl: Identifier, tl: Tree, idr: Identifier, tr: Tree): Option[Tree] = {
-    binop(tl, tr, (tyl: Tree, tyr: Tree) => EitherMatch(n, Bind(idl, tyl), Bind(idr, tyr)))
+    unify(tl, tr, (tyl: Tree, tyr: Tree) => EitherMatch(n, Bind(idl, tyl), Bind(idr, tyr)))
   }
 
   def letIn(x: Identifier, tp: Option[Tree], v: Tree, t: Tree) = {
@@ -217,7 +217,7 @@ object TypeOperators {
       if (x.isFreeIn(t1)) LetIn(tp, v, Bind(x, t1))
       else t1
     }
-    binop(t, t, f)
+    unify(t, t, f)
   }
 
   def basetype(a: Identifier, t: Tree): Tree = {
@@ -673,7 +673,7 @@ object Rule {
     case g @ EqualityGoal(c, t1, t2) =>
       TypeChecker.equalityDebug(s"Context:\n${c}\n")
       TypeChecker.equalityDebug(s"Ignoring equality ${t1} = ${t2}.\n\n")
-      Some(List(), _ => (false, AreEqualJudgment(c, t1, t2, "IGNORED")))
+      Some(List(), _ => (true, AreEqualJudgment(c, t1, t2, "IGNORED")))
     case g =>
       None()
   }
@@ -1042,7 +1042,7 @@ object Rule {
       val checkBase = CheckGoal(c1.incrementLevel, t, TypeOperators.basetype(a, ty))
       val (id, c2) = c.bindFresh("_n", NatType)
       val n2 = Var(id)
-      val c3 = c.addEquality(
+      val c3 = c2.addEquality(
         n,
         Primitive(Plus, List(n2, NatLiteral(1)))
       )
@@ -1330,7 +1330,7 @@ object Rule {
 
   def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
     t match {
-      case Var(id) => termVariables.contains(id) && termVariables(id) == NatType
+      case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType
       case NatLiteral(_) => true
       case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
         op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
@@ -1341,6 +1341,9 @@ object Rule {
   def isNatPredicate(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
     t match {
       case BoolLiteral(_) => true
+      case Primitive(Eq, Cons(n1, Cons(n2, Nil()))) =>
+        (isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
+        (isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
       case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
         op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
       case _ => false
@@ -1400,28 +1403,25 @@ object Rule {
   }
 
   val NewZ3ArithmeticSolver = Rule {
-    case g @ EqualityGoal(c, t, BoolLiteral(true)) if isNatPredicate(c.termVariables, t) =>
+    case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, Cons(t1, Cons(t2, Nil())))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} Z3ArithmeticSolver: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val z3 = new Z3Context("MODEL" -> true)
       val solver = z3.mkSolver
 
       val i = z3.mkIntSort
 
-      // TODO: add a foreach method in Stainless lists
       val z3Variables =
         ListOps.toMap(c.variables.filter(c.termVariables(_) == NatType).map {
           id => id -> z3.mkConst(z3.mkStringSymbol(id.toString), i)
         })
 
       c.termEqualities.map {
-        case (h, BoolLiteral(true)) if isNatPredicate(c.termVariables, h) =>
-          solver.assertCnstr(z3Encode(z3, solver, z3Variables, h))
-        case (h, BoolLiteral(false)) if isNatPredicate(c.termVariables, h) =>
-          solver.assertCnstr(z3.mkNot(z3Encode(z3, solver, z3Variables, h)))
+        case (h1, h2) if isNatPredicate(c.termVariables, Primitive(Eq, Cons(h1, Cons(h2, Nil())))) =>
+          solver.assertCnstr(z3Encode(z3, solver, z3Variables, Primitive(Eq, Cons(h1, Cons(h2, Nil())))))
         case _ => ()
       }
 
-      val b = z3Encode(z3, solver, z3Variables, t)
+      val b = z3Encode(z3, solver, z3Variables, Primitive(Eq, Cons(t1, Cons(t2, Nil()))))
       solver.assertCnstr(z3.mkNot(b))
 
       TypeChecker.z3Debug("Current Goal:\n" + g)
@@ -1441,9 +1441,9 @@ object Rule {
       z3.delete
 
       solverResponse match {
-        case scala.None => Some((List(), _ => (false, AreEqualJudgment(c, t, BoolLiteral(true), "Failure in Z3"))))
-        case scala.Some(true) => Some((List(), _ => (false, AreEqualJudgment(c, t, BoolLiteral(true), s"Z3 found a counter-example: $modelString"))))
-        case scala.Some(false) => Some((List(), _ => (true, AreEqualJudgment(c, t, BoolLiteral(true), "Validated by Z3"))))
+        case scala.None => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, "Failure in Z3"))))
+        case scala.Some(true) => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, s"Z3 found a counter-example: $modelString"))))
+        case scala.Some(false) => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, "Validated by Z3"))))
       }
 
     case g =>

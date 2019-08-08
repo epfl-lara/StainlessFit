@@ -12,4 +12,3 @@ def fac(n : Nat) = {
 }
 
 fac(2)
-
