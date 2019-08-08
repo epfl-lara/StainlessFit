@@ -1200,6 +1200,39 @@ object Rule {
     case g =>
       None()
   }
+
+  val NewApplyApp1 = Rule {
+    case g @ EqualityGoal(c, t @ App(Lambda(_, Bind(x, body)), t12), t2) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal =  EqualityGoal(c, Tree.replace(x, t12, body), t2)
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _), _) =>
+            (true, AreEqualJudgment(c, t, t2))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+
+  val NewApplyApp2 = Rule {
+    case g @ EqualityGoal(c, t2 , t @ App(Lambda(_, Bind(x, body)), t12)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp2: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal =  EqualityGoal(c, t2, Tree.replace(x, t12, body))
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _), _) =>
+            (true, AreEqualJudgment(c, t2, t))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
 }
 
 
@@ -1290,6 +1323,8 @@ object TypeChecker {
     NewUnfoldLet2.t ||
     NewUnfoldRefinementInContext.t ||
     NewUseContextEqualities.t ||
+    NewApplyApp1.t ||
+    NewApplyApp1.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
     FailRule.t
