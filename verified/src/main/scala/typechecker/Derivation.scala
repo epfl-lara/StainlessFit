@@ -37,14 +37,9 @@ object Derivation {
     }
   }
 
-  case class AreEqualJudgment(override val c: Context, t1: Tree, t2: Tree, isIgnored: Boolean) extends Judgment {
+  case class AreEqualJudgment(override val c: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
     override def toString = {
-      if(isIgnored) {
-        s"⊢ <b>IGNORED ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))} </b>"
-      }
-      else {
-        s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))}"
-      }
+      s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))} <b>$s</b>"
     }
   }
 
@@ -96,8 +91,13 @@ object Derivation {
     fw.write("<script>\n")
     fw.write("""|$(document).ready(function () {
                 |  $('.node').click(function(e) {
+                |    text = $(this).html()
+                |    if (text.startsWith("Folded "))
+                |      $(this).html($(this).html().substring(7));
+                |    else
+                |      $(this).html("Folded " + $(this).html());
                 |    e.stopPropagation();
-                |    $(this).find("ul").slideToggle();
+                |    $(this).find("ul").toggle();
                 |  });
                 |});
                 |""".stripMargin)

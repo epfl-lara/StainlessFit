@@ -6,7 +6,7 @@ val facFix = fix[n => {p: Nat, p < n} => Nat](fac =>
 ) in
 
 def fac(n : Nat) = {
-  Inst(facFix, n +1) n
+  Inst(facFix, n + 1) n
 }
 
 fac(2)

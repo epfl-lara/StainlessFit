@@ -6,6 +6,8 @@ import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
 
+import z3.scala._
+
 import Derivation._
 
 case class Context(
@@ -115,7 +117,7 @@ case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
 
 case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
   override def toString: String = {
-    s"Check equality ${t1} = ${t1}"
+    s"Check equality ${t1} = ${t2}"
   }
 
   def replace(id: Identifier, t: Tree): Goal = {
@@ -671,7 +673,7 @@ object Rule {
     case g @ EqualityGoal(c, t1, t2) =>
       TypeChecker.equalityDebug(s"Context:\n${c}\n")
       TypeChecker.equalityDebug(s"Ignoring equality ${t1} = ${t2}.\n\n")
-      Some(List(), _ => (true, AreEqualJudgment(c, t1, t2, true))) // s"Ignoring equality ${t1} = ${t2}")))
+      Some(List(), _ => (true, AreEqualJudgment(c, t1, t2, "IGNORED"))) // s"Ignoring equality ${t1} = ${t2}")))
     case g =>
       None()
   }
@@ -1187,7 +1189,7 @@ object Rule {
       Some((List(_ => g1),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t1, t2, false))
+            (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
             (false, ErrorJudgment(c, s"Could not prove equality between $t1 and $t2."))
         }
@@ -1219,7 +1221,7 @@ object Rule {
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t1, t2, false))
+            (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
             (false, ErrorJudgment(c, EqualityType(t1, t2)))
         }
@@ -1236,7 +1238,7 @@ object Rule {
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t, t2, false))
+            (true, AreEqualJudgment(c, t, t2, ""))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1253,7 +1255,7 @@ object Rule {
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t2, t, false))
+            (true, AreEqualJudgment(c, t2, t, ""))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1269,7 +1271,7 @@ object Rule {
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t, t2, false))
+            (true, AreEqualJudgment(c, t, t2, ""))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1286,7 +1288,7 @@ object Rule {
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t2, t, false))
+            (true, AreEqualJudgment(c, t2, t, ""))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1319,9 +1321,131 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} EqualityInContext: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       Some((List(),
         {
-          case _ => (true, AreEqualJudgment(c, t1, t2, false))
+          case _ => (true, AreEqualJudgment(c, t1, t2, ""))
         }
       ))
+    case g =>
+      None()
+  }
+
+  def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
+    t match {
+      case Var(id) => termVariables.contains(id) && termVariables(id) == NatType
+      case NatLiteral(_) => true
+      case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
+        op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
+      case _ => false
+    }
+  }
+
+  def isNatPredicate(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
+    t match {
+      case BoolLiteral(_) => true
+      case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
+        op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
+      case _ => false
+    }
+  }
+
+  var x: BigInt = 0
+
+  def unique(): BigInt = {
+    x = x + 1
+    x
+  }
+
+  def z3Encode(z3: Z3Context, solver: Z3Solver, variables: Map[Identifier, Z3AST], t: Tree): Z3AST = {
+    t match {
+      case Var(id) => variables(id)
+      case NatLiteral(n) => z3.mkInt(n.toInt, z3.mkIntSort())
+      case BoolLiteral(true) => z3.mkTrue()
+      case BoolLiteral(false) => z3.mkFalse()
+      case Primitive(Eq, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkEq(n1AST, n2AST)
+      case Primitive(Neq, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkNot(z3.mkEq(n1AST, n2AST))
+      case Primitive(Lteq, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkLE(n1AST, n2AST)
+      case Primitive(Gteq, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkGE(n1AST, n2AST)
+      case Primitive(Lt, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkLT(n1AST, n2AST)
+      case Primitive(Gt, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkGT(n1AST, n2AST)
+      case Primitive(Minus, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkSub(n1AST, n2AST)
+      case Primitive(Plus, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkAdd(n1AST, n2AST)
+
+      // case Primitive(op, Cons(n1, Cons(n2, Nil()))) => ()
+
+      case _ => throw new java.lang.Exception(s"Error while making Z3 constraints. Unsupported tree: $t")
+    }
+  }
+
+  val NewZ3ArithmeticSolver = Rule {
+    case g @ EqualityGoal(c, t, BoolLiteral(true)) if isNatPredicate(c.termVariables, t) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} Z3ArithmeticSolver: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val z3 = new Z3Context("MODEL" -> true)
+      val solver = z3.mkSolver
+
+      val i = z3.mkIntSort
+
+      // TODO: add a foreach method in Stainless lists
+      val z3Variables =
+        ListOps.toMap(c.variables.filter(c.termVariables(_) == NatType).map {
+          id => id -> z3.mkConst(z3.mkStringSymbol(id.toString), i)
+        })
+
+      c.termEqualities.map {
+        case (h, BoolLiteral(true)) if isNatPredicate(c.termVariables, h) =>
+          solver.assertCnstr(z3Encode(z3, solver, z3Variables, h))
+        case (h, BoolLiteral(false)) if isNatPredicate(c.termVariables, h) =>
+          solver.assertCnstr(z3.mkNot(z3Encode(z3, solver, z3Variables, h)))
+        case _ => ()
+      }
+
+      val b = z3Encode(z3, solver, z3Variables, t)
+      solver.assertCnstr(z3.mkNot(b))
+
+      TypeChecker.z3Debug("Current Goal:\n" + g)
+      TypeChecker.z3Debug("\nInvoking Z3\n")
+      TypeChecker.z3Debug(solver.toString)
+
+      val solverResponse = solver.check
+
+      TypeChecker.z3Debug("Response: " + solverResponse + "\n")
+
+      val modelString = solverResponse match {
+        case scala.None => ""
+        case scala.Some(true) => solver.getModel.toString
+        case scala.Some(false) => ""
+      }
+
+      z3.delete
+
+      solverResponse match {
+        case scala.None => Some((List(), _ => (false, AreEqualJudgment(c, t, BoolLiteral(true), "Failure in Z3"))))
+        case scala.Some(true) => Some((List(), _ => (false, AreEqualJudgment(c, t, BoolLiteral(true), s"Z3 found a counter-example: $modelString"))))
+        case scala.Some(false) => Some((List(), _ => (true, AreEqualJudgment(c, t, BoolLiteral(true), "Validated by Z3"))))
+      }
+
     case g =>
       None()
   }
@@ -1419,6 +1543,7 @@ object TypeChecker {
     NewUseContextEqualities.t ||
     NewApplyApp1.t ||
     NewApplyApp1.t ||
+    NewZ3ArithmeticSolver.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
     FailRule.t
@@ -1426,6 +1551,7 @@ object TypeChecker {
 
   val tdebug = false
   val edebug = false
+  val zdebug = false
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context(List(), Map(), Set(), List(), max, 0), t)
@@ -1438,5 +1564,9 @@ object TypeChecker {
 
   def equalityDebug(s: String): Unit = {
     if (edebug) println(s)
+  }
+
+  def z3Debug(s: String): Unit = {
+    if (zdebug) println(s)
   }
 }
