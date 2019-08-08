@@ -507,7 +507,7 @@ case class Lambda(tp: Option[Tree], body: Tree) extends Tree {
           case Some(ty) => "λ" + Bind(x, b).toStringWithType(ty)
           case _ => "λ" + Bind(x, b).toString
         }
-      case _ => "<No bind in λ>"
+      case _ => "<Missing bind in λ>"
     }
   }
 }
@@ -547,7 +547,7 @@ case class Fix(tp: Option[Tree], body: Tree) extends Tree {
         "Fix" + tyString + "(\n" +
         "  " + n1.toString + ", " + Bind(x, body).toString.replaceAll("\n", "\n  ") +
         "\n)"
-      case _ => "<No bind in Fix>"
+      case _ => "<Missing bind in Fix>"
     }
   }
 }
@@ -561,7 +561,7 @@ case class Match(t: Tree, t1: Tree, t2: Tree) extends Tree {
         t1.toString.replaceAll("\n", "\n    ") + "\n"
         "  case " + n.toString + " =>\n" +
         tn.toString.replaceAll("\n", "\n    ") + "\n}"
-      case _ => "<No bind in Match>"
+      case _ => "<Missing bind in Match>"
     }
   }
 }
@@ -575,7 +575,7 @@ case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree {
         t1.toString.replaceAll("\n", "\n    ") + "\n"
         "  case Right(" + x2.toString + ") =>\n" +
         t2.toString.replaceAll("\n", "\n    ") + "\n}"
-      case _ => "<No bind in EitherMatch>"
+      case _ => "<Missing bind in EitherMatch>"
     }
   }
 }
@@ -602,11 +602,10 @@ case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree {
           }
         "val " + x.toString + typeString + " = " + v.toString + " in\n" +
         t.toString
-      case _ => "<No bind in LetIn>"
+      case _ => "<Missing bind in LetIn>"
     }
   }
 }
-
 
 case class ErrorTree(s: String, t: Option[Tree]) extends Tree {
   override def toString: String = t match {
@@ -614,8 +613,6 @@ case class ErrorTree(s: String, t: Option[Tree]) extends Tree {
     case Some(tp) => s"Error[$tp]($s)"
   }
 }
-
-case class Abs(a: Tree, t: Tree) extends Tree
 
 case class Primitive(op: Operator, args: List[Tree]) extends Tree {
   override def toString: String = {
@@ -640,7 +637,6 @@ case class Refl(t1: Tree, t2: Tree) extends Tree {
   }
 }
 
-
 case class Fold(tp: Option[Tree], t: Tree) extends Tree {
   override def toString: String = {
     val typeString = tp match {
@@ -660,7 +656,15 @@ case class Unfold(t: Tree, bind: Tree) extends Tree {
   }
 }
 
-
+case class Abs(t: Tree) extends Tree {
+  override def toString: String = {
+    t match {
+      case Bind(a, t) =>
+        "Λ" + a.toString + ". " + t.toString
+      case _ => "<Missing bind in Abs>"
+    }
+  }
+}
 
 case object BottomType extends Tree {
   override def toString: String = "⊥"
@@ -687,7 +691,7 @@ case class SigmaType(t1: Tree, t2: Tree) extends Tree {
     t2 match {
       case Bind(x, t2) =>
         "(Σ" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<No bind in SigmaType>"
+      case _ => "<Missing bind in SigmaType>"
     }
   }
 }
@@ -703,7 +707,7 @@ case class PiType(t1: Tree, t2: Tree) extends Tree {
     t2 match {
       case Bind(x, t2) =>
         "(Π " + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<No bind in PiType>"
+      case _ => "<Missing bind in PiType>"
     }
   }
 }
@@ -713,7 +717,7 @@ case class IntersectionType(t1: Tree, t2: Tree) extends Tree {
     t2 match {
       case Bind(x, t2) =>
         "(∀" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<No bind in IntersectionType>"
+      case _ => "<Missing bind in IntersectionType>"
     }
   }
 }
@@ -723,7 +727,7 @@ case class RefinementType(t1: Tree, t2: Tree) extends Tree {
     t2 match {
       case Bind(x, t2) =>
         "{" + x.toString + ": " + t1.toString + ", " + t2.toString + "}"
-      case _ => "<No bind in RefinementType>"
+      case _ => "<Missing bind in RefinementType>"
     }
   }
 }
@@ -738,9 +742,18 @@ case class RecType(n: Tree, bind: Tree) extends Tree {
   }
 }
 
-case class UnionType(t1: Tree, t2: Tree) extends Tree
+case class PolyForallType(t: Tree) extends Tree {
+  override def toString: String = {
+    t match {
+      case Bind(a, t) =>
+        "(∀" + a.toString + ": Type. " + t.toString
+      case _ => "<Missing bind in PolyForallType>"
+    }
+  }
+}
 
-case class PolyForallType(t1: Tree) extends Tree
+
+case class UnionType(t1: Tree, t2: Tree) extends Tree
 
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
 

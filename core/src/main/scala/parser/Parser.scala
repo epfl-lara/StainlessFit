@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
     word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst") | word("Fold") |
-    word("Unfold")
+    word("Unfold") | word("Decreases")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -210,6 +210,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val fixdefK = elem(KeyWordClass("fixdef"))
   val foldK = elem(KeyWordClass("Fold"))
   val unfoldK = elem(KeyWordClass("Unfold"))
+  val decreasesK = elem(KeyWordClass("Decreases"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
@@ -338,8 +339,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
 
   lazy val defFunction: Parser[Tree] = recursive {
     (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpr, comma) ~ rpar ~
-    opt(colon ~ typeExpr) ~ assignation ~ bracketExpr ~ opt(expression)).map {
-      case _ ~ Var(f) ~ _ ~ argsT ~ _ ~ rt ~ _ ~ e1 ~ e2 =>
+    opt(colon ~ typeExpr) ~ assignation ~ lbra ~ opt(decreasesK ~ lpar ~ expression ~rpar) ~ expression ~ rbra ~ opt(expression)).map {
+      case _ ~ Var(f) ~ _ ~ argsT ~ _ ~ rt ~ _ ~ _ ~ None ~ e1 ~ _ ~ e2 =>
         val args = argsT.map { case (Var(x) ~ _ ~ t) => (x, t) }
         val body = if(args.isEmpty) Lambda(stainlessSome(UnitType), Bind(Identifier(0, "_"), e1)) else foldArgs(args, e1)
         val funExpr = body
@@ -347,6 +348,34 @@ object ScalaParser extends Parsers[Token, TokenClass]
           case None => LetIn(stainlessNone(), funExpr, Bind(f, Var(f)))
           case Some(e) => LetIn(stainlessNone(), funExpr, Bind(f, e))
         }
+      case _ ~ Var(f) ~ _ ~ argsT ~ _ ~ Some(_ ~ rt) ~ _ ~ _ ~ Some(_ ~ _ ~ measure ~ _) ~ e1 ~ _ ~ e2 =>
+        argsT match {
+          case l if l.size == 1 =>
+            val (x, ty) = (argsT.map { case (Var(x) ~ _ ~ t) => (x, t) }).head
+            val n = Identifier(0, "_n")
+            val refin = RefinementType(ty, Bind(x, Primitive(Lteq, List(measure, Var(n)))))
+            val tp = PiType(refin, Bind(x, rt))
+            val body = Tree.replace(
+              f,
+              Inst(
+                App(Var(f), UnitLiteral),
+                Primitive(Minus, List(Var(n), NatLiteral(1)))
+              ),
+              e1
+            )
+            val funExpr = Lambda(stainlessSome(refin), Bind(x, body))
+            val fixExpr = Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(f, funExpr)))
+            e2 match {
+              case None => LetIn(stainlessNone(), fixExpr, Bind(f, Var(f)))
+              case Some(e) => LetIn(stainlessNone(), fixExpr, Bind(f, e))
+            }
+          case _ =>
+            println("WARNING: too much argument in recursive def.")
+            BottomTree
+        }
+      case _ =>
+        println("ERROR: recusrive def needs return type.")
+        BottomTree
     }
   }
 
@@ -358,20 +387,6 @@ object ScalaParser extends Parsers[Token, TokenClass]
       }
     }
   }
-
-  /*lazy val fixdefFunction: Parser[Tree] = recursive {
-    (fixdefK ~ variable ~ lpar ~ variable ~ colone ~ typeExpr ~ comma ~ repsep(variable ~ colon ~ typeExpr, comma) ~ rpar ~
-    colon ~ typeExpr ~ assignation ~ bracketExpr ~ opt(expression)).map {
-      case _ ~ Var(f) ~ _ ~ argsT ~ _ ~ _ ~ rt ~ _ ~ e1 ~ e2 =>
-        val args = argsT.map { case (Var(x) ~ _ ~ t) => (x, t) }
-        val (body, bType) = if(args.isEmpty) (e1, rt) else foldArgs(args, e1, rt)
-        val funExpr = if(appearFreeIn(Var(f), body)) buildFix(f, body, bType) else body
-        e2 match {
-          case None => LetIn(stainlessNone(), funExpr, Bind(f, Var(f)))
-          case Some(e) => LetIn(stainlessNone(), funExpr, Bind(f, e))
-        }
-    }
-  }*/
 
   lazy val fixpoint: Parser[Tree] = recursive {
     (fixK ~ opt(lsbra ~ variable ~ arrow ~ typeExpr ~ rsbra) ~
