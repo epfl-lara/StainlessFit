@@ -1126,7 +1126,10 @@ object Rule {
                 t1,
                 Fold(Some(RecType(NatLiteral(0), Bind(a, ty))), Var(x))
               ).addEquality(n, NatLiteral(0))
-              InferGoal(c1.incrementLevel, t2)
+              InferGoal(c1, t2)
+            case ty @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, _)))) =>
+              val c1 = c0.bind(x, ty).addEquality(t1, Fold(Some(ty), Var(x)))
+              InferGoal(c1, t2)
             case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
           }
         case _ =>
@@ -1136,7 +1139,7 @@ object Rule {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val (id, c1) = c.bindFresh("_pn", NatType)
+              val (id, c1) = c0.bindFresh("_pn", NatType)
               val pn = Var(id)
               val nTy = Tree.replace(a, RecType(pn, Bind(a, ty)), ty)
               val c2 = c.addEquality(
@@ -1146,11 +1149,13 @@ object Rule {
                 t1,
                 Fold(Some(RecType(n, Bind(a, ty))), Var(x))
               ).bind(x, nTy)
-              InferGoal(c2.incrementLevel, t2)
+              InferGoal(c2, t2)
+            case ty @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, _)))) =>
+              InferGoal(c0, BoolLiteral(true))
             case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
           }
         case _ =>
-         ErrorGoal(c, s"Could not infer a type for $t1.")
+          ErrorGoal(c, s"Could not infer a type for $t1.")
       }
       Some((
         List(_ => g1, fg2, fg3), {
@@ -1159,12 +1164,15 @@ object Rule {
             Cons(InferJudgment(_, _, Some(ty2)), _))) =>
             dropRefinements(ty) match {
               case RecType(n, Bind(x, ty)) =>
-                if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
-                else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
+                //if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
+                //else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
+                if(ty1 == ty2) (true, InferJudgment(c, e, Some(ty1)))
                 else (false, ErrorJudgment(c, e))
-              case _ => (false, ErrorJudgment(c, s"Expecting a pi type for $t1, found $ty."))
+              case IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty)))) =>
+                if(TypeOperators.spos(a, ty)) (true, InferJudgment(c, e, Some(ty1)))
+                else (false, ErrorJudgment(c, s"$a does not appears strictly positively in $ty"))
+              case _ => (false, ErrorJudgment(c, s"Expecting a rec type for $t1, found $ty."))
             }
-
           case _ => (false, ErrorJudgment(c, e))
         }
       ))
@@ -1315,6 +1323,7 @@ object Rule {
     case g =>
       None()
   }
+
 
   val NewEqualityInContext = Rule {
     case g @ EqualityGoal(c, t1, t2) if c.termEqualities.contains((t1, t2)) || c.termEqualities.contains((t2, t1)) =>
@@ -1490,6 +1499,7 @@ object TypeChecker {
     InferForallInstantiation.t ||
     InferFold.t ||
     InferUnfold.t ||
+    InferFoldGen.t ||
     CheckIf.t ||
     CheckMatch.t ||
     CheckEitherMatch.t ||
