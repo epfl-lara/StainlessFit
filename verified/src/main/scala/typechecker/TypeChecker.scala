@@ -26,6 +26,8 @@ case class Context(
     )
   }
 
+  def addTypeVariable(i: Identifier) = copy(typeVariables = typeVariables + i)
+
   def bindFresh(s: String, t: Tree) = (Identifier(n, s), bind(Identifier(n, s), t).copy(n = n+1))
 
   def contains(id: Identifier): Boolean = termVariables.contains(id)
@@ -1213,6 +1215,23 @@ object Rule {
     case _ => None()
   }
 
+  val InferTypeAbs = Rule {
+    case g @ InferGoal(c, e @ Abs(Bind(a, t))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferTypeAbs : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.addTypeVariable(a).incrementLevel
+      val subgoal = InferGoal(c1, t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(tpe)), _) =>
+            (true, InferJudgment(c, e, Some(PolyForallType(Bind(a, tpe)))))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
   def useContextEqualities(g: Goal): Goal = {
     g.c.termEqualities.find {
       case (Var(id), t1) => !id.isFreeIn(t1)
@@ -1529,6 +1548,7 @@ object TypeChecker {
     InferMatch.t ||
     InferEitherMatch.t ||
     InferFix.t ||
+    InferTypeAbs.t ||
     InferForallInstantiation.t ||
     InferFold.t ||
     InferUnfold.t ||
