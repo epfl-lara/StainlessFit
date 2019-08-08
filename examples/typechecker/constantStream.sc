@@ -1,4 +1,5 @@
-val constantFix = fix[n => Nat => Rec(n)(a => (Nat, Unit => a))]
+val constantFix = fix[n => Nat =>
+  Rec(n)(a => (Nat, Unit => a))]
 (constant =>
   fun(x: Nat) => {
     Fold[Rec(n)(a => (Nat, Unit => a))](
@@ -15,19 +16,19 @@ def constant(n: Nat, x: Nat) = {
 }
 
 val sumFix = fix[n => {k : Nat, k < n} => (Rec(n)(a => (Nat, Unit => a))) => Nat](sum =>
-  fun(k: {k : Nat, k < n}) => {
-    fun(stream: (Rec(k)(a => (Nat, Unit => a)))) => {
-      if(k == 0) 0
-      else {
-        val x = (Unfold(stream) in (x => x)) in
-        First(x) + sum (k - 1) (Second(x)())
-      }
-    }
-  }
+   fun(k: {k : Nat, k < n}) => {
+     fun(stream: (Rec(n)(a => (Nat, Unit => a)))) => {
+       if(k == 0) 0
+       else {
+         val x = (Unfold(stream) in (x => x))
+         in First(x) + sum (k - 1) (Second(x)())
+       }
+     }
+   }
 ) in
 
 def sum(k: Nat) = {
-   Inst(sumFix, k + 1) k
+    Inst(sumFix, k + 1) k
 }
 
-sum 3 (constant 3 2)
+// sum 3 (constant 3 2)

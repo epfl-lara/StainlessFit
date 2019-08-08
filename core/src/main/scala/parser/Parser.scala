@@ -286,7 +286,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
     )
   }
 
-  lazy val simpleTypeExpr = literalType | parTypeExpr | recType | refinementType | variable | bPiType | bSigmaType //| bForallType
+  lazy val simpleTypeExpr = literalType | parTypeExpr | recType | refinementType | variable | bPiType | bSigmaType | bForallType
 
   lazy val typeExpr: Parser[Tree] = recursive {
     operatorType

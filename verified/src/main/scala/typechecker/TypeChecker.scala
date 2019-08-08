@@ -188,7 +188,7 @@ object TypeOperators {
         unify(a1, t3, f).map { a =>
           RefinementType(a, Bind(x, p1))
         }
-      case (RecType(n, Bind(x1, b1)), RecType(m, Bind(x2, b2))) if n == m =>
+      case (RecType(n, Bind(x1, b1)), RecType(m, Bind(x2, b2))) =>
         unify(b1, Tree.replace(x2, Var(x1), b2), f).map { b =>
           RecType(f(n, m), Bind(x1, b))
         }
@@ -852,6 +852,39 @@ object Rule {
       None()
   }
 
+  val CheckFirst = Rule {
+    case g @ CheckGoal(c, e @ First(Pair(t1, t2)), ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckFirst : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = CheckGoal(c.incrementLevel, t1, ty)
+      Some((List(_ => subgoal),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val CheckSecond= Rule {
+    case g @ CheckGoal(c, e @ Second(Pair(t1, t2)), ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckSecond : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = CheckGoal(c.incrementLevel, t2, ty)
+      Some((List(_ => subgoal),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+
   val CheckPi = Rule {
     case g @ CheckGoal(c, e @ t, tpe @ PiType(ty1, Bind(id,ty2))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
@@ -1141,13 +1174,13 @@ object Rule {
             case RecType(n, Bind(a, ty)) =>
               val (id, c1) = c0.bindFresh("_pn", NatType)
               val pn = Var(id)
-              val nTy = Tree.replace(a, RecType(pn, Bind(a, ty)), ty)
+              val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
               val c2 = c.addEquality(
                 n,
                 Primitive(Plus, List(pn, NatLiteral(1)))
               ).addEquality(
                 t1,
-                Fold(Some(RecType(n, Bind(a, ty))), Var(x))
+                Fold(Some(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty))), Var(x))
               ).bind(x, nTy)
               InferGoal(c2, t2)
             case ty @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, _)))) =>
@@ -1164,9 +1197,9 @@ object Rule {
             Cons(InferJudgment(_, _, Some(ty2)), _))) =>
             dropRefinements(ty) match {
               case RecType(n, Bind(x, ty)) =>
-                //if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
-                //else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
-                if(ty1 == ty2) (true, InferJudgment(c, e, Some(ty1)))
+                if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
+                else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
+                //if(ty1 == ty2) (true, InferJudgment(c, e, Some(ty1)))
                 else (false, ErrorJudgment(c, e))
               case IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty)))) =>
                 if(TypeOperators.spos(a, ty)) (true, InferJudgment(c, e, Some(ty1)))
@@ -1506,6 +1539,8 @@ object TypeChecker {
     CheckLet.t ||
     CheckLeft.t ||
     CheckRight.t ||
+    CheckFirst.t ||
+    CheckSecond.t ||
     CheckIntersection.t ||
     CheckPi.t ||
     CheckSigma.t ||
