@@ -451,6 +451,8 @@ sealed abstract class Tree {
   def isEvidentSubType(ty: Tree): Boolean = Tree.isEvidentSubType(this, ty)
 
   def isEqual(t: Tree): Boolean = Tree.isEqual(this, t)
+
+  def replace(id: Identifier, t: Tree) = Tree.replace(id, t, this)
 }
 
 case class Var(id: Identifier) extends Tree {

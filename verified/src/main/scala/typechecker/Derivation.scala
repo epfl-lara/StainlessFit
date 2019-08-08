@@ -37,8 +37,15 @@ object Derivation {
     }
   }
 
-  case class AreEqualJudgment(override val c: Context, t1: Tree, t2: Tree) extends Judgment {
-    override def toString = s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))}"
+  case class AreEqualJudgment(override val c: Context, t1: Tree, t2: Tree, isIgnored: Boolean) extends Judgment {
+    override def toString = {
+      if(isIgnored) {
+        s"⊢ <b>IGNORED ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))} </b>"
+      }
+      else {
+        s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))}"
+      }
+    }
   }
 
   case class ErrorJudgment[T](override val c: Context, error: T) extends Judgment {

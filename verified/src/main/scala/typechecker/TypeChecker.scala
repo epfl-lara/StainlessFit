@@ -11,7 +11,7 @@ import Derivation._
 case class Context(
   val variables: List[Identifier],
   val termVariables: Map[Identifier, Tree],
-  val typeVariables: Set[Tree],
+  val typeVariables: Set[Identifier],
   val termEqualities: List[(Tree, Tree)],
   val level: Int,
   val n: Int // All variables in the context must have an identifier strictly smaller than n.
@@ -44,9 +44,9 @@ case class Context(
     }
   }
 
-  def containsVarEqualities: Boolean = {
+  def hasSubstitution: Boolean = {
     termEqualities.exists {
-      case (Var(_), _) => true
+      case (Var(x), t) => !x.isFreeIn(t)
       case (_, _) => false
     }
   }
@@ -59,30 +59,70 @@ case class Context(
       }
     }
   }
+
+  def replace(id: Identifier, t: Tree): Context = {
+    copy(
+      termEqualities = termEqualities.map { case (t1, t2) => (Tree.replace(id, t, t1), Tree.replace(id, t, t2)) },
+      termVariables = variables.foldLeft(Map[Identifier, Tree]()) { case (m, termId) => m.updated(termId, Tree.replace(id, t, termVariables(termId))) }
+    )
+  }
+
+  def removeEquality(t1: Tree, t2: Tree): Context = {
+    copy(termEqualities = termEqualities.filterNot { _ == (t1, t2) } )
+  }
 }
+
 
 sealed abstract class Goal {
   val c: Context
+
+  def removeEquality(t1: Tree, t2: Tree): Goal
+
+  def replace(id: Identifier, t: Tree): Goal
 }
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
   override def toString: String = {
     s"Inferring $t"
   }
+
+  def replace(id: Identifier, t1: Tree): Goal = {
+    InferGoal(c.replace(id, t1), t.replace(id, t1))
+  }
+
+  def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 }
 
 case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
   override def toString: String = {
     s"Checking ${t}: ${tp}"
   }
+
+  def replace(id: Identifier, t1: Tree): Goal = {
+    CheckGoal(c.replace(id, t1), t.replace(id, t1), tp.replace(id, t1))
+  }
+
+  def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 }
 
-case class SynthesizeGoal(c: Context, tp: Tree) extends Goal
+case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
+  def replace(id: Identifier, t: Tree): Goal = {
+    SynthesizeGoal(c.replace(id, t), tp.replace(id, t))
+  }
+
+  def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
+}
 
 case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
   override def toString: String = {
     s"Check equality ${t1} = ${t1}"
   }
+
+  def replace(id: Identifier, t: Tree): Goal = {
+    EqualityGoal(c.replace(id, t), t1.replace(id, t), t2.replace(id, t))
+  }
+
+  def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 }
 
 case class ErrorGoal(c: Context, s: String) extends Goal {
@@ -91,6 +131,12 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
   override def toString: String = {
     s"Error Goal : ${s}"
   }
+
+  def replace(id: Identifier, t: Tree): Goal = {
+    ErrorGoal(c.replace(id, t), s)
+  }
+
+  def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 }
 
 object TypeOperators {
@@ -312,7 +358,7 @@ object Rule {
       val errorGoal = EqualityGoal(c.incrementLevel(), BoolLiteral(false), BoolLiteral(true))
       Some((List(_ => errorGoal),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) => (true, InferJudgment(c, e, Some(tp)))
+          case Cons(AreEqualJudgment(_, _, _, _), _) => (true, InferJudgment(c, e, Some(tp)))
           case _ => (false, ErrorJudgment(c, InferJudgment(c, e, Some(tp))))
         }
       ))
@@ -625,7 +671,7 @@ object Rule {
     case g @ EqualityGoal(c, t1, t2) =>
       TypeChecker.equalityDebug(s"Context:\n${c}\n")
       TypeChecker.equalityDebug(s"Ignoring equality ${t1} = ${t2}.\n\n")
-      Some(List(), _ => (true, AreEqualJudgment(c, t1, t2)))
+      Some(List(), _ => (true, AreEqualJudgment(c, t1, t2, true))) // s"Ignoring equality ${t1} = ${t2}")))
     case g =>
       None()
   }
@@ -652,7 +698,7 @@ object Rule {
       val checkRef = EqualityGoal(c1.incrementLevel, b, BoolLiteral(true))
       Some((
         List(_ => checkTy, _ => checkRef), {
-          case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _), _)) =>
+          case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
             (false, ErrorJudgment(c, t))
@@ -1031,7 +1077,7 @@ object Rule {
       Some((
         List(_ => subgoal, fEquality),
         {
-          case Cons(InferJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _), _)) =>
+          case Cons(InferJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
             (false, ErrorJudgment(c, t))
@@ -1124,32 +1170,26 @@ object Rule {
     case _ => None()
   }
 
-  def useContextEqualities(c: Context, t: Tree): Tree = {
-    val t1 = c.termEqualities.foldLeft(t) { case (acc, (v1, v2)) =>
-      v1 match {
-        case Var(id) => Tree.replace(id, v2, acc)
-        case _ => acc
-      }
+  def useContextEqualities(g: Goal): Goal = {
+    g.c.termEqualities.find {
+      case (Var(id), t1) => !id.isFreeIn(t1)
+      case _ => false
+    } match {
+      case Some((Var(id), t1)) => useContextEqualities(g.removeEquality(Var(id), t1).replace(id, t1))
+      case _ => g
     }
-    t1
   }
 
   val NewUseContextEqualities = Rule {
-    case g @ EqualityGoal(c, t1, t2) if c.containsVarEqualities =>
+    case g @ EqualityGoal(c, t1, t2) if c.hasSubstitution =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UseContextEqualities : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val newT1 = useContextEqualities(c, t1)
-      val newT2 = useContextEqualities(c, t2)
-      val c1 = c.copy(termEqualities = c.termEqualities.filterNot {
-          case (Var(_), _) => true
-          case (_, _) => false
-        })
-      val subgoal = EqualityGoal(c1, newT1, newT2)
-      Some((List(_ => subgoal),
+      val g1 = useContextEqualities(g)
+      Some((List(_ => g1),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) =>
-            (true, AreEqualJudgment(c, t1, t2))
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t1, t2, false))
           case _ =>
-            (false, ErrorJudgment(c, EqualityType(t1, t2)))
+            (false, ErrorJudgment(c, s"Could not prove equality between $t1 and $t2."))
         }
       ))
     case g =>
@@ -1178,8 +1218,8 @@ object Rule {
       val subgoal = EqualityGoal(c1, t1, t2)
       Some((List(_ => subgoal),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) =>
-            (true, AreEqualJudgment(c, t1, t2))
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t1, t2, false))
           case _ =>
             (false, ErrorJudgment(c, EqualityType(t1, t2)))
         }
@@ -1195,8 +1235,8 @@ object Rule {
       val subgoal =  EqualityGoal(c1, t1, t2)
       Some((List(_ => subgoal),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) =>
-            (true, AreEqualJudgment(c, t, t2))
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t, t2, false))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1212,8 +1252,8 @@ object Rule {
       val subgoal =  EqualityGoal(c1, t2, t1)
       Some((List(_ => subgoal),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) =>
-            (true, AreEqualJudgment(c, t2, t))
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t2, t, false))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1228,8 +1268,8 @@ object Rule {
       val subgoal =  EqualityGoal(c, Tree.replace(x, t12, body), t2)
       Some((List(_ => subgoal),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) =>
-            (true, AreEqualJudgment(c, t, t2))
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t, t2, false))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1245,8 +1285,8 @@ object Rule {
       val subgoal =  EqualityGoal(c, t2, Tree.replace(x, t12, body))
       Some((List(_ => subgoal),
         {
-          case Cons(AreEqualJudgment(_, _, _), _) =>
-            (true, AreEqualJudgment(c, t2, t))
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t2, t, false))
           case _ =>
             (false, ErrorJudgment(c, t))
         }
@@ -1254,6 +1294,38 @@ object Rule {
     case g =>
       None()
   }
+
+  val InferFoldGen = Rule {
+    case g @ InferGoal(c, e @ Fold(Some(tpe @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty))))), t)) =>
+      /* Fail if n != m */
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferFoldGen : ${g.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val nTy = IntersectionType(NatType, Bind(n, RecType(Var(n), Bind(a, ty))))
+      val check = CheckGoal(c.incrementLevel, t, Tree.replace(a, nTy, ty))
+      Some((
+        List(_ => check),
+        {
+          case Cons(CheckJudgment(_, _, _), _) if TypeOperators.spos(a, ty) =>
+            (true, InferJudgment(c, e, Some(tpe)))
+          case _ =>
+            (false, ErrorJudgment(c, e))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val NewEqualityInContext = Rule {
+    case g @ EqualityGoal(c, t1, t2) if c.termEqualities.contains((t1, t2)) || c.termEqualities.contains((t2, t1)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} EqualityInContext: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      Some((List(),
+        {
+          case _ => (true, AreEqualJudgment(c, t1, t2, false))
+        }
+      ))
+    case g =>
+      None()
+  }
+
 }
 
 
@@ -1340,6 +1412,7 @@ object TypeChecker {
     CheckTop1.t ||
     CheckTop2.t ||
     CheckReflexive.t ||
+    NewEqualityInContext.t ||
     NewUnfoldLet1.t ||
     NewUnfoldLet2.t ||
     NewUnfoldRefinementInContext.t ||
