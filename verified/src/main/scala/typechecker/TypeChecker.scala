@@ -182,6 +182,27 @@ object TypeOperators {
       case ty => ty
     }
   }
+
+  def spos(a: Identifier, t: Tree): Boolean = {
+    t match {
+      case NatType => true
+      case BoolType => true
+      case BottomType => true
+      case TopType => true
+      case UnitType => true
+      case Var(x) if x == a => true
+      case t if !a.isFreeIn(t) => true
+      case RefinementType(t, _) => spos(a, t)
+      case PiType(t1, Bind(x, t2)) => !a.isFreeIn(t1) && spos(a, t2)
+      case IntersectionType(t1, Bind(x, t2)) => !a.isFreeIn(t1) && spos(a, t2)
+      case PolyForallType(Bind(x, t)) => spos(a, t)
+      case SumType(t1, t2) => spos(a, t1) && spos(a, t2)
+      case SigmaType(t1, Bind(_, t2)) => spos(a, t1) && spos(a, t2)
+      case RecType(_, Bind(x, t)) =>
+        spos(a, t) && (!a.isFreeIn(t) || spos(x, t))
+      case _ => false
+    }
+  }
 }
 
 case class Tactic[T](apply: (Goal, (Goal => Option[T])) => Option[T]) {
