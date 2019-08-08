@@ -1103,37 +1103,7 @@ object Rule {
     case _ => None()
   }
 
-
-}
-
-
-/*
-
-
-case object InferDropRefinement extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-    g match  {
-      case InferGoal(c, t, l) =>
-        TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferDropRefinement : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-        val inferGoal = InferGoal(c, t)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => inferGoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(inferGoal) match {
-              case Some(InferResult(RefinementType(ty, _))) => rc.updateResults(g, InferResult(ty))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object NoName1Resolve extends Rule {
-  def replace(c: Context, t: Tree): Tree = {
+  def useContextEqualities(c: Context, t: Tree): Tree = {
     val t1 = c.termEqualities.foldLeft(t) { case (acc, (v1, v2)) =>
       v1 match {
         case Var(id) => Tree.replace(id, v2, acc)
@@ -1143,40 +1113,29 @@ case object NoName1Resolve extends Rule {
     t1
   }
 
-
-
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case EqualityGoal(c, t1, t2, l) if c.containsVarEqualities =>
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${t1} = ${t2}.")
-        TypeChecker.equalityDebug(s"Use term equalities context and replace variables.")
-        val newT1 = replace(c, t1)
-        val newT2 = replace(c, t2)
-        TypeChecker.equalityDebug(s"=> Should show ${newT1} = ${newT2}.\n\n")
-        val c1 = c.copy(termEqualities = c.termEqualities.filterNot {
+  val NewUseContextEqualities = Rule {
+    case g @ EqualityGoal(c, t1, t2) if c.containsVarEqualities =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UseContextEqualities : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val newT1 = useContextEqualities(c, t1)
+      val newT2 = useContextEqualities(c, t2)
+      val c1 = c.copy(termEqualities = c.termEqualities.filterNot {
           case (Var(_), _) => true
           case (_, _) => false
         })
-        val subgoal = EqualityGoal(c1, newT1, newT2)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
+      val subgoal = EqualityGoal(c1, newT1, newT2)
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _), _) =>
+            (true, AreEqualJudgment(c, t1, t2))
+          case _ =>
+            (false, ErrorJudgment(c, EqualityType(t1, t2)))
+        }
+      ))
+    case g =>
+      None()
   }
-}
 
-case object NoName2Resolve extends Rule {
-  def replace(c: Context, t: Tree): Context = {
+  def unfoldRefinementInContext(c: Context): Context = {
     val c1 = c.variables.foldLeft(c) { case (acc, x) =>
       c.getTypeOf(x) match {
         case Some(RefinementType(ty, Bind(y, t2))) =>
@@ -1189,60 +1148,62 @@ case object NoName2Resolve extends Rule {
       }
     }
     c1
-    /* SHould be applied more than once
-       For now Id issues => not possible
-    */
   }
 
-  def apply(g: Goal): ResultGoalContext = {
+  val NewUnfoldRefinementInContext = Rule {
+    case g @ EqualityGoal(c, t1, t2) if c.hasRefinementBound =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldRefinementInContext : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = unfoldRefinementInContext(c)
+      val subgoal = EqualityGoal(c1, t1, t2)
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _), _) =>
+            (true, AreEqualJudgment(c, t1, t2))
+          case _ =>
+            (false, ErrorJudgment(c, EqualityType(t1, t2)))
+        }
+      ))
+    case g =>
+      None()
+  }
 
-    g match  {
-      case EqualityGoal(c, t1, t2, l) if c.hasRefinementBound =>
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${t1} = ${t2}.")
-        TypeChecker.equalityDebug(s"Unfold refinement types to obtain predicates and types.\n\n")
-        val c1 = replace(c, t1)
-        val c2 = replace(c1, t2)
-        val subgoal = EqualityGoal(c1, t1, t2, l + 1)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) => {
-            rc.results.get(subgoal) match {
-              case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
-              case _ => rc
-            }
-          }
-        )
-      case _ => errorContext
-    }
+  val NewUnfoldLet1 = Rule {
+    case g @ EqualityGoal(c, t @ LetIn(tp, v, Bind(x, t1)), t2) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldLet1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.addEquality(Var(x), v)
+      val subgoal =  EqualityGoal(c1, t1, t2)
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _), _) =>
+            (true, AreEqualJudgment(c, t, t2))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val NewUnfoldLet2 = Rule {
+    case g @ EqualityGoal(c, t2 , t @ LetIn(tp, v, Bind(x, t1))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldLet2 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.addEquality(Var(x), v)
+      val subgoal =  EqualityGoal(c1, t2, t1)
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _), _) =>
+            (true, AreEqualJudgment(c, t2, t))
+          case _ =>
+            (false, ErrorJudgment(c, t))
+        }
+      ))
+    case g =>
+      None()
   }
 }
 
-case object ReplaceLet extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-   g match {
-      case EqualityGoal(c, LetIn(tp, v, Bind(x, t1)), t2, l) =>
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${LetIn(tp, v, Bind(x, t1))} = ${t2}")
-        TypeChecker.equalityDebug(s"Set ${x} = ${v} in context.\n\n")
-        val c1 = c.addEquality(Var(x), v)
-        val subgoal =  EqualityGoal(c1, t1, t2)
-          ResultGoalContext(
-            List((rc: ResultGoalContext) => subgoal),
-            Map(),
-            (rc: ResultGoalContext) =>
-              rc.results.get(subgoal) match {
-                case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
-                case _ => rc
-              }
-          )
-      case _ => errorContext
-    }
-  }
-}
 
-
+/*
 
 case object InContextResolve extends Rule {
   def apply(g: Goal): ResultGoalContext = {
@@ -1279,62 +1240,6 @@ case object ReflexivityResolve extends Rule {
     }
   }
 }
-
-case object GoodArithmeticResolve extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case EqualityGoal(c, Primitive(Lt, Cons(n1, Cons(Primitive(Plus, Cons(n2, Cons(NatLiteral(n3), Nil()))), Nil()))), t2, l) if n1 == n2 && n3 > 0 =>
-        val t1 = Primitive(Lt, Cons(n1, Cons(Primitive(Plus, Cons(n2, Cons(NatLiteral(n3), Nil()))), Nil())))
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${t1} = ${t2}.")
-        TypeChecker.equalityDebug(s"(${n1} < ${n2} + ${n3}) holds => should show true = ${t2}.\n\n")
-        val subgoal =  CheckGoal(c, n1, NatType)
-        val subgoal2 = (rc: ResultGoalContext) => {
-          rc.results.get(subgoal) match {
-            case Some(CheckResult(true)) => EqualityGoal(c, BoolLiteral(true), t2, l + 1)
-            case _ => ErrorGoal(c, s"Error in GoodArithmeticResolve ${g}")
-          }
-        }
-          ResultGoalContext(
-            List((rc: ResultGoalContext) => subgoal, subgoal2),
-            Map(),
-            (rc: ResultGoalContext) =>
-              rc.results.get(subgoal2(rc)) match {
-                case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
-                case _ => rc
-              }
-          )
-      case _ => errorContext
-    }
-  }
-}
-
-
-case object NatInequalityResolve extends Rule {
-  def apply(g: Goal): ResultGoalContext = {
-
-    g match  {
-      case EqualityGoal(c, Primitive(Lt, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))), t2, l)  =>
-        val t1 = Primitive(Lt, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil())))
-        TypeChecker.equalityDebug(s"Context:\n${c}\n")
-        TypeChecker.equalityDebug(s"Should show ${t1} = ${t2}.")
-        TypeChecker.equalityDebug(s"(${n1} < ${n2}) = ${n1 < n2} => should show ${n1 < n2} = ${t2}.\n\n")
-        val subgoal = EqualityGoal(c, BoolLiteral(n1 < n2), t2, l + 1)
-        ResultGoalContext(
-          List((rc: ResultGoalContext) => subgoal),
-          Map(),
-          (rc: ResultGoalContext) =>
-            rc.results.get(subgoal) match {
-              case Some(EqualityResult(true)) => rc.updateResults(g, EqualityResult(true))
-              case _ => rc
-            }
-        )
-      case _ => errorContext
-    }
-  }
-}
-
 
 }
 
@@ -1381,6 +1286,10 @@ object TypeChecker {
     CheckTop1.t ||
     CheckTop2.t ||
     CheckReflexive.t ||
+    NewUnfoldLet1.t ||
+    NewUnfoldLet2.t ||
+    NewUnfoldRefinementInContext.t ||
+    NewUseContextEqualities.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
     FailRule.t
