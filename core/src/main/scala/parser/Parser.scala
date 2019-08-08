@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
     word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst") | word("Fold") |
-    word("Unfold") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall")
+    word("Unfold") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -214,6 +214,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val piK = elem(KeyWordClass("Pi"))
   val sigmaK = elem(KeyWordClass("Sigma"))
   val forallK = elem(KeyWordClass("Forall"))
+  val lambdaK = elem(KeyWordClass("Lambda"))
 
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
@@ -337,6 +338,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
   lazy val function: Parser[Tree] = {
     (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ bracketExpr).map {
       case _ ~ _ ~ Var(x) ~ _ ~ tp ~ _ ~ _ ~ e => Lambda(stainlessSome(tp), Bind(x, e))
+    }
+  }
+
+  lazy val lambdaAbs: Parser[Tree] = {
+    (lambdaK ~ variable ~ arrow ~ bracketExpr).map {
+      case _ ~ Var(x) ~ _ ~ e => Abs(Bind(x, e))
     }
   }
 
@@ -536,7 +543,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second |
-    error | instantiate | fold | unfold
+    error | instantiate | fold | unfold | lambdaAbs
 
   lazy val expression: Parser[Tree] = recursive {
     condition | eitherMatch | letIn | defFunction | operator

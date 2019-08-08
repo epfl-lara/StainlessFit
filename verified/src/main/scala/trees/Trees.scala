@@ -228,6 +228,9 @@ object Tree {
         val (newT, m1, max1) = setId(t, m, max)
         val (newBind, m2, max2) = setId(bind, m1, max1)
         (Unfold(newT, newBind), m2, max2)
+      case Abs(bind) =>
+        val (newBind, m1, max1) = setId(bind, m, max)
+        (Abs(newBind), m1, max1)
       case SumType(t1, t2) =>
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newT2, m2, max2) = setId(t2, m1, max1)
@@ -252,6 +255,9 @@ object Tree {
         val (newN, m1, max1) = setId(n, m, max)
         val (newBind, m2, max2) = setId(bind, m1, max1)
         (RecType(newN, newBind), m2, max2)
+      case PolyForallType(bind) =>
+        val (newBind, m1, max1) = setId(bind, m, max)
+        (PolyForallType(newBind), m1, max1)
       case _ => (t, m, max)
     }
   }
@@ -292,12 +298,14 @@ object Tree {
       case Fold(None(), t) => Fold(None(), replace(xvar, v, t))
       case Fold(Some(tp), t) => Fold(Some(replace(xvar, v, tp)), replace(xvar, v, t))
       case Unfold(t, bind) => Unfold(replace(xvar, v, t), replace(xvar, v, bind))
+      case Abs(bind) => Abs(replace(xvar, v, bind))
       case SumType(t1, t2) => SumType(replace(xvar, v, t1), replace(xvar, v, t2))
       case PiType(t1, bind) => PiType(replace(xvar, v, t1), replace(xvar, v, bind))
       case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
       case IntersectionType(t1, bind) => IntersectionType(replace(xvar, v, t1), replace(xvar, v, bind))
       case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
       case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
+      case PolyForallType(bind) => PolyForallType(replace(xvar, v, bind))
       case _ => body
     }
   }
@@ -322,6 +330,7 @@ object Tree {
       case RightTree(t) => isValue(t)
       case LeftTree(t) => isValue(t)
       case Fold(_, t) => isValue(t)
+      case Abs(_) => true
       case _ => false
     }
   }
@@ -341,6 +350,8 @@ object Tree {
         isEvidentSubType(ty2, ty1) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
       case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
         isEvidentSubType(ty2, ty1) && isEvidentSubType(ty2b, Tree.replace(y, Var(x), ty1b))
+      case (PolyForallType(Bind(x1, ty1)), PolyForallType(Bind(x2, ty2))) =>
+        isEvidentSubType(ty1, Tree.replace(x2, Var(x1), ty2))
       case _ => false
     }
   }
@@ -389,12 +400,14 @@ object Tree {
       case (Inst(t11, t12), Inst(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
       case (Fold(_, t1), Fold(_, t2)) => isEqual(t1, t2)
       case (Unfold(t1, bind1), Unfold(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (Abs(bind1), Abs(bind2)) => isEqual(bind1, bind2)
       case (SumType(t1, bind1), SumType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (PiType(t1, bind1), PiType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (RecType(t1, bind1), RecType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (PolyForallType(bind1), PolyForallType(bind2)) => isEqual(bind1, bind2)
       case _ => t1 == t2
     }
   }
@@ -429,6 +442,7 @@ case class Identifier(id: Int, name: String) {
         args.exists(isFreeIn(_))
       case Fold(tp, t) => isFreeIn(t) || isFreeIn(tp.getOrElse(UnitLiteral))
       case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
+      case Abs(bind) => isFreeIn(bind)
       case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
@@ -436,6 +450,7 @@ case class Identifier(id: Int, name: String) {
       case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
+      case PolyForallType(bind) => isFreeIn(bind)
       case _ => false
     }
   }
@@ -665,6 +680,16 @@ case class Abs(t: Tree) extends Tree {
         "Λ" + a.toString + ". " + t.toString
       case _ => "<Missing bind in Abs>"
     }
+  }
+}
+
+case class TypeApp(t1: Option[Tree], t2: Option[Tree]) extends Tree {
+  override def toString: String = {
+    val t2S = t2 match {
+      case Some(t) => t.toString
+      case _ => ""
+    }
+    t1.toString + "[" + t2S + "]"
   }
 }
 
