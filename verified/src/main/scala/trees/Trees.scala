@@ -231,6 +231,13 @@ object Tree {
       case Abs(bind) =>
         val (newBind, m1, max1) = setId(bind, m, max)
         (Abs(newBind), m1, max1)
+      case TypeApp(abs, None()) =>
+        val (newAbs, m1, max1) = setId(abs, m, max)
+        (TypeApp(newAbs, None()), m1, max1)
+      case TypeApp(abs, Some(t)) =>
+        val (newAbs, m1, max1) = setId(abs, m, max)
+        val (newT, m2, max2) = setId(t, m1, max1)
+        (TypeApp(newAbs, Some(newT)), m2, max2)
       case SumType(t1, t2) =>
         val (newT1, m1, max1) = setId(t1, m, max)
         val (newT2, m2, max2) = setId(t2, m1, max1)
@@ -299,6 +306,8 @@ object Tree {
       case Fold(Some(tp), t) => Fold(Some(replace(xvar, v, tp)), replace(xvar, v, t))
       case Unfold(t, bind) => Unfold(replace(xvar, v, t), replace(xvar, v, bind))
       case Abs(bind) => Abs(replace(xvar, v, bind))
+      case TypeApp(abs, None()) => TypeApp(replace(xvar, v, abs), None())
+      case TypeApp(abs, Some(t)) => TypeApp(replace(xvar, v, abs), Some(replace(xvar, v, t)))
       case SumType(t1, t2) => SumType(replace(xvar, v, t1), replace(xvar, v, t2))
       case PiType(t1, bind) => PiType(replace(xvar, v, t1), replace(xvar, v, bind))
       case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
@@ -401,6 +410,8 @@ object Tree {
       case (Fold(_, t1), Fold(_, t2)) => isEqual(t1, t2)
       case (Unfold(t1, bind1), Unfold(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (Abs(bind1), Abs(bind2)) => isEqual(bind1, bind2)
+      case (TypeApp(abs1, Some(t1)), TypeApp(abs2, Some(t2))) => isEqual(abs1, abs2) && isEqual(t1, t2)
+      case (TypeApp(abs1, None()), TypeApp(abs2, None())) => isEqual(abs1, abs2)
       case (SumType(t1, bind1), SumType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (PiType(t1, bind1), PiType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
@@ -444,6 +455,7 @@ case class Identifier(id: Int, name: String) {
       case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case Abs(bind) => isFreeIn(bind)
       case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+      case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp.getOrElse(UnitLiteral))
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
@@ -683,7 +695,7 @@ case class Abs(t: Tree) extends Tree {
   }
 }
 
-case class TypeApp(t1: Option[Tree], t2: Option[Tree]) extends Tree {
+case class TypeApp(t1: Tree, t2: Option[Tree]) extends Tree {
   override def toString: String = {
     val t2S = t2 match {
       case Some(t) => t.toString

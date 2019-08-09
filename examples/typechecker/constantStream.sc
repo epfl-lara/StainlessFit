@@ -31,4 +31,4 @@ def sum(k: Nat) = {
     Inst(sumFix, k + 1) k
 }
 
-// sum 3 (constant 3 2)
+sum 3 (constant 3 2)
