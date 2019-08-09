@@ -422,6 +422,65 @@ object Tree {
       case _ => t1 == t2
     }
   }
+
+  def hasAppWithLambda(t: Tree): Boolean = {
+    t match {
+      case IfThenElse(cond, t1, t2) =>
+        hasAppWithLambda(cond) || hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case App(Lambda(_, _), _) => true
+      case App(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case Pair(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case First(t) => hasAppWithLambda(t)
+      case Second(t) => hasAppWithLambda(t)
+      case LeftTree(t) => hasAppWithLambda(t)
+      case RightTree(t) => hasAppWithLambda(t)
+      case Because(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case Bind(_, t) => hasAppWithLambda(t)
+      case Lambda(_, t) => hasAppWithLambda(t)
+      case Fix(_, t) => hasAppWithLambda(t)
+      case LetIn(_, t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case Match(t, t1, t2) => hasAppWithLambda(t) || hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case EitherMatch(t, t1, t2) => hasAppWithLambda(t) || hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case Primitive(op, args) => args.exists(hasAppWithLambda(_))
+      case Inst(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case Fold(_, t) => hasAppWithLambda(t)
+      case Unfold(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case Abs(t) => hasAppWithLambda(t)
+      case TypeApp(Abs(_), _) => true
+      case TypeApp(t, _) => hasAppWithLambda(t)
+      case _ => false
+    }
+  }
+
+  def applyAppWithLambda(t: Tree): Tree = {
+    t match {
+      case IfThenElse(cond, t1, t2) =>
+        IfThenElse(applyAppWithLambda(cond), applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case App(Lambda(_, bind), t) => replaceBind(bind, t)
+      case App(t1, t2) => App(applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case Pair(t1, t2) => Pair(applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case First(t) => First(applyAppWithLambda(t))
+      case Second(t) => Second(applyAppWithLambda(t))
+      case LeftTree(t) => LeftTree(applyAppWithLambda(t))
+      case RightTree(t) => RightTree(applyAppWithLambda(t))
+      case Because(t1, t2) => Because(applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case Bind(x, t) => Bind(x, applyAppWithLambda(t))
+      case Lambda(tp, t) => Lambda(tp, applyAppWithLambda(t))
+      case Fix(tp, t) => Fix(tp, applyAppWithLambda(t))
+      case LetIn(tp, t1, t2) => LetIn(tp, applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case Match(t, t1, t2) => Match(applyAppWithLambda(t), applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case EitherMatch(t, t1, t2) => EitherMatch(applyAppWithLambda(t), applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case Primitive(op, args) => Primitive(op, args.map(applyAppWithLambda(_)))
+      case Inst(t1, t2) => Inst(applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case Fold(tp, t) => Fold(tp, applyAppWithLambda(t))
+      case Unfold(t1, t2) => Unfold(applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case Abs(t) => Abs(applyAppWithLambda(t))
+      case TypeApp(Abs(t), _) => t
+      case TypeApp(t, ty) => TypeApp(applyAppWithLambda(t), ty)
+      case t => t
+    }
+  }
+
 }
 
 case class Identifier(id: Int, name: String) {
@@ -480,6 +539,10 @@ sealed abstract class Tree {
   def isEqual(t: Tree): Boolean = Tree.isEqual(this, t)
 
   def replace(id: Identifier, t: Tree) = Tree.replace(id, t, this)
+
+  def hasAppWithLambda: Boolean = Tree.hasAppWithLambda(this)
+
+  def applyAppWithLambda: Tree = Tree.applyAppWithLambda(this)
 }
 
 case class Var(id: Identifier) extends Tree {

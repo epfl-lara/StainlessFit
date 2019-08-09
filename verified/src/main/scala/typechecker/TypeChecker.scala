@@ -64,6 +64,20 @@ case class Context(
     }
   }
 
+  def hasAppWithLambda: Boolean = {
+    termEqualities.exists {
+      case (t1, t2) => t1.hasAppWithLambda || t2.hasAppWithLambda
+    }
+  }
+
+  def applyAppWithLambda: Context = {
+    copy(
+      termEqualities = termEqualities.map { case (t1, t2) =>
+        (t1.applyAppWithLambda, t2.applyAppWithLambda)
+      }
+    )
+  }
+
   def replace(id: Identifier, t: Tree): Context = {
     copy(
       termEqualities = termEqualities.map { case (t1, t2) => (Tree.replace(id, t, t1), Tree.replace(id, t, t2)) },
@@ -81,8 +95,9 @@ sealed abstract class Goal {
   val c: Context
 
   def removeEquality(t1: Tree, t2: Tree): Goal
-
   def replace(id: Identifier, t: Tree): Goal
+  def hasAppWithLambda: Boolean
+  def applyAppWithLambda: Goal
 }
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
@@ -95,6 +110,15 @@ case class InferGoal(c: Context, t: Tree) extends Goal {
   }
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
+
+  def hasAppWithLambda: Boolean = c.hasAppWithLambda || t.hasAppWithLambda
+
+  def applyAppWithLambda: Goal = {
+    copy(
+      c = c.applyAppWithLambda,
+      t = t.applyAppWithLambda
+    )
+  }
 }
 
 case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
@@ -107,6 +131,16 @@ case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
   }
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
+
+  def hasAppWithLambda: Boolean = c.hasAppWithLambda || t.hasAppWithLambda
+
+  def applyAppWithLambda: Goal = {
+    copy(
+      c = c.applyAppWithLambda,
+      t = t.applyAppWithLambda,
+      tp = tp
+    )
+  }
 }
 
 case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
@@ -115,6 +149,15 @@ case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
   }
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
+
+  def hasAppWithLambda: Boolean = c.hasAppWithLambda
+
+  def applyAppWithLambda: Goal = {
+    copy(
+      c = c.applyAppWithLambda,
+      tp = tp
+    )
+  }
 }
 
 case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
@@ -127,6 +170,16 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
   }
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
+
+  def hasAppWithLambda: Boolean = c.hasAppWithLambda || t1.hasAppWithLambda || t2.hasAppWithLambda
+
+  def applyAppWithLambda: Goal = {
+    copy(
+      c = c.applyAppWithLambda,
+      t1 = t1.applyAppWithLambda,
+      t2 = t2.applyAppWithLambda
+    )
+  }
 }
 
 case class ErrorGoal(c: Context, s: String) extends Goal {
@@ -141,6 +194,14 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
   }
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
+
+  def hasAppWithLambda: Boolean = c.hasAppWithLambda
+
+  def applyAppWithLambda: Goal = {
+    copy(
+      c = c.applyAppWithLambda,
+    )
+  }
 }
 
 object TypeOperators {
@@ -1274,7 +1335,8 @@ object Rule {
       case (Var(id), t1) => !id.isFreeIn(t1)
       case _ => false
     } match {
-      case Some((Var(id), t1)) => useContextEqualities(g.removeEquality(Var(id), t1).replace(id, t1))
+      case Some((Var(id), t1)) =>
+        useContextEqualities(g.removeEquality(Var(id), t1).replace(id, t1))
       case _ => g
     }
   }
@@ -1361,31 +1423,14 @@ object Rule {
       None()
   }
 
-  val NewApplyApp1 = Rule {
-    case g @ EqualityGoal(c, t @ App(Lambda(_, Bind(x, body)), t12), t2) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val subgoal =  EqualityGoal(c, Tree.replace(x, t12, body), t2)
+  val NewApplyApp = Rule {
+    case g @ EqualityGoal(c, t1, t2) if g.hasAppWithLambda =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal =  g.applyAppWithLambda
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t, t2, ""))
-          case _ =>
-            (false, ErrorJudgment(c, g))
-        }
-      ))
-    case g =>
-      None()
-  }
-
-
-  val NewApplyApp2 = Rule {
-    case g @ EqualityGoal(c, t2 , t @ App(Lambda(_, Bind(x, body)), t12)) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp2: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val subgoal =  EqualityGoal(c, t2, Tree.replace(x, t12, body))
-      Some((List(_ => subgoal),
-        {
-          case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t2, t, ""))
+            (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
             (false, ErrorJudgment(c, g))
         }
@@ -1611,8 +1656,7 @@ object TypeChecker {
     NewUnfoldLet2.t ||
     NewUnfoldRefinementInContext.t ||
     NewUseContextEqualities.t ||
-    NewApplyApp1.t ||
-    NewApplyApp1.t ||
+    NewApplyApp.t ||
     NewZ3ArithmeticSolver.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
