@@ -69,7 +69,7 @@ object Derivation {
   def prettyPrint(t: NodeTree[Judgment], depth: Int): String = {
     val indentation = "  " * depth
     val childrenString = prettyPrint(t.children, depth + 1)
-    indentation + s"<li class='node' title='${t.node.c.toString()}'> ${t.node.toString}\n" +
+    indentation + s"<li> <span class='node' title='${t.node.c.toString()}'> ${t.node.toString} </span>\n" +
       childrenString + "\n" +
     indentation + "</li>"
   }
@@ -92,12 +92,12 @@ object Derivation {
     fw.write("""|$(document).ready(function () {
                 |  $('.node').click(function(e) {
                 |    text = $(this).html()
-                |    if (text.startsWith("Folded "))
-                |      $(this).html($(this).html().substring(7));
+                |    if (text.startsWith("(Folded) "))
+                |      $(this).html(text.substring(9));
                 |    else
-                |      $(this).html("Folded " + $(this).html());
-                |    e.stopPropagation();
-                |    $(this).find("ul").toggle();
+                |      $(this).html("(Folded) " + text);
+                |    $(this).parent().children().toggle();
+                |    $(this).toggle();
                 |  });
                 |});
                 |""".stripMargin)
