@@ -492,7 +492,7 @@ object Tree {
 }
 
 case class Identifier(id: Int, name: String) {
-  override def toString: String = name.toString + "#" + id.toString
+  override def toString: String = name.toString// + "#" + id.toString
 
   def isFreeIn(e: Tree): Boolean = {
     e match {
