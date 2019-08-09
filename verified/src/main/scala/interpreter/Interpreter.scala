@@ -91,10 +91,10 @@ object Interpreter {
       case Unfold(Fold(tp, t), bind) => Unfold(Fold(tp, smallStep(t)), bind)
       case Unfold(t, bind) => Unfold(smallStep(t), bind)
 
-      case App(ErrorTree(s, t), _) => ErrorTree(s, t)
-      case App(Abs(Bind(_, t)), _) => t
-      case App(f, _) if f.isValue => ErrorTree("TypeApp wait a Abs", None()) // f is a value and not a lambda
-      case App(f, v) => App(smallStep(f), v)
+      case TypeApp(ErrorTree(s, t), _) => ErrorTree(s, t)
+      case TypeApp(Abs(Bind(_, t)), _) => t
+      case TypeApp(f, _) if f.isValue => ErrorTree("TypeApp wait a Abs", None()) // f is a value and not a lambda
+      case TypeApp(f, v) => TypeApp(smallStep(f), v)
 
       case _ => e
     }
