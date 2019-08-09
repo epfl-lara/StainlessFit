@@ -455,7 +455,7 @@ object Rule {
             }
 
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -475,7 +475,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
             (true, InferJudgment(c, e, Some(op.returnedType)))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -493,7 +493,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, InferJudgment(c, e, Some(op.returnedType)))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -519,7 +519,7 @@ object Rule {
               case Some(ty) => (true, InferJudgment(c, e, Some(ty)))
             }
 
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -562,7 +562,7 @@ object Rule {
               case Some(ty) => (true, InferJudgment(c, e, Some(ty)))
             }
 
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -592,7 +592,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, InferJudgment(c, e, Some(IntersectionType(NatType, Bind(n, ty)))))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -629,7 +629,7 @@ object Rule {
               case _ => (false, ErrorJudgment(c, s"Expecting an intersection type for $t1, found $ty."))
             }
 
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -664,7 +664,7 @@ object Rule {
               case _ => (false, ErrorJudgment(c, s"Expecting a pi type for $t1, found $ty."))
             }
 
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -748,7 +748,7 @@ object Rule {
             val inferedType = SigmaType(ty1, Bind(Identifier(0, "X"), ty2))
             (true, InferJudgment(c, e, Some(inferedType)))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -764,7 +764,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(SigmaType(ty, _))), _) =>
             (true, InferJudgment(c, e, Some(ty)))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -783,7 +783,7 @@ object Rule {
                   case Some(t) => (true, InferJudgment(c, e, Some(t)))
                 }
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -799,7 +799,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(tpe, BottomType))))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -815,7 +815,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(BottomType, tpe))))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -854,38 +854,22 @@ object Rule {
       None()
   }
 
-  val CheckFirst = Rule {
-    case g @ CheckGoal(c, e @ First(Pair(t1, t2)), ty) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckFirst : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val subgoal = CheckGoal(c.incrementLevel, t1, ty)
+  val CheckLambda = Rule {
+    case g @ CheckGoal(c, e @ Lambda(Some(ty1), Bind(id1, body)), tpe @ PiType(ty2, Bind(id2, ty))) if (ty1 == ty2) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val (freshId, c1) = c.bindFresh(id1.name, ty1)
+      val subgoal = CheckGoal(c1.incrementLevel, body.replace(id1, Var(freshId)), ty.replace(id2, Var(freshId)))
       Some((List(_ => subgoal),
         {
           case Cons(CheckJudgment(_, _, _), _) =>
-            (true, CheckJudgment(c, e, ty))
+            (true, CheckJudgment(c, e, tpe))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
       None()
   }
-
-  val CheckSecond= Rule {
-    case g @ CheckGoal(c, e @ Second(Pair(t1, t2)), ty) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckSecond : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val subgoal = CheckGoal(c.incrementLevel, t2, ty)
-      Some((List(_ => subgoal),
-        {
-          case Cons(CheckJudgment(_, _, _), _) =>
-            (true, CheckJudgment(c, e, ty))
-          case _ =>
-            (false, ErrorJudgment(c, e))
-        }
-      ))
-    case g =>
-      None()
-  }
-
 
   val CheckPi = Rule {
     case g @ CheckGoal(c, e @ t, tpe @ PiType(ty1, Bind(id,ty2))) =>
@@ -897,7 +881,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, e, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -918,12 +902,12 @@ object Rule {
         {
           case Cons(CheckJudgment(_, _, _),
             Cons(CheckJudgment(_, _, _),
-            Cons(InferJudgment(_, _, _),
+            Cons(CheckJudgment(_, _, _),
             _
           ))) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -946,7 +930,7 @@ object Rule {
             Cons(CheckJudgment(_, _, _), _
           ))) =>
             (true, CheckJudgment(c, e, ty))
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -986,11 +970,28 @@ object Rule {
           ))) =>
             (true, CheckJudgment(c, e, tpe))
 
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
     case _ => None()
+  }
+
+  val CheckPair = Rule {
+    case g @ CheckGoal(c, e @ Pair(t1, t2), ty @ SigmaType(ty1, Bind(id, ty2))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckFirst : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal1 = CheckGoal(c.incrementLevel, t1, ty1)
+      val subgoal2 = CheckGoal(c.incrementLevel, t2, TypeOperators.letIn(id, None(), t1, ty2).get)
+      Some((List(_ => subgoal1, _ => subgoal2),
+        {
+          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
+            (true, CheckJudgment(c, e, ty))
+          case _ =>
+            (false, ErrorJudgment(c, g))
+        }
+      ))
+    case g =>
+      None()
   }
 
   val CheckSigma = Rule {
@@ -1004,7 +1005,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1021,7 +1022,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1046,7 +1047,7 @@ object Rule {
           case Cons(_, Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -1061,7 +1062,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -1089,7 +1090,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _))) =>
             (true, InferJudgment(c, e, Some(tpe)))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1117,7 +1118,7 @@ object Rule {
           case Cons(InferJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -1133,7 +1134,7 @@ object Rule {
           case Cons(InferJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, t, TopType))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1202,13 +1203,13 @@ object Rule {
                 if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
                 else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
                 //if(ty1 == ty2) (true, InferJudgment(c, e, Some(ty1)))
-                else (false, ErrorJudgment(c, e))
+                else (false, ErrorJudgment(c, g))
               case IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty)))) =>
                 if(TypeOperators.spos(a, ty)) (true, InferJudgment(c, e, Some(ty1)))
                 else (false, ErrorJudgment(c, s"$a does not appears strictly positively in $ty"))
               case _ => (false, ErrorJudgment(c, s"Expecting a rec type for $t1, found $ty."))
             }
-          case _ => (false, ErrorJudgment(c, e))
+          case _ => (false, ErrorJudgment(c, g))
         }
       ))
 
@@ -1225,7 +1226,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(PolyForallType(Bind(a, tpe)))))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1283,7 +1284,7 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
-            (false, ErrorJudgment(c, EqualityType(t1, t2)))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1300,7 +1301,7 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t, t2, ""))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1317,7 +1318,7 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t2, t, ""))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1333,7 +1334,7 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t, t2, ""))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1350,7 +1351,7 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t2, t, ""))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1369,7 +1370,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) if TypeOperators.spos(a, ty) =>
             (true, InferJudgment(c, e, Some(tpe)))
           case _ =>
-            (false, ErrorJudgment(c, e))
+            (false, ErrorJudgment(c, g))
         }
       ))
     case g =>
@@ -1557,13 +1558,10 @@ object TypeChecker {
     CheckMatch.t ||
     CheckEitherMatch.t ||
     CheckLet.t ||
-    CheckLeft.t ||
-    CheckRight.t ||
-    CheckFirst.t ||
-    CheckSecond.t ||
+    CheckLeft.t || CheckRight.t ||
     CheckIntersection.t ||
-    CheckPi.t ||
-    CheckSigma.t ||
+    CheckLambda.t || CheckPi.t ||
+    CheckPair.t || CheckSigma.t ||
     CheckRefinement.t ||
     CheckRecursive.t ||
     CheckTop1.t ||
