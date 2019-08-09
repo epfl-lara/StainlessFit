@@ -475,9 +475,16 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
+  lazy val sBracketType: Parser[Tree] = {
+    (lsbra ~ typeExpr ~ rsbra).map { case _ ~ e ~ _ => e }
+  }
+
   lazy val application: Parser[Tree] = recursive {
-    (simpleExpr ~ many(simpleExpr)).map {
-      case f ~ args => args.reverse.foldRight(f) {case (e, acc) => App(acc, e) }
+    (simpleExpr ~ many(sBracketType) ~ many(simpleExpr)).map {
+      case f ~ typeArgs ~ args =>
+        args.foldLeft(
+          typeArgs.foldLeft(f) { case (acc: Tree, e) => TypeApp(acc, stainlessSome(e)) }
+        ) { case (acc, e) => App(acc, e) }
     }
   }
 

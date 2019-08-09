@@ -15,45 +15,46 @@ object Main {
 
   val assertFun = """def assert(b: {b: Bool, b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
 
-  def evalFile(f: File): Tree = {
+  def parseFile(f: File): Tree = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
-        val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
-        Interpreter.evaluate(t, 100000) match {
-          case ErrorTree(error, _) => throw new java.lang.Exception(s"Error during evaluation.\n${error}")
-          case v => v
-        }
-      case t =>
-        throw new java.lang.Exception("Error during parsing:\n" + t)
+        value
+      case ScalaParser.UnexpectedEnd(_) =>
+        throw new java.lang.Exception("Error during parsing: unexpected end.\n")
+      case ScalaParser.UnexpectedToken(t, _) =>
+        throw new java.lang.Exception("Error during parsing: unexpected token." + t)
+    }
+  }
+
+  def evalFile(f: File): Tree = {
+    val src = parseFile(f)
+    val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
+    Interpreter.evaluate(t, 100000) match {
+      case ErrorTree(error, _) => throw new java.lang.Exception(s"Error during evaluation.\n${error}")
+      case v => v
     }
   }
 
   def typeCheckFile(f: File): (Boolean, NodeTree[Judgment]) = {
-    val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val it = (assertFun + s).toIterator
-    ScalaParser.apply(ScalaLexer.apply(it)) match {
-      case ScalaParser.Parsed(value, _) =>
-        val (t, _, max) = Tree.setId(value, stainless.lang.Map(), 0)
-        TypeChecker.infer(t, max) match {
-          case None() => throw new java.lang.Exception(s"Could not type check: $f")
-          case Some((success, tree)) =>
-            if (success)
-              println(s"Type checked file $f successfully.")
-            else
-              println(s"Error while type checking file $f.")
+    val src = parseFile(f)
+    val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
+    TypeChecker.infer(t, max) match {
+      case None() => throw new java.lang.Exception(s"Could not type check: $f")
+      case Some((success, tree)) =>
+        if (success)
+          println(s"Type checked file $f successfully.")
+        else
+          println(s"Error while type checking file $f.")
 
-            Derivation.makeHTMLFile(
-              f,
-              List(tree),
-              success
-            )
+        Derivation.makeHTMLFile(
+          f,
+          List(tree),
+          success
+        )
 
-            (success, tree)
-        }
-      case t =>
-        throw new java.lang.Exception("Error during parsing:\n" + t)
+        (success, tree)
     }
   }
 

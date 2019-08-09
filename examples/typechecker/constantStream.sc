@@ -1,34 +1,31 @@
-val constantFix = fix[n => Nat =>
-  Rec(n)(a => (Nat, Unit => a))]
-(constant =>
-  fun(x: Nat) => {
-    Fold[Rec(n)(a => (Nat, Unit => a))](
-      (
-        x,
-        fun(y: Unit) => { constant(x) }
+val constant: Forall(X, X => Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) =
+  Lambda X => {
+    fun(x: X) => {
+      fix[n => Rec(n)(stream => (X, Unit => stream))] (constant =>
+        Fold[Rec(n)(stream => (X, Unit => stream))](
+          (
+            x,
+            fun(y: Unit) => { constant }
+          )
+        )
       )
-    )
+    }
+  } in
+
+val sumFix = fix[n => {k : Nat, k < n} => Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) => Nat](sum =>
+  fun(k: {k : Nat, k < n}) => {
+    fun(stream: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))) => {
+      if(k == 0) 0
+      else {
+        val x = (Unfold(stream) in (x => x)) in
+        First(x) + sum(k - 1) (Second(x)())
+      }
+    }
   }
 ) in
 
-def constant(n: Nat, x: Nat) = {
-  Inst(constantFix, n + 1) x
-}
-
-val sumFix = fix[n => {k : Nat, k < n} => (Rec(n)(a => (Nat, Unit => a))) => Nat](sum =>
-   fun(k: {k : Nat, k < n}) => {
-     fun(stream: (Rec(n)(a => (Nat, Unit => a)))) => {
-       if(k == 0) 0
-       else {
-         val x = (Unfold(stream) in (x => x))
-         in First(x) + sum (k - 1) (Second(x)())
-       }
-     }
-   }
-) in
-
 def sum(k: Nat) = {
-    Inst(sumFix, k + 1) k
+  Inst(sumFix, k + 1) k
 }
 
-sum 3 (constant 3 2)
+sum 15 (constant[Nat] 3)

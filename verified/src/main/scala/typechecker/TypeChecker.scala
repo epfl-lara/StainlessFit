@@ -1016,7 +1016,7 @@ object Rule {
     case g @ CheckGoal(c, t, tpe @ IntersectionType(tyid, Bind(id, ty))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckIntersection : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val (freshId, c1) = c.bindFresh(id.name, tyid)
-      val subgoal = CheckGoal(c1.incrementLevel, Inst(t, Var(freshId)), ty)
+      val subgoal = CheckGoal(c1.incrementLevel, Inst(t, Var(freshId)), ty.replace(id, Var(freshId)))
       Some((List(_ => subgoal),
         {
           case Cons(CheckJudgment(_, _, _), _) =>
@@ -1163,8 +1163,9 @@ object Rule {
                 Fold(Some(RecType(NatLiteral(0), Bind(a, ty))), Var(x))
               ).addEquality(n, NatLiteral(0))
               InferGoal(c1, t2)
-            case ty @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, _)))) =>
-              val c1 = c0.bind(x, ty).addEquality(t1, Fold(Some(ty), Var(x)))
+            case ty @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, tpe)))) =>
+              val nTy = tpe.replace(a, ty)
+              val c1 = c0.bind(x, nTy).addEquality(t1, Fold(Some(ty), Var(x)))
               InferGoal(c1, t2)
             case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
           }
@@ -1232,6 +1233,41 @@ object Rule {
     case g =>
       None()
   }
+
+  val InferTypeApp = Rule {
+    case g @ InferGoal(c, e @ TypeApp(t, Some(ty))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferTypeApp : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.incrementLevel
+      val subgoal = InferGoal(c1, t)
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(PolyForallType(Bind(x, tpe)))), _) =>
+            (true, InferJudgment(c, e, Some(tpe.replace(x, ty))))
+          case _ =>
+            (false, ErrorJudgment(c, g))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val CheckTypeAbs = Rule {
+    case g @ CheckGoal(c, t, tpe @ PolyForallType(Bind(a, ty))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckTypeAbs : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.addTypeVariable(a).incrementLevel
+      val subgoal = CheckGoal(c1, TypeApp(t, Some(Var(a))), ty)
+      Some((List(_ => subgoal),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, t, tpe))
+          case _ =>
+            (false, ErrorJudgment(c, g))
+        }
+      ))
+    case g =>
+      None()
+  }
+
 
   def useContextEqualities(g: Goal): Goal = {
     g.c.termEqualities.find {
@@ -1550,6 +1586,7 @@ object TypeChecker {
     InferEitherMatch.t ||
     InferFix.t ||
     InferTypeAbs.t ||
+    InferTypeApp.t ||
     InferForallInstantiation.t ||
     InferFold.t ||
     InferUnfold.t ||
@@ -1563,6 +1600,7 @@ object TypeChecker {
     CheckLambda.t || CheckPi.t ||
     CheckPair.t || CheckSigma.t ||
     CheckRefinement.t ||
+    CheckTypeAbs.t ||
     CheckRecursive.t ||
     CheckTop1.t ||
     CheckTop2.t ||
