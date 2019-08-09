@@ -96,8 +96,7 @@ object Derivation {
                 |      $(this).html(text.substring(9));
                 |    else
                 |      $(this).html("(Folded) " + text);
-                |    $(this).parent().children().toggle();
-                |    $(this).toggle();
+                |    $(this).parent().find("ul").slideToggle(100);
                 |  });
                 |});
                 |""".stripMargin)
