@@ -1,14 +1,9 @@
 def measure(x: Nat) = { x }
 
-val facFix = fix[n => {p: Nat, measure(p) < n} => Nat](fac =>
-  fun (m: {m: Nat, measure(m) < n} ) => {
-    if(m == 0) 1
-    else m * fac(m - 1)
-  }
-) in
-
-def fac(n : Nat) = {
-  Inst(facFix, n + 1) n
+def fac(n : Nat): Nat = {
+  Decreases(measure(n))
+  if(n == 0) 1
+  else n * fac(n - 1)
 }
 
 fac(2)

@@ -1,29 +1,24 @@
-val oddEvenFix = fix[n => (Bool => {x: Nat, x < n} => Bool)](oddEven =>
-  fun(p: Bool) => {
-    if(p) { fun(x: {x: Nat, x < n}) => { if(x == 0) true else oddEven false (x - 1) } }
-    else { fun(x: {x: Nat, x < n}) => { if(x == 1) true else oddEven true (x - 1) } }
+def parity(n: Nat): Bool => Bool = {
+  Decreases(n)
+  def f(b: Bool): Bool = {
+    if(b) {
+      if(n == 0) true else parity (n - 1) false
+    }
+    else {
+      if(n == 0) false else if (n == 1) true else parity (n - 1) true
+    }
   }
-) in
-
-val oddEven1Fix = fix[n => ({x: Nat, x < n} => Bool, {x: Nat, x < n} => Bool)](oddEven1 =>
-  (
-    fun(x: {x: Nat, x < n}) => { if(x == 0) true else Second(oddEven1) (x - 1) },
-    fun(x: {x: Nat, x < n}) => { if(x == 1) true else First(oddEven1) (x - 1) }
-  )
-) in
-
-def isEven(n: Nat) = {
-  Inst(oddEvenFix, n + 1) true n
 }
 
-def isOdd(n: Nat) = {
-  Inst(oddEvenFix, n + 1) false n
+def parity1(n: Nat): (Bool, Bool) = {
+  Decreases(n)
+  if(n == 0) (true, false)
+  else { val x = parity1 (n - 1) in (Second(x), First(x)) }
 }
 
-def isEven1(n: Nat) = {
-  First(Inst(oddEven1Fix, n + 1)) n
-}
+def isEven(n: Nat) = { parity n true }
+def isOdd(n: Nat) = { parity n false }
+def isEven1(n: Nat) = { First(parity1 n) }
+def isOdd1(n: Nat) = { Second(parity1 n) }
 
-def isOdd1(n: Nat) = {
-  Second(Inst(oddEven1Fix, n + 1)) n
-}
+isEven1 2

@@ -394,16 +394,26 @@ object ScalaParser extends Parsers[Token, TokenClass]
             )
             val funExpr = Lambda(stainlessSome(refin), Bind(x, body))
             val fixExpr = Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(f, funExpr)))
+            val instExpr = LetIn(
+              stainlessNone(),
+              fixExpr,
+              Bind(f,
+                Lambda(
+                  stainlessSome(ty),
+                  Bind(x, App(Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))), Var(x)))
+                )
+              )
+            )
             e2 match {
-              case None => LetIn(stainlessNone(), fixExpr, Bind(f, Var(f)))
-              case Some(e) => LetIn(stainlessNone(), fixExpr, Bind(f, e))
+              case None => LetIn(stainlessNone(), instExpr, Bind(f, Var(f)))
+              case Some(e) => LetIn(stainlessNone(), instExpr, Bind(f, e))
             }
           case _ =>
             println("WARNING: too much argument in recursive def.")
             BottomTree
         }
       case _ =>
-        println("ERROR: recusrive def needs return type.")
+        println("WARNING: recursive def needs return type to be typed.")
         BottomTree
     }
   }
