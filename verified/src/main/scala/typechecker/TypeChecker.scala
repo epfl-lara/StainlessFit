@@ -1278,6 +1278,43 @@ object Rule {
     case _ => None()
   }
 
+  val NewInferUnfoldPositive = Rule {
+    case g @ InferGoal(c, e @ UnfoldPositive(t1, Bind(x, t2))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferUnfoldPositive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c0 = c.incrementLevel
+      val g1 = InferGoal(c0, t1)
+      val fg3: List[Judgment] => Goal = {
+        case Cons(InferJudgment(_, _, Some(ty)), _) =>
+          dropRefinements(ty) match {
+            case RecType(n, Bind(a, ty)) =>
+              val (id, c1) = c0.bindFresh("_pn", NatType)
+              val pn = Var(id)
+              val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
+              val c2 = c.addEquality(
+                n,
+                Primitive(Plus, List(pn, NatLiteral(1)))
+              ).addEquality(
+                t1,
+                Fold(Some(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty))), Var(x))
+              ).bind(x, nTy)
+              InferGoal(c2, t2)
+            case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
+          }
+        case _ =>
+          ErrorGoal(c, s"Could not infer a type for $t1.")
+      }
+      Some((
+        List(_ => g1, fg3), {
+          case Cons(InferJudgment(_, _, _),
+            Cons(InferJudgment(_, _, Some(ty2)), _)) =>
+            (true, InferJudgment(c, e, Some(ty2)))
+          case _ => (false, ErrorJudgment(c, g))
+        }
+      ))
+
+    case _ => None()
+  }
+
   val InferTypeAbs = Rule {
     case g @ InferGoal(c, e @ Abs(Bind(a, t))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferTypeAbs : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
@@ -1634,7 +1671,7 @@ object TypeChecker {
     InferTypeApp.t ||
     InferForallInstantiation.t ||
     InferFold.t ||
-    InferUnfold.t ||
+    InferUnfold.t || NewInferUnfoldPositive.t ||
     InferFoldGen.t ||
     CheckIf.t ||
     CheckMatch.t ||

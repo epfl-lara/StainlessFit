@@ -95,7 +95,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
     word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst") | word("Fold") |
-    word("Unfold") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda")
+    word("Unfold") | word("UnfoldPositive") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec")
@@ -210,6 +210,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val fixdefK = elem(KeyWordClass("fixdef"))
   val foldK = elem(KeyWordClass("Fold"))
   val unfoldK = elem(KeyWordClass("Unfold"))
+  val unfoldPositiveK = elem(KeyWordClass("UnfoldPositive"))
   val decreasesK = elem(KeyWordClass("Decreases"))
   val piK = elem(KeyWordClass("Pi"))
   val sigmaK = elem(KeyWordClass("Sigma"))
@@ -463,6 +464,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
+  lazy val unfoldPositive: Parser[Tree] = recursive {
+    (unfoldPositiveK ~ lpar ~ expression ~ rpar ~ inK ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
+      case _ ~ _ ~ e ~ _ ~ _ ~ _ ~ Var(x) ~ _ ~ f ~ _ => UnfoldPositive(e, Bind(x, f))
+    }
+  }
+
   lazy val letIn: Parser[Tree] = recursive {
     (valK ~ variable ~ opt(colon ~ typeExpr) ~ assignation ~ expression ~ inK ~ expression).map {
       case _ ~ Var(x) ~ None ~ _ ~ e ~ _ ~ e2 =>
@@ -560,7 +567,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
   }
 
   lazy val simpleExpr: Parser[Tree] = literal | parExpr | fixpoint | function | left | right | first | second |
-    error | instantiate | fold | unfold | lambdaAbs
+    error | instantiate | fold | unfold | unfoldPositive | lambdaAbs
 
   lazy val expression: Parser[Tree] = recursive {
     condition | eitherMatch | letIn | defFunction | operator

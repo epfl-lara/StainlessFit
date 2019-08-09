@@ -228,6 +228,10 @@ object Tree {
         val (newT, m1, max1) = setId(t, m, max)
         val (newBind, m2, max2) = setId(bind, m1, max1)
         (Unfold(newT, newBind), m2, max2)
+      case UnfoldPositive(t, bind) =>
+        val (newT, m1, max1) = setId(t, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (UnfoldPositive(newT, newBind), m2, max2)
       case Abs(bind) =>
         val (newBind, m1, max1) = setId(bind, m, max)
         (Abs(newBind), m1, max1)
@@ -305,6 +309,7 @@ object Tree {
       case Fold(None(), t) => Fold(None(), replace(xvar, v, t))
       case Fold(Some(tp), t) => Fold(Some(replace(xvar, v, tp)), replace(xvar, v, t))
       case Unfold(t, bind) => Unfold(replace(xvar, v, t), replace(xvar, v, bind))
+      case UnfoldPositive(t, bind) => UnfoldPositive(replace(xvar, v, t), replace(xvar, v, bind))
       case Abs(bind) => Abs(replace(xvar, v, bind))
       case TypeApp(abs, None()) => TypeApp(replace(xvar, v, abs), None())
       case TypeApp(abs, Some(t)) => TypeApp(replace(xvar, v, abs), Some(replace(xvar, v, t)))
@@ -409,6 +414,7 @@ object Tree {
       case (Inst(t11, t12), Inst(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
       case (Fold(_, t1), Fold(_, t2)) => isEqual(t1, t2)
       case (Unfold(t1, bind1), Unfold(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
+      case (UnfoldPositive(t1, bind1), UnfoldPositive(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (Abs(bind1), Abs(bind2)) => isEqual(bind1, bind2)
       case (TypeApp(abs1, Some(t1)), TypeApp(abs2, Some(t2))) => isEqual(abs1, abs2) && isEqual(t1, t2)
       case (TypeApp(abs1, None()), TypeApp(abs2, None())) => isEqual(abs1, abs2)
@@ -445,6 +451,7 @@ object Tree {
       case Inst(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
       case Fold(_, t) => hasAppWithLambda(t)
       case Unfold(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
+      case UnfoldPositive(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
       case Abs(t) => hasAppWithLambda(t)
       case TypeApp(Abs(_), _) => true
       case TypeApp(t, _) => hasAppWithLambda(t)
@@ -474,6 +481,7 @@ object Tree {
       case Inst(t1, t2) => Inst(applyAppWithLambda(t1), applyAppWithLambda(t2))
       case Fold(tp, t) => Fold(tp, applyAppWithLambda(t))
       case Unfold(t1, t2) => Unfold(applyAppWithLambda(t1), applyAppWithLambda(t2))
+      case UnfoldPositive(t1, t2) => UnfoldPositive(applyAppWithLambda(t1), applyAppWithLambda(t2))
       case Abs(t) => Abs(applyAppWithLambda(t))
       case TypeApp(Abs(t), _) => t
       case TypeApp(t, ty) => TypeApp(applyAppWithLambda(t), ty)
@@ -512,6 +520,7 @@ case class Identifier(id: Int, name: String) {
         args.exists(isFreeIn(_))
       case Fold(tp, t) => isFreeIn(t) || isFreeIn(tp.getOrElse(UnitLiteral))
       case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
+      case UnfoldPositive(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case Abs(bind) => isFreeIn(bind)
       case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp.getOrElse(UnitLiteral))
@@ -743,7 +752,16 @@ case class Unfold(t: Tree, bind: Tree) extends Tree {
   override def toString: String = {
     bind match {
       case Bind(_, _) => "Unfold " + t.toString + " in " + bind.toString + ")"
-      case _ => "Missing bind in Fold>"
+      case _ => "Missing bind in Unfold"
+    }
+  }
+}
+
+case class UnfoldPositive(t: Tree, bind: Tree) extends Tree {
+  override def toString: String = {
+    bind match {
+      case Bind(_, _) => "UnfoldPositive " + t.toString + " in " + bind.toString + ")"
+      case _ => "Missing bind in UnfoldPositive"
     }
   }
 }
