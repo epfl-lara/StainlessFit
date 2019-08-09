@@ -354,13 +354,13 @@ object Tree {
       case (RefinementType(ty, Bind(a, t)), ty2) => isEvidentSubType(ty, ty2)
       case (SumType(l1, r1), SumType(l2, r2)) => isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2)
       case (SigmaType(l1, Bind(x, r1)), SigmaType(l2, Bind(y, r2))) =>
-        isEvidentSubType(l1, l2) && isEvidentSubType(r1, Tree.replace(y, Var(x), r2))
+        isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2.replace(y, Var(x)))
       case (PiType(ty1, Bind(x, ty1b)), PiType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty1b, Tree.replace(y, Var(x), ty2b))
+        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty1b, ty2b.replace(y, Var(x)))
       case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty2b, Tree.replace(y, Var(x), ty1b))
+        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty2b, ty1b.replace(y, Var(x)))
       case (PolyForallType(Bind(x1, ty1)), PolyForallType(Bind(x2, ty2))) =>
-        isEvidentSubType(ty1, Tree.replace(x2, Var(x1), ty2))
+        isEvidentSubType(ty1, ty2.replace(x2, Var(x1)))
       case _ => false
     }
   }
@@ -396,7 +396,7 @@ object Tree {
       case (LeftTree(t1), LeftTree(t2)) => isEqual(t1, t2)
       case (RightTree(t1), RightTree(t2)) => isEqual(t1, t2)
       case (Because(t11, t12), Because(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
-      case (Bind(x1, t1), Bind(x2, t2)) => isEqual(t1, Tree.replace(x2, Var(x1), t2))
+      case (Bind(x1, t1), Bind(x2, t2)) => isEqual(t1, t2.replace(x2, Var(x1)))
       case (Lambda(_, bind1), Lambda(_, bind2)) => isEqual(bind1, bind2)
       case (Fix(_, bind1), Fix(_, bind2)) => isEqual(bind1, bind2)
       case (LetIn(_, v1, bind1), LetIn(_, v2, bind2)) => isEqual(v1, v2) && isEqual(bind1, bind2)
