@@ -1516,7 +1516,7 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewReflexivity: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       Some((List(),
         {
-          case _ => (true, AreEqualJudgment(c, t1, t2, false))
+          case _ => (true, AreEqualJudgment(c, t1, t2, ""))
         }
       ))
     case g =>
