@@ -1413,7 +1413,7 @@ object Rule {
     case g @ EqualityGoal(c, t1, t2) if c.hasRefinementBound =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldRefinementInContext : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val c1 = unfoldRefinementInContext(c)
-      val subgoal = EqualityGoal(c1, t1, t2)
+      val subgoal = EqualityGoal(c1.incrementLevel, t1, t2)
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
@@ -1430,7 +1430,7 @@ object Rule {
     case g @ EqualityGoal(c, t @ LetIn(tp, v, Bind(x, t1)), t2) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldLet1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val c1 = c.addEquality(Var(x), v)
-      val subgoal =  EqualityGoal(c1, t1, t2)
+      val subgoal =  EqualityGoal(c1.incrementLevel, t1, t2)
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
@@ -1447,7 +1447,7 @@ object Rule {
     case g @ EqualityGoal(c, t2 , t @ LetIn(tp, v, Bind(x, t1))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldLet2 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val c1 = c.addEquality(Var(x), v)
-      val subgoal =  EqualityGoal(c1, t2, t1)
+      val subgoal =  EqualityGoal(c1.incrementLevel, t2, t1)
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
@@ -1475,6 +1475,45 @@ object Rule {
     case g =>
       None()
   }
+
+  val NewIfRule1 = Rule {
+    case g @ EqualityGoal(c, t @ IfThenElse(cond, tt, tf), t2) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewIfRule1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.addEquality(cond, BoolLiteral(true))
+      val subgoal1 = EqualityGoal(c1.incrementLevel, tt, t2)
+      val c2 = c.addEquality(cond, BoolLiteral(false))
+      val subgoal2 = EqualityGoal(c2.incrementLevel, tf, t2)
+      Some((List(_ => subgoal1, _ => subgoal2),
+        {
+          case Cons(AreEqualJudgment(_, _, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
+            (true, AreEqualJudgment(c, t, t2, ""))
+          case _ =>
+            (false, ErrorJudgment(c, g))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val NewIfRule2 = Rule {
+    case g @ EqualityGoal(c, t2, t @ IfThenElse(cond, tt, tf)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewIfRule1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val c1 = c.addEquality(cond, BoolLiteral(true))
+      val subgoal1 = EqualityGoal(c1.incrementLevel, t2, tt)
+      val c2 = c.addEquality(cond, BoolLiteral(false))
+      val subgoal2 = EqualityGoal(c2.incrementLevel, t2, tt)
+      Some((List(_ => subgoal1, _ => subgoal2),
+        {
+          case Cons(AreEqualJudgment(_, _, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
+            (true, AreEqualJudgment(c, t2, t, ""))
+          case _ =>
+            (false, ErrorJudgment(c, g))
+        }
+      ))
+    case g =>
+      None()
+  }
+
 
   val InferFoldGen = Rule {
     case g @ InferGoal(c, e @ Fold(Some(tpe @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty))))), t)) =>
@@ -1694,6 +1733,8 @@ object TypeChecker {
     NewUnfoldRefinementInContext.t ||
     NewUseContextEqualities.t ||
     NewApplyApp.t ||
+    NewIfRule1.t ||
+    NewIfRule2.t ||
     NewZ3ArithmeticSolver.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
