@@ -135,7 +135,7 @@ val take: Forall(X, Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))) => Nat
   }
 in
 
-def minus(x: Nat, y: Nat) = {x * y}
+def mult(x: Nat, y: Nat) = {x * y}
 def plus(x: Nat, y: Nat) = {x + y}
 
 val fibonacci =
@@ -157,7 +157,7 @@ val fibonacci =
   )
 in
 
-val x = sum 15 (zipWith[Nat][Nat][Nat] minus (constant[Nat] 2) (constant[Nat] 2)) in
+val x = sum 15 (zipWith[Nat][Nat][Nat] mult (constant[Nat] 2) (constant[Nat] 2)) in
 val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
 
 val s = map[Nat][Nat] (fun (x: Nat) => { x + 1 }) (constant[Nat] 2) in
