@@ -317,6 +317,7 @@ object Tree {
       case Abs(bind) => Abs(replace(xvar, v, bind))
       case TypeApp(abs, None()) => TypeApp(replace(xvar, v, abs), None())
       case TypeApp(abs, Some(t)) => TypeApp(replace(xvar, v, abs), Some(replace(xvar, v, t)))
+      case ErrorTree(_, _) => body
 
       case NatType => body
       case BoolType => body
