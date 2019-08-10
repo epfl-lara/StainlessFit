@@ -284,6 +284,10 @@ object Tree {
   def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
     body match {
       case Var(yvar) if yvar == xvar => v
+      case Var(_) => body
+      case UnitLiteral => body
+      case NatLiteral(_) => body
+      case BoolLiteral(_) => body
       case IfThenElse(cond, t1, t2) =>
         IfThenElse(replace(xvar, v, cond), replace(xvar, v, t1), replace(xvar, v, t2))
       case App(t1, t2) =>
@@ -313,6 +317,10 @@ object Tree {
       case Abs(bind) => Abs(replace(xvar, v, bind))
       case TypeApp(abs, None()) => TypeApp(replace(xvar, v, abs), None())
       case TypeApp(abs, Some(t)) => TypeApp(replace(xvar, v, abs), Some(replace(xvar, v, t)))
+
+      case NatType => body
+      case BoolType => body
+      case UnitType => body
       case SumType(t1, t2) => SumType(replace(xvar, v, t1), replace(xvar, v, t2))
       case PiType(t1, bind) => PiType(replace(xvar, v, t1), replace(xvar, v, bind))
       case SigmaType(t1, bind) => SigmaType(replace(xvar, v, t1), replace(xvar, v, bind))
@@ -320,8 +328,38 @@ object Tree {
       case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
       case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(xvar, v, bind))
-      case _ => body
+      case _ => throw new java.lang.Exception(s"Function replace is not implemented on $body (${body.getClass}).")
     }
+  }
+
+  def erase(t: Tree): Tree = t match {
+    case Var(_) => t
+    case UnitLiteral => t
+    case NatLiteral(_) => t
+    case BoolLiteral(_) => t
+    case IfThenElse(cond, t1, t2) => IfThenElse(erase(cond), erase(t1), erase(t2))
+    case App(t1, t2) => App(erase(t1), erase(t2))
+    case Pair(t1, t2) => Pair(erase(t1), erase(t2))
+    case First(t) => First(erase(t))
+    case Second(t) => Second(erase(t))
+    case LeftTree(t) => LeftTree(erase(t))
+    case RightTree(t) => RightTree(erase(t))
+    case Because(t1, t2) => Because(erase(t1), erase(t2))
+    case Bind(yvar, e) => Bind(yvar, erase(e))
+    case Lambda(_, bind) => Lambda(None(), erase(bind))
+    case Fix(_, bind) => Fix(None(), erase(bind))
+    case LetIn(_, v1, bind) => LetIn(None(), erase(v1), erase(bind))
+    case Match(t, t0, bind) => Match(erase(t), erase(t0), erase(bind))
+    case EitherMatch(t, bind1, bind2) => EitherMatch(erase(t), erase(bind1), erase(bind2))
+    case Primitive(op, args) => Primitive(op, args.map(erase(_)))
+    case Inst(t1, t2) => erase(t1)
+    case Fold(_, t) => Fold(None(), erase(t))
+    case Unfold(t, bind) => Unfold(erase(t), erase(bind))
+    case UnfoldPositive(t, bind) => Unfold(erase(t), erase(bind))
+    case Abs(bind) => Abs(erase(bind))
+    case TypeApp(abs, _) => TypeApp(erase(abs), None())
+    case ErrorTree(s, _) => ErrorTree(s, None())
+    case _ => throw new java.lang.Exception(s"Function erase is not implemented on $t (${t.getClass}).")
   }
 
   def isError(e: Tree): Boolean = {
@@ -547,7 +585,9 @@ sealed abstract class Tree {
 
   def isEqual(t: Tree): Boolean = Tree.isEqual(this, t)
 
-  def replace(id: Identifier, t: Tree) = Tree.replace(id, t, this)
+  def replace(id: Identifier, t: Tree): Tree = Tree.replace(id, t, this)
+
+  def erase(): Tree = Tree.erase(this)
 
   def hasAppWithLambda: Boolean = Tree.hasAppWithLambda(this)
 
@@ -637,10 +677,10 @@ case class Second(t: Tree) extends Tree {
   }
 }
 
-case class Fix(tp: Option[Tree], body: Tree) extends Tree {
+case class Fix(tp: Option[Tree], bind: Tree) extends Tree {
   override def toString: String = {
-    this match {
-      case Fix(Some(Bind(n, ty)), Bind(n1, Bind(x, body))) =>
+    bind match {
+      case Bind(n1, Bind(x, body)) =>
         val tyString = tp match {
           case Some(Bind(n, ty)) => "[" + n.toString + " => " + ty.toString + "]"
           case _ => ""
@@ -648,7 +688,7 @@ case class Fix(tp: Option[Tree], body: Tree) extends Tree {
         "Fix" + tyString + "(\n" +
         "  " + n1.toString + ", " + Bind(x, body).toString.replaceAll("\n", "\n  ") +
         "\n)"
-      case _ => "<Missing bind in Fix>"
+      case _ => s"<Missing bind in Fix($tp, $bind)>"
     }
   }
 }
@@ -752,7 +792,7 @@ case class Unfold(t: Tree, bind: Tree) extends Tree {
   override def toString: String = {
     bind match {
       case Bind(_, _) => "Unfold " + t.toString + " in " + bind.toString + ")"
-      case _ => "Missing bind in Unfold"
+      case _ => "<Missing bind in Unfold>"
     }
   }
 }
@@ -761,7 +801,7 @@ case class UnfoldPositive(t: Tree, bind: Tree) extends Tree {
   override def toString: String = {
     bind match {
       case Bind(_, _) => "UnfoldPositive " + t.toString + " in " + bind.toString + ")"
-      case _ => "Missing bind in UnfoldPositive"
+      case _ => "<Missing bind in UnfoldPositive>"
     }
   }
 }

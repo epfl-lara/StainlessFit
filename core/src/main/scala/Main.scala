@@ -31,7 +31,8 @@ object Main {
   def evalFile(f: File): Tree = {
     val src = parseFile(f)
     val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
-    Interpreter.evaluate(t, 100000) match {
+
+    Interpreter.evaluate(t.erase(), 100000000) match {
       case ErrorTree(error, _) => throw new java.lang.Exception(s"Error during evaluation.\n${error}")
       case v => v
     }

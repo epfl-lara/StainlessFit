@@ -9,6 +9,7 @@ import stainless.lang._
 
 
 object Interpreter {
+  var i = 0
 
   def smallStep(e: Tree): Tree = {
     e match {
@@ -84,11 +85,12 @@ object Interpreter {
       case RightTree(e) => RightTree(smallStep(e))
       case Inst(t1, t2) => t1
 
+      case Fold(tp, t) => Fold(tp, smallStep(t))
+
       case Unfold(ErrorTree(s, t), _) => ErrorTree(s, t)
       case Unfold(Fold(tp, v), bind) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
       case Unfold(Fold(tp, v), bind) if v.isValue => ErrorTree("Unfold should have a bind", None())
       case Unfold(v, bind) if v.isValue => ErrorTree("Unfold should have a Fold", None())
-      case Unfold(Fold(tp, t), bind) => Unfold(Fold(tp, smallStep(t)), bind)
       case Unfold(t, bind) => Unfold(smallStep(t), bind)
 
       case TypeApp(ErrorTree(s, t), _) => ErrorTree(s, t)
@@ -96,7 +98,7 @@ object Interpreter {
       case TypeApp(f, _) if f.isValue => ErrorTree("TypeApp wait a Abs", None()) // f is a value and not a lambda
       case TypeApp(f, v) => TypeApp(smallStep(f), v)
 
-      case _ => e
+      case _ => ErrorTree(s"Evaluation is stuck on $e", Some(e))
     }
   }
 
