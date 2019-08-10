@@ -64,16 +64,16 @@ case class Context(
     }
   }
 
-  def hasAppWithLambda: Boolean = {
+  def hasEasySubstitution: Boolean = {
     termEqualities.exists {
-      case (t1, t2) => t1.hasAppWithLambda || t2.hasAppWithLambda
+      case (t1, t2) => t1.hasEasySubstitution || t2.hasEasySubstitution
     }
   }
 
-  def applyAppWithLambda: Context = {
+  def applyEasySubstitution: Context = {
     copy(
       termEqualities = termEqualities.map { case (t1, t2) =>
-        (t1.applyAppWithLambda, t2.applyAppWithLambda)
+        (t1.applyEasySubstitution, t2.applyEasySubstitution)
       }
     )
   }
@@ -96,8 +96,8 @@ sealed abstract class Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal
   def replace(id: Identifier, t: Tree): Goal
-  def hasAppWithLambda: Boolean
-  def applyAppWithLambda: Goal
+  def hasEasySubstitution: Boolean
+  def applyEasySubstitution: Goal
 }
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
@@ -111,12 +111,12 @@ case class InferGoal(c: Context, t: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasAppWithLambda: Boolean = c.hasAppWithLambda || t.hasAppWithLambda
+  def hasEasySubstitution: Boolean = c.hasEasySubstitution || t.hasEasySubstitution
 
-  def applyAppWithLambda: Goal = {
+  def applyEasySubstitution: Goal = {
     copy(
-      c = c.applyAppWithLambda,
-      t = t.applyAppWithLambda
+      c = c.applyEasySubstitution,
+      t = t.applyEasySubstitution
     )
   }
 }
@@ -132,12 +132,12 @@ case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasAppWithLambda: Boolean = c.hasAppWithLambda || t.hasAppWithLambda
+  def hasEasySubstitution: Boolean = c.hasEasySubstitution || t.hasEasySubstitution
 
-  def applyAppWithLambda: Goal = {
+  def applyEasySubstitution: Goal = {
     copy(
-      c = c.applyAppWithLambda,
-      t = t.applyAppWithLambda,
+      c = c.applyEasySubstitution,
+      t = t.applyEasySubstitution,
       tp = tp
     )
   }
@@ -150,11 +150,11 @@ case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasAppWithLambda: Boolean = c.hasAppWithLambda
+  def hasEasySubstitution: Boolean = c.hasEasySubstitution
 
-  def applyAppWithLambda: Goal = {
+  def applyEasySubstitution: Goal = {
     copy(
-      c = c.applyAppWithLambda,
+      c = c.applyEasySubstitution,
       tp = tp
     )
   }
@@ -171,13 +171,13 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasAppWithLambda: Boolean = c.hasAppWithLambda || t1.hasAppWithLambda || t2.hasAppWithLambda
+  def hasEasySubstitution: Boolean = c.hasEasySubstitution || t1.hasEasySubstitution || t2.hasEasySubstitution
 
-  def applyAppWithLambda: Goal = {
+  def applyEasySubstitution: Goal = {
     copy(
-      c = c.applyAppWithLambda,
-      t1 = t1.applyAppWithLambda,
-      t2 = t2.applyAppWithLambda
+      c = c.applyEasySubstitution,
+      t1 = t1.applyEasySubstitution,
+      t2 = t2.applyEasySubstitution
     )
   }
 }
@@ -195,11 +195,11 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasAppWithLambda: Boolean = c.hasAppWithLambda
+  def hasEasySubstitution: Boolean = c.hasEasySubstitution
 
-  def applyAppWithLambda: Goal = {
+  def applyEasySubstitution: Goal = {
     copy(
-      c = c.applyAppWithLambda,
+      c = c.applyEasySubstitution,
     )
   }
 }
@@ -1426,44 +1426,10 @@ object Rule {
       None()
   }
 
-  val NewUnfoldLet1 = Rule {
-    case g @ EqualityGoal(c, t @ LetIn(tp, v, Bind(x, t1)), t2) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldLet1 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val c1 = c.addEquality(Var(x), v)
-      val subgoal =  EqualityGoal(c1.incrementLevel, t1, t2)
-      Some((List(_ => subgoal),
-        {
-          case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t, t2, ""))
-          case _ =>
-            (false, ErrorJudgment(c, g))
-        }
-      ))
-    case g =>
-      None()
-  }
-
-  val NewUnfoldLet2 = Rule {
-    case g @ EqualityGoal(c, t2 , t @ LetIn(tp, v, Bind(x, t1))) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} UnfoldLet2 : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val c1 = c.addEquality(Var(x), v)
-      val subgoal =  EqualityGoal(c1.incrementLevel, t2, t1)
-      Some((List(_ => subgoal),
-        {
-          case Cons(AreEqualJudgment(_, _, _, b), _) =>
-            (true, AreEqualJudgment(c, t2, t, ""))
-          case _ =>
-            (false, ErrorJudgment(c, g))
-        }
-      ))
-    case g =>
-      None()
-  }
-
   val NewApplyApp = Rule {
-    case g @ EqualityGoal(c, t1, t2) if g.hasAppWithLambda =>
+    case g @ EqualityGoal(c, t1, t2) if g.hasEasySubstitution =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val subgoal =  g.applyAppWithLambda
+      val subgoal =  g.applyEasySubstitution
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
@@ -1728,8 +1694,6 @@ object TypeChecker {
     CheckReflexive.t ||
     NewReflexivity.t ||
     NewEqualityInContext.t ||
-    NewUnfoldLet1.t ||
-    NewUnfoldLet2.t ||
     NewUnfoldRefinementInContext.t ||
     NewUseContextEqualities.t ||
     NewApplyApp.t ||

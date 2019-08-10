@@ -468,62 +468,62 @@ object Tree {
     }
   }
 
-  def hasAppWithLambda(t: Tree): Boolean = {
+  def hasEasySubstitution(t: Tree): Boolean = {
     t match {
       case IfThenElse(cond, t1, t2) =>
-        hasAppWithLambda(cond) || hasAppWithLambda(t1) || hasAppWithLambda(t2)
+        hasEasySubstitution(cond) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case App(Lambda(_, _), _) => true
-      case App(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case Pair(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case First(t) => hasAppWithLambda(t)
-      case Second(t) => hasAppWithLambda(t)
-      case LeftTree(t) => hasAppWithLambda(t)
-      case RightTree(t) => hasAppWithLambda(t)
-      case Because(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case Bind(_, t) => hasAppWithLambda(t)
-      case Lambda(_, t) => hasAppWithLambda(t)
-      case Fix(_, t) => hasAppWithLambda(t)
-      case LetIn(_, t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case Match(t, t1, t2) => hasAppWithLambda(t) || hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case EitherMatch(t, t1, t2) => hasAppWithLambda(t) || hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case Primitive(op, args) => args.exists(hasAppWithLambda(_))
-      case Inst(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case Fold(_, t) => hasAppWithLambda(t)
-      case Unfold(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case UnfoldPositive(t1, t2) => hasAppWithLambda(t1) || hasAppWithLambda(t2)
-      case Abs(t) => hasAppWithLambda(t)
+      case App(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case Pair(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case First(t) => hasEasySubstitution(t)
+      case Second(t) => hasEasySubstitution(t)
+      case LeftTree(t) => hasEasySubstitution(t)
+      case RightTree(t) => hasEasySubstitution(t)
+      case Because(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case Bind(_, t) => hasEasySubstitution(t)
+      case Lambda(_, t) => hasEasySubstitution(t)
+      case Fix(_, t) => hasEasySubstitution(t)
+      case LetIn(_, t1, t2) => true
+      case Match(t, t1, t2) => hasEasySubstitution(t) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case EitherMatch(t, t1, t2) => hasEasySubstitution(t) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case Primitive(op, args) => args.exists(hasEasySubstitution(_))
+      case Inst(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case Fold(_, t) => hasEasySubstitution(t)
+      case Unfold(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case UnfoldPositive(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case Abs(t) => hasEasySubstitution(t)
       case TypeApp(Abs(_), _) => true
-      case TypeApp(t, _) => hasAppWithLambda(t)
+      case TypeApp(t, _) => hasEasySubstitution(t)
       case _ => false
     }
   }
 
-  def applyAppWithLambda(t: Tree): Tree = {
+  def applyEasySubstitution(t: Tree): Tree = {
     t match {
       case IfThenElse(cond, t1, t2) =>
-        IfThenElse(applyAppWithLambda(cond), applyAppWithLambda(t1), applyAppWithLambda(t2))
+        IfThenElse(applyEasySubstitution(cond), applyEasySubstitution(t1), applyEasySubstitution(t2))
       case App(Lambda(_, bind), t) => replaceBind(bind, t)
-      case App(t1, t2) => App(applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case Pair(t1, t2) => Pair(applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case First(t) => First(applyAppWithLambda(t))
-      case Second(t) => Second(applyAppWithLambda(t))
-      case LeftTree(t) => LeftTree(applyAppWithLambda(t))
-      case RightTree(t) => RightTree(applyAppWithLambda(t))
-      case Because(t1, t2) => Because(applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case Bind(x, t) => Bind(x, applyAppWithLambda(t))
-      case Lambda(tp, t) => Lambda(tp, applyAppWithLambda(t))
-      case Fix(tp, t) => Fix(tp, applyAppWithLambda(t))
-      case LetIn(tp, t1, t2) => LetIn(tp, applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case Match(t, t1, t2) => Match(applyAppWithLambda(t), applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case EitherMatch(t, t1, t2) => EitherMatch(applyAppWithLambda(t), applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case Primitive(op, args) => Primitive(op, args.map(applyAppWithLambda(_)))
-      case Inst(t1, t2) => Inst(applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case Fold(tp, t) => Fold(tp, applyAppWithLambda(t))
-      case Unfold(t1, t2) => Unfold(applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case UnfoldPositive(t1, t2) => UnfoldPositive(applyAppWithLambda(t1), applyAppWithLambda(t2))
-      case Abs(t) => Abs(applyAppWithLambda(t))
+      case App(t1, t2) => App(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case Pair(t1, t2) => Pair(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case First(t) => First(applyEasySubstitution(t))
+      case Second(t) => Second(applyEasySubstitution(t))
+      case LeftTree(t) => LeftTree(applyEasySubstitution(t))
+      case RightTree(t) => RightTree(applyEasySubstitution(t))
+      case Because(t1, t2) => Because(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case Bind(x, t) => Bind(x, applyEasySubstitution(t))
+      case Lambda(tp, t) => Lambda(tp, applyEasySubstitution(t))
+      case Fix(tp, t) => Fix(tp, applyEasySubstitution(t))
+      case LetIn(tp, t1, t2) => replaceBind(applyEasySubstitution(t2), t1)
+      case Match(t, t1, t2) => Match(applyEasySubstitution(t), applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case EitherMatch(t, t1, t2) => EitherMatch(applyEasySubstitution(t), applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case Primitive(op, args) => Primitive(op, args.map(applyEasySubstitution(_)))
+      case Inst(t1, t2) => Inst(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case Fold(tp, t) => Fold(tp, applyEasySubstitution(t))
+      case Unfold(t1, t2) => Unfold(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case UnfoldPositive(t1, t2) => UnfoldPositive(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case Abs(t) => Abs(applyEasySubstitution(t))
       case TypeApp(Abs(t), _) => t
-      case TypeApp(t, ty) => TypeApp(applyAppWithLambda(t), ty)
+      case TypeApp(t, ty) => TypeApp(applyEasySubstitution(t), ty)
       case t => t
     }
   }
@@ -590,9 +590,9 @@ sealed abstract class Tree {
 
   def erase(): Tree = Tree.erase(this)
 
-  def hasAppWithLambda: Boolean = Tree.hasAppWithLambda(this)
+  def hasEasySubstitution: Boolean = Tree.hasEasySubstitution(this)
 
-  def applyAppWithLambda: Tree = Tree.applyAppWithLambda(this)
+  def applyEasySubstitution: Tree = Tree.applyEasySubstitution(this)
 }
 
 case class Var(id: Identifier) extends Tree {

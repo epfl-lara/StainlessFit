@@ -105,8 +105,61 @@ val zipWith: Forall(X, Forall(Y, Forall(Z, (X => Y => Z) =>
   }
 in
 
+val takeFix = Lambda X => {
+  fix[n => Rec(n)(stream => (X, Unit => stream)) => Nat => Rec(n)(list => (Unit + (X, list)))](take =>
+    fun (s: Rec(n)(stream => (X, Unit => stream))) => {
+      fun (k: Nat) => {
+        if(k == 0) Fold[Rec(n)(list => (Unit + (X, list)))](Left(()))
+        else {
+          UnfoldPositive(s) in (
+            x => Fold[Rec(n)(list => (Unit + (X, list)))](Right((
+              First(x),
+              take ((Second(x))()) (k - 1)
+            )))
+          )
+        }
+      }
+    }
+  )
+} in
+
+val take: Forall(X, Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))) => Nat => Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))) =
+  Lambda X => {
+    fun (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) => {
+      fun (k: Nat) => {
+        fix[n => Rec(n)(list => (Unit + (n, list)))](u =>
+          Inst(takeFix[X], k) (Inst(s, k)) k
+        )
+      }
+    }
+  }
+in
+
 def minus(x: Nat, y: Nat) = {x * y}
+def plus(x: Nat, y: Nat) = {x + y}
+
+val fibonacci =
+  fix[n => Rec(n)(stream => (Nat, Unit => stream))](fibo =>
+    Fold[Rec(n)(stream => (Nat, Unit => stream))]((
+      0,
+      fun(u: Unit) => {
+          Fold[Rec(n - 1)(stream => (Nat, Unit => stream))]((
+          1,
+          fun (u: Unit) => {
+            UnfoldPositive(fibo) in (xfib =>
+              Inst(zipWithFix[Nat][Nat][Nat] plus, n - 2)
+              (fibo) (UnfoldPositive(fibo) in (x => Second(x)()))
+            )
+          }
+        ))
+      }
+    ))
+  )
+in
 
 val x = sum 15 (zipWith[Nat][Nat][Nat] minus (constant[Nat] 2) (constant[Nat] 2)) in
 val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
-x + y
+
+val s = map[Nat][Nat] (fun (x: Nat) => { x + 1 }) (constant[Nat] 2) in
+val s2 = zipWith[Nat][Nat][Nat] plus fibonacci s in
+(sum 5 s2, take[Nat] s2 5)
