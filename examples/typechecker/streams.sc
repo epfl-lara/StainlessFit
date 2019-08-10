@@ -162,4 +162,4 @@ val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
 
 val s = map[Nat][Nat] (fun (x: Nat) => { x + 1 }) (constant[Nat] 2) in
 val s2 = zipWith[Nat][Nat][Nat] plus fibonacci s in
-(sum 5 s2, take[Nat] s2 5)
+(sum 5 s2, take[Nat] s2 5, take[Nat] fibonacci 10)
