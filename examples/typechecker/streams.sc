@@ -135,6 +135,20 @@ val take: Forall(X, Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))) => Nat
   }
 in
 
+def take2(k: Nat): Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) => Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list)))) = {
+  Decreases(k)
+  fun (s: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))) => {
+    if (k == 0) {
+      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Left(()))
+    }
+    else {
+      Unfold(s) in (x =>
+        Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
+      )
+    }
+  }
+}
+
 def mult(x: Nat, y: Nat) = {x * y}
 def plus(x: Nat, y: Nat) = {x + y}
 
@@ -148,7 +162,8 @@ val fibonacci =
           fun (u: Unit) => {
             UnfoldPositive(fibo) in (xfib =>
               Inst(zipWithFix[Nat][Nat][Nat] plus, n - 2)
-              (fibo) (UnfoldPositive(fibo) in (x => Second(x)()))
+                (fibo)
+                (Second(xfib)())
             )
           }
         ))
@@ -162,4 +177,5 @@ val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
 
 val s = map[Nat][Nat] (fun (x: Nat) => { x + 1 }) (constant[Nat] 2) in
 val s2 = zipWith[Nat][Nat][Nat] plus fibonacci s in
-(sum 5 s2, take[Nat] s2 5, take[Nat] fibonacci 10)
+
+(sum 5 s2, take[Nat] s2 5, take[Nat] fibonacci 10, take2 10 fibonacci)
