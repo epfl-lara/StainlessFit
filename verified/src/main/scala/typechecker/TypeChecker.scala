@@ -1237,13 +1237,8 @@ object Rule {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val (id, c1) = c0.bindFresh("_pn", NatType)
-              val pn = Var(id)
               val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
               val c2 = c.addEquality(
-                n,
-                Primitive(Plus, List(pn, NatLiteral(1)))
-              ).addEquality(
                 t1,
                 Fold(Some(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty))), Var(x))
               ).bind(x, nTy)
@@ -1287,13 +1282,8 @@ object Rule {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val (id, c1) = c0.bindFresh("_pn", NatType)
-              val pn = Var(id)
               val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
               val c2 = c.addEquality(
-                n,
-                Primitive(Plus, List(pn, NatLiteral(1)))
-              ).addEquality(
                 t1,
                 Fold(Some(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty))), Var(x))
               ).bind(x, nTy)
