@@ -61,4 +61,52 @@ val map: Forall(X, Forall(Y, (X => Y) => Forall(n: Nat, Rec(n)(stream => (X, Uni
   }
 in
 
-sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3))
+val zipWithFix =
+  Lambda X => {
+    Lambda Y => {
+      Lambda Z => {
+        fun (f: X => Y => Z) => {
+          fix[n => Rec(n)(stream => (X, Unit => stream)) => Rec(n)(stream => (Y, Unit => stream)) => Rec(n)(stream => (Z, Unit => stream))](zipWith =>
+            fun (s1: Rec(n)(stream => (X, Unit => stream))) => {
+              fun (s2: Rec(n)(stream => (Y, Unit => stream))) => {
+                Fold[Rec(n)(stream => (Z, Unit => stream))]((
+                  f (Unfold(s1) in (x => First(x))) (Unfold(s2) in (x => First(x))),
+                  fun (u: Unit) => {
+                    zipWith (UnfoldPositive(s1) in (x => (Second(x))())) (UnfoldPositive(s2) in (x => (Second(x))()))
+                  }
+                ))
+              }
+            }
+          )
+        }
+    }
+    }
+  }
+in
+
+val zipWith: Forall(X, Forall(Y, Forall(Z, (X => Y => Z) =>
+                    Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))) =>
+                    Forall(n: Nat, Rec(n)(stream => (Y, Unit => stream))) =>
+                    Forall(n: Nat, Rec(n)(stream => (Z, Unit => stream)))))) =
+  Lambda X => {
+    Lambda Y => {
+      Lambda Z => {
+        fun (f: X => Y => Z) => {
+          fun (s1: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) => {
+            fun (s2: Forall(n: Nat, Rec(n)(stream => (Y, Unit => stream)))) => {
+              fix[n => Rec(n)(stream => (Z, Unit => stream))](u =>
+                Inst(zipWithFix[X][Y][Z] f, n) (Inst(s1, n)) (Inst(s2, n))
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+in
+
+def minus(x: Nat, y: Nat) = {x * y}
+
+val x = sum 15 (zipWith[Nat][Nat][Nat] minus (constant[Nat] 2) (constant[Nat] 2)) in
+val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
+x + y
