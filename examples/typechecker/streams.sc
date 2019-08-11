@@ -81,17 +81,15 @@ def take[X] (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) (k: Nat) 
   )
 }
 
-def take2(k: Nat): Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) => Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list)))) = {
+def take2 (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list)))) = {
   Decreases(k)
-  fun (s: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))) => {
-    if (k == 0) {
-      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Left(()))
-    }
-    else {
-      Unfold(s) in (x =>
-        Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
-      )
-    }
+  if (k == 0) {
+    Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Left(()))
+  }
+  else {
+    Unfold(s) in (x =>
+      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
+    )
   }
 }
 
