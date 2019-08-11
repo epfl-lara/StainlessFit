@@ -72,7 +72,6 @@ object Main {
   }
 
   def main(args: Array[String]): Unit = {
-    println(ScalaParser.expression.isLL1)
     if (args.length == 0) printHelp()
     else {
       args(0) match {

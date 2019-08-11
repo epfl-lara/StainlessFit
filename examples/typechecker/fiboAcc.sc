@@ -1,9 +1,7 @@
-def fiboAcc(n : Nat): Nat => Nat => Nat = {
+def fiboAcc (n : Nat) (a: Nat) (b: Nat): Nat = {
   Decreases(n)
-  def aux (a: Nat) (b: Nat) = {
-    if(n == 0) a
-    else fiboAcc (n - 1) b (a + b)
-  }
+  if(n == 0) a
+  else fiboAcc (n - 1) b (a + b)
 }
 
 fiboAcc 10 0 1

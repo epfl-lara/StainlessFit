@@ -1,12 +1,10 @@
-def parity(n: Nat): Bool => Bool = {
+def parity(n: Nat) (b: Bool): Bool = {
   Decreases(n)
-  def f(b: Bool): Bool = {
-    if(b) {
-      if(n == 0) true else parity (n - 1) false
-    }
-    else {
-      if(n == 0) false else if (n == 1) true else parity (n - 1) true
-    }
+  if(b) {
+    if(n == 0) true else parity (n - 1) false
+  }
+  else {
+    if(n == 0) false else if (n == 1) true else parity (n - 1) true
   }
 }
 
