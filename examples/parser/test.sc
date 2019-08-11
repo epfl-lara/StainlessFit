@@ -9,7 +9,7 @@ def g(x: Nat + Nat): Nat = {
   }
 }
 
-def h() = {
+def h(x: Unit) = {
   2
 }
 

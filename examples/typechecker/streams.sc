@@ -149,8 +149,8 @@ def take2(k: Nat): Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) => Fo
   }
 }
 
-def mult(x: Nat, y: Nat) = {x * y}
-def plus(x: Nat, y: Nat) = {x + y}
+def mult (x: Nat) (y: Nat) = {x * y}
+def plus (x: Nat) (y: Nat) = {x + y}
 
 val fibonacci =
   fix[n => Rec(n)(stream => (Nat, Unit => stream))](fibo =>

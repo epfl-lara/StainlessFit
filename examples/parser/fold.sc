@@ -1,9 +1,7 @@
-def emptyList() = {
-  Fold(Left(()))
-}
+val emptyList = Fold(Left(())) in
 
-def cons(n: Nat, l: Rec(n)(list => (Unit + (Nat, list))) ) = {
+def cons(n: Nat) (l: Rec(n)(list => (Unit + (Nat, list)))) = {
   Fold(Right((n, l)))
 }
 
-cons 3 (cons 2 (emptyList()))
+cons 3 (cons 2 (emptyList))

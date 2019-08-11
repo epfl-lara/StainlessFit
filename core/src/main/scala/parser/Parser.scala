@@ -336,86 +336,82 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val lteq = binopParser(Lteq)
   val gteq = binopParser(Gteq)
 
-  lazy val function: Parser[Tree] = {
-    (funK ~ lpar ~ variable ~ colon ~ typeExpr ~ rpar ~ arrow ~ bracketExpr).map {
-      case _ ~ _ ~ Var(x) ~ _ ~ tp ~ _ ~ _ ~ e => Lambda(stainlessSome(tp), Bind(x, e))
-    }
-  }
-
   lazy val lambdaAbs: Parser[Tree] = {
     (lambdaK ~ variable ~ arrow ~ bracketExpr).map {
       case _ ~ Var(x) ~ _ ~ e => Abs(Bind(x, e))
     }
   }
 
-  def buildFix(name: Identifier, body: Tree, bodyType: Tree) = {
-    Fix(
-      stainlessNone(),
-      Bind(
-        Identifier(0, "_"),
-        Bind(
-          name,
-          Tree.replace(name, App(Var(name), UnitLiteral), body)
-        )
-      )
-    )
+  lazy val sBracketVar: Parser[Identifier] = {
+    (lsbra ~ variable ~ rsbra).map { case _ ~ Var(v) ~ _ => v }
   }
 
-  def foldArgs(args: Seq[(Identifier, Tree)], body: Tree): Tree = {
-    args.foldRight(body) {
-      case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc))
+  lazy val varTypeDef: Parser[(Identifier, Tree)] = {
+    (lpar ~ variable ~ colon ~ typeExpr ~ rpar).map {
+      case _ ~ Var(v) ~ _ ~ ty ~ _ => (v, ty)
+    }
+  }
+
+  def createFun(typeVars: Seq[Identifier], varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
+    typeVars.foldRight(
+      varsWithTypes.foldRight(body) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
+    ) { case (x, acc) => Abs(Bind(x, acc)) }
+  }
+
+  def foldArgs(varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
+    varsWithTypes.foldRight(body) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
+  }
+
+  lazy val retTypeP: Parser[Tree] = { (colon ~ typeExpr).map { case _ ~ t => t } }
+  lazy val measureP: Parser[Tree] = { (decreasesK ~ lpar ~ expression ~rpar).map { case _ ~ _ ~ e ~ _ => e } }
+
+  def findPiType(typeVars: Seq[Identifier], varsWithTypes: Seq[(Identifier, Tree)], retType: Tree): Tree = {
+    typeVars.foldRight(
+      varsWithTypes.foldRight(retType) { case ((x, ty), acc) => PiType(ty, Bind(x, acc)) }
+    ) { case (x, acc) => PolyForallType(Bind(x, acc)) }
+  }
+
+
+  lazy val function: Parser[Tree] = {
+    (funK ~ many(sBracketVar) ~ many1(varTypeDef) ~ arrow ~ bracketExpr).map {
+      case _ ~ typeVars ~ varsWithTypes ~ _ ~ e => createFun(typeVars, varsWithTypes, e)
     }
   }
 
   lazy val defFunction: Parser[Tree] = recursive {
-    (defK ~ variable ~ lpar ~ repsep(variable ~ colon ~ typeExpr, comma) ~ rpar ~
-    opt(colon ~ typeExpr) ~ assignation ~ lbra ~ opt(decreasesK ~ lpar ~ expression ~rpar) ~ expression ~ rbra ~ opt(expression)).map {
-      case _ ~ Var(f) ~ _ ~ argsT ~ _ ~ rt ~ _ ~ _ ~ None ~ e1 ~ _ ~ e2 =>
-        val args = argsT.map { case (Var(x) ~ _ ~ t) => (x, t) }
-        val body = if(args.isEmpty) Lambda(stainlessSome(UnitType), Bind(Identifier(0, "_"), e1)) else foldArgs(args, e1)
-        val funExpr = body
-        e2 match {
-          case None => LetIn(stainlessNone(), funExpr, Bind(f, Var(f)))
-          case Some(e) => LetIn(stainlessNone(), funExpr, Bind(f, e))
-        }
-      case _ ~ Var(f) ~ _ ~ argsT ~ _ ~ Some(_ ~ rt) ~ _ ~ _ ~ Some(_ ~ _ ~ measure ~ _) ~ e1 ~ _ ~ e2 =>
-        argsT match {
-          case l if l.size == 1 =>
-            val (x, ty) = (argsT.map { case (Var(x) ~ _ ~ t) => (x, t) }).head
+    (defK ~ variable ~ many(sBracketVar) ~ many1(varTypeDef) ~ opt(retTypeP) ~ assignation ~ lbra ~ opt(measureP) ~
+    expression ~ rbra ~ opt(expression)).map {
+      case _ ~ Var(f) ~ typeVars ~ varsWithTypes ~ retType ~ _ ~ _ ~ measure ~ e1 ~ _ ~ e2 =>
+        val followingExpr = e2.getOrElse(Var(f))
+        (measure, retType) match {
+          case (Some(_), None) =>
+            throw new java.lang.Exception(s"Recursive functions $f needs return type.")
+          case (None, None) =>
+            LetIn(stainlessNone(), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
+          case (None, Some(ty)) =>
+            LetIn(stainlessSome(findPiType(typeVars, varsWithTypes, ty)), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
+          case (Some(measure), Some(ty)) =>
+            val (x, xTy) = varsWithTypes.head
             val n = Identifier(0, "_n")
-            val refin = RefinementType(ty, Bind(x, Primitive(Lteq, List(measure, Var(n)))))
-            val tp = PiType(refin, Bind(x, rt))
-            val body = Tree.replace(
-              f,
-              Inst(
-                App(Var(f), UnitLiteral),
+            val expr = e1.replace(f,
+              Inst(App(Var(f), UnitLiteral),
                 Primitive(Minus, List(Var(n), NatLiteral(1)))
-              ),
-              e1
-            )
-            val funExpr = Lambda(stainlessSome(refin), Bind(x, body))
-            val fixExpr = Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(f, funExpr)))
-            val instExpr = LetIn(
-              stainlessNone(),
-              fixExpr,
-              Bind(f,
-                Lambda(
-                  stainlessSome(ty),
-                  Bind(x, App(Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))), Var(x)))
-                )
               )
             )
-            e2 match {
-              case None => LetIn(stainlessNone(), instExpr, Bind(f, Var(f)))
-              case Some(e) => LetIn(stainlessNone(), instExpr, Bind(f, e))
-            }
-          case _ =>
-            println("WARNING: too much argument in recursive def.")
-            BottomTree
+            val body = varsWithTypes.tail.foldRight(expr) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
+            val bodyTy = varsWithTypes.tail.foldRight(ty) { case ((x, ty), acc) => PiType(ty, Bind(x, acc)) }
+            val refin = RefinementType(xTy, Bind(x, Primitive(Lteq, List(measure, Var(n)))))
+            val fun = Lambda(stainlessSome(refin), Bind(x, body))
+            val funTy = PiType(refin, Bind(x, bodyTy))
+            val fix = Fix(stainlessSome(Bind(n, funTy)), Bind(n, Bind(f, fun)))
+            val instFix = LetIn(stainlessNone(),
+              fix,
+              Bind(f,
+                Lambda(stainlessSome(xTy), Bind(x, App(Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))), Var(x))))
+              )
+            )
+            LetIn(stainlessNone(), instFix, Bind(f, followingExpr))
         }
-      case _ =>
-        println("WARNING: recursive def needs return type to be typed.")
-        BottomTree
     }
   }
 
