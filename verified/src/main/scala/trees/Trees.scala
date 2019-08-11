@@ -531,34 +531,6 @@ object Tree {
       case t => t
     }
   }
-
-  def hasIfThenElse(t: Tree): Boolean = {
-    t match {
-      case IfThenElse(cond, t1, t2) => true
-      case App(t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case Pair(t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case First(t) => hasIfThenElse(t)
-      case Second(t) => hasIfThenElse(t)
-      case LeftTree(t) => hasIfThenElse(t)
-      case RightTree(t) => hasIfThenElse(t)
-      case Because(t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case Bind(_, t) => hasIfThenElse(t)
-      case Lambda(_, t) => hasIfThenElse(t)
-      case Fix(_, t) => hasIfThenElse(t)
-      case LetIn(_, t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case Match(t, t1, t2) => hasIfThenElse(t) || hasIfThenElse(t1) || hasIfThenElse(t2)
-      case EitherMatch(t, t1, t2) => hasIfThenElse(t) || hasIfThenElse(t1) || hasIfThenElse(t2)
-      case Primitive(op, args) => args.exists(hasIfThenElse(_))
-      case Inst(t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case Fold(_, t) => hasIfThenElse(t)
-      case Unfold(t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case UnfoldPositive(t1, t2) => hasIfThenElse(t1) || hasIfThenElse(t2)
-      case Abs(t) => hasIfThenElse(t)
-      case TypeApp(t, _) => hasIfThenElse(t)
-      case _ => false
-    }
-  }
-
 }
 
 case class Identifier(id: Int, name: String) {
@@ -624,8 +596,6 @@ sealed abstract class Tree {
   def hasEasySubstitution: Boolean = Tree.hasEasySubstitution(this)
 
   def applyEasySubstitution: Tree = Tree.applyEasySubstitution(this)
-
-  def hasIfThenElse: Boolean = Tree.hasIfThenElse(this)
 }
 
 case class Var(id: Identifier) extends Tree {
