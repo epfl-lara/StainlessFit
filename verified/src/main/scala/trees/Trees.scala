@@ -329,6 +329,10 @@ object Tree {
       case RefinementType(t1, bind) => RefinementType(replace(xvar, v, t1), replace(xvar, v, bind))
       case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(xvar, v, bind))
+
+      case BottomTree => BottomTree
+      case BottomType => BottomType
+
       case _ => throw new java.lang.Exception(s"Function replace is not implemented on $body (${body.getClass}).")
     }
   }
@@ -727,7 +731,7 @@ case class Match(t: Tree, t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
     t2 match {
       case Bind(n, tn) =>
-        t.toString + "match {\n" +
+        t.toString + " match {\n" +
         "  case 0 =>\n" +
         t1.toString.replaceAll("\n", "\n    ") + "\n"
         "  case " + n.toString + " =>\n" +
@@ -741,10 +745,10 @@ case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
     (t1, t2) match {
       case (Bind(x1, t1), Bind(x2, t2)) =>
-        t.toString + "match {\n" +
-        "  case Left(" + x1.toString + ") =>\n" +
-        t1.toString.replaceAll("\n", "\n    ") + "\n"
-        "  case Right(" + x2.toString + ") =>\n" +
+        t.toString + " match {\n" +
+        "  case Left(" + x1.toString + ") =>\n    " +
+        t1.toString.replaceAll("\n", "\n    ") + "\n" +
+        "  case Right(" + x2.toString + ") =>\n    " +
         t2.toString.replaceAll("\n", "\n    ") + "\n}"
       case _ => "<Missing bind in EitherMatch>"
     }

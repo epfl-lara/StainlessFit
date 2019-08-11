@@ -98,7 +98,6 @@ sealed abstract class Goal {
   def replace(id: Identifier, t: Tree): Goal
   def hasEasySubstitution: Boolean
   def applyEasySubstitution: Goal
-  def applyFirstIf: (Goal, Goal)
 }
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
@@ -120,8 +119,6 @@ case class InferGoal(c: Context, t: Tree) extends Goal {
       t = t.applyEasySubstitution
     )
   }
-
-  def applyFirstIf: (Goal, Goal) = (this, this)
 }
 
 case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
@@ -144,8 +141,6 @@ case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
       tp = tp
     )
   }
-
-  def applyFirstIf: (Goal, Goal) = (this, this)
 }
 
 case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
@@ -163,8 +158,6 @@ case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
       tp = tp
     )
   }
-
-  def applyFirstIf: (Goal, Goal) = (this, this)
 }
 
 case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
@@ -186,122 +179,6 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
       t1 = t1.applyEasySubstitution,
       t2 = t2.applyEasySubstitution
     )
-  }
-
-  def getFirstIfThenElse(t: Tree): (Boolean, Tree, Tree, Tree) = {
-    t match {
-      case IfThenElse(cond, t1, t2) => (true, cond, t1, t2)
-      case App(t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, App(tt, t1), App(tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, App(t1, tt), App(t1, tf))
-        }
-      case Pair(t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, Pair(tt, t1), Pair(tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, Pair(t1, tt), Pair(t1, tf))
-        }
-      case First(t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, First(tt), First(tf))
-      case Second(t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, Second(tt), Second(tf))
-      case LeftTree(t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, LeftTree(tt), LeftTree(tf))
-      case RightTree(t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, RightTree(tt), RightTree(tf))
-      case Because(t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, Because(tt, t1), Because(tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, Because(t1, tt), Because(t1, tf))
-        }
-      case Bind(x, t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, Bind(x, tt), Bind(x, tf))
-      case Lambda(tp, t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, Lambda(tp, tt), Lambda(tp, tf))
-      case Fix(tp, t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, Fix(tp, tt), Fix(tp, tf))
-      case LetIn(tp, t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, LetIn(tp, tt, t1), LetIn(tp, tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, LetIn(tp, tt, t1), LetIn(tp, tf, t2))
-        }
-      case Match(_, t1, t2) => (false, UnitLiteral, t, t) // TODO
-      case EitherMatch(_, t1, t2) => (false, UnitLiteral, t, t) // TODO
-      case Primitive(op, Cons(n, Nil())) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(n)
-        (b, cond, Primitive(op, Cons(tt, Nil())), Primitive(op, Cons(tf, Nil())))
-      case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
-        getFirstIfThenElse(n1) match {
-          case (true, cond, tt, tf) =>
-            (true, cond, Primitive(op, Cons(tt, Cons(n2, Nil()))), Primitive(op, Cons(tf, Cons(n2, Nil()))))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(n2)
-            (b, cond, Primitive(op, Cons(n1, Cons(tt, Nil()))), Primitive(op, Cons(n1, Cons(tf, Nil()))))
-        }
-      case Inst(t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, Inst(tt, t1), Inst(tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, Inst(t1, tt), Inst(t1, tf))
-        }
-      case Fold(tp, t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, Fold(tp, tt), Fold(tp, tf))
-      case Unfold(t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, Unfold(tt, t1), Unfold(tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, Unfold(t1, tt), Unfold(t1, tf))
-        }
-      case UnfoldPositive(t1, t2) =>
-        getFirstIfThenElse(t1) match {
-          case (true, cond, tt, tf) => (true, cond, UnfoldPositive(tt, t1), UnfoldPositive(tf, t2))
-          case _ =>
-            val (b, cond, tt, tf) = getFirstIfThenElse(t2)
-            (b, cond, UnfoldPositive(t1, tt), UnfoldPositive(t1, tf))
-        }
-      case Abs(t) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, Abs(tt), Abs(tf))
-      case TypeApp(t, ty) =>
-        val (b, cond, tt, tf) = getFirstIfThenElse(t)
-        (b, cond, TypeApp(tt, ty), TypeApp(tf, ty))
-      case t => (false, UnitLiteral, t, t)
-    }
-  }
-
-  def applyFirstIf: (Goal, Goal) = {
-    getFirstIfThenElse(t1) match {
-      case (true, cond, tt, tf) => (
-          copy(c = c.addEquality(cond, BoolLiteral(true)), t1 = tt),
-          copy(c = c.addEquality(cond, BoolLiteral(false)), t1 = tf)
-        )
-      case _ =>
-        getFirstIfThenElse(t2) match {
-          case (true, cond, tt, tf) => (
-              copy(c = c.addEquality(cond, BoolLiteral(true)), t2 = tt),
-              copy(c = c.addEquality(cond, BoolLiteral(false)), t2 = tf)
-           )
-          case _ => (this, this)
-        }
-    }
   }
 }
 
@@ -325,8 +202,6 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
       c = c.applyEasySubstitution,
     )
   }
-
-  def applyFirstIf: (Goal, Goal) = (this, this)
 }
 
 object TypeOperators {
@@ -1557,22 +1432,6 @@ object Rule {
       None()
   }
 
-  val NewIfRule = Rule {
-    case g @ EqualityGoal(c, t1, t2) if t1.hasIfThenElse || t2.hasIfThenElse =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewIfRule : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val (subgoal1, subgoal2) = g.applyFirstIf
-      Some((List(_ => subgoal1, _ => subgoal2),
-        {
-          case Cons(AreEqualJudgment(_, _, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
-            (true, AreEqualJudgment(c, t1, t2, ""))
-          case _ =>
-            (false, ErrorJudgment(c, g))
-        }
-      ))
-    case g =>
-      None()
-  }
-
   val InferFoldGen = Rule {
     case g @ InferGoal(c, e @ Fold(Some(tpe @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty))))), t)) =>
       /* Fail if n != m */
@@ -1611,6 +1470,10 @@ object Rule {
       case NatLiteral(_) => true
       case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
         op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
+      case IfThenElse(t1, t2, t3) =>
+        isNatPredicate(termVariables, t1) && isNatExpression(termVariables, t2) && isNatExpression(termVariables, t3)
+      case Match(t1, t2, Bind(n, t3)) =>
+        isNatPredicate(termVariables, t1) && isNatExpression(termVariables, t2) && isNatExpression(termVariables.updated(n, t1), t3)
       case _ => false
     }
   }
@@ -1623,6 +1486,10 @@ object Rule {
         (isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
       case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
         op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
+      case IfThenElse(t1, t2, t3) =>
+        isNatPredicate(termVariables, t1) && isNatPredicate(termVariables, t2) && isNatPredicate(termVariables, t3)
+      case Match(t1, t2, Bind(n, t3)) =>
+        isNatPredicate(termVariables, t1) && isNatPredicate(termVariables, t2) && isNatPredicate(termVariables.updated(n, t1), t3)
       case _ => false
     }
   }
@@ -1675,6 +1542,19 @@ object Rule {
 
       // case Primitive(op, Cons(n1, Cons(n2, Nil()))) => ()
 
+      case IfThenElse(t1, t2, t3) =>
+        val t1AST = z3Encode(z3, solver, variables, t1)
+        val t2AST = z3Encode(z3, solver, variables, t2)
+        val t3AST = z3Encode(z3, solver, variables, t3)
+        z3.mkITE(t1AST, t2AST, t3AST)
+
+      case Match(t1, t2, Bind(n, t3)) =>
+        val t1AST = z3Encode(z3, solver, variables, t1)
+        val zeroAST = z3.mkInt(0, z3.mkIntSort())
+        val condAST = z3.mkEq(t1AST, zeroAST)
+        val t2AST = z3Encode(z3, solver, variables, t2)
+        val t3AST = z3Encode(z3, solver, variables, t3.replace(n, t1))
+        z3.mkITE(condAST, t2AST, t3AST)
       case _ => throw new java.lang.Exception(s"Error while making Z3 constraints. Unsupported tree: $t")
     }
   }
@@ -1789,7 +1669,6 @@ object TypeChecker {
     NewUnfoldRefinementInContext.t ||
     NewUseContextEqualities.t ||
     NewApplyApp.t ||
-    NewIfRule.t ||
     NewZ3ArithmeticSolver.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
