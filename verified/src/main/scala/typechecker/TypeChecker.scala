@@ -528,12 +528,15 @@ object Rule {
     case g @ InferGoal(c, e @ Primitive(op, Cons(n1, Cons(n2, Nil())))) if op.isBinOp =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferBinaryPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val opType = op.operandsType
-      val checkN1 = CheckGoal(c, n1, opType)
-      val checkN2 = CheckGoal(c, n2, opType)
+      val checkN1 = CheckGoal(c.incrementLevel, n1, opType)
+      val checkN2 = CheckGoal(c.incrementLevel, n2, opType)
+      val checkEq = EqualityGoal(c.incrementLevel, Primitive(Gteq, List(n1, n2)), BoolLiteral(true))
       Some((
-        List(_ => checkN1, _ => checkN2),
+        if(op == Minus) List(_ => checkN1, _ => checkN2, _ => checkEq) else List(_ => checkN1, _ => checkN2),
         {
-          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
+          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _))) =>
+            (true, InferJudgment(c, e, Some(NatType)))
+          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) if op != Minus =>
             (true, InferJudgment(c, e, Some(op.returnedType)))
           case _ =>
             (false, ErrorJudgment(c, g))
@@ -547,7 +550,7 @@ object Rule {
     case g @ InferGoal(c, e @ Primitive(op, Cons(n1, Nil()))) if op.isUnOp =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferUnaryPrimitive : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val opType = op.operandsType
-      val checkN1 = CheckGoal(c, n1, opType)
+      val checkN1 = CheckGoal(c.incrementLevel, n1, opType)
       Some((
         List(_ => checkN1),
         {
@@ -1540,6 +1543,16 @@ object Rule {
         val n2AST = z3Encode(z3, solver, variables, n2)
         z3.mkAdd(n1AST, n2AST)
 
+      case Primitive(Mul, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkMul(n1AST, n2AST)
+
+      case Primitive(Div, Cons(n1, Cons(n2, Nil()))) =>
+        val n1AST = z3Encode(z3, solver, variables, n1)
+        val n2AST = z3Encode(z3, solver, variables, n2)
+        z3.mkDiv(n1AST, n2AST)
+
       // case Primitive(op, Cons(n1, Cons(n2, Nil()))) => ()
 
       case IfThenElse(t1, t2, t3) =>
@@ -1580,6 +1593,11 @@ object Rule {
 
       val b = z3Encode(z3, solver, z3Variables, Primitive(Eq, Cons(t1, Cons(t2, Nil()))))
       solver.assertCnstr(z3.mkNot(b))
+
+      c.variables.filter(c.termVariables(_) == NatType).map { id =>
+        val v = z3.mkConst(z3.mkStringSymbol(id.toString), i)
+        solver.assertCnstr(z3.mkGE(v, z3.mkInt(0, i)))
+      }
 
       TypeChecker.z3Debug("Current Goal:\n" + g)
       TypeChecker.z3Debug("\nInvoking Z3\n")

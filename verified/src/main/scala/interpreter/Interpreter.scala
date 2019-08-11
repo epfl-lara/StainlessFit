@@ -72,14 +72,14 @@ object Interpreter {
       case Primitive(Gteq, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => BoolLiteral(n1 >= n2)
 
       case Primitive(Plus, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 + n2)
-      case Primitive(Minus, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 - n2)
+      case Primitive(Minus, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) if n1 >= n2 => NatLiteral(n1 - n2)
       case Primitive(Mul, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) => NatLiteral(n1 * n2)
       case Primitive(Div, Cons(NatLiteral(n1), Cons(NatLiteral(n2), Nil()))) if n2 != 0 => NatLiteral(n1 / n2)
 
       case Primitive(p, Cons(x, Nil())) if !x.isValue => Primitive(p, Cons(smallStep(x), Nil()))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !x.isValue => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !y.isValue => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
-      case Primitive(_, _) => ErrorTree("Bad Primitive operations", None())
+      case Primitive(_, _) => ErrorTree(s"Bad Primitive operations $e", None())
 
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))

@@ -385,10 +385,11 @@ object ScalaParser extends Parsers[Token, TokenClass]
         val followingExpr = e2.getOrElse(Var(f))
         (measure, retType) match {
           case (Some(_), None) =>
-            throw new java.lang.Exception(s"Recursive functions $f needs return type.")
+            throw new java.lang.Exception(s"Recursive function $f needs return type.")
           case (None, None) =>
             LetIn(stainlessNone(), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
           case (None, Some(ty)) =>
+            if(f.isFreeIn(e1)) throw new java.lang.Exception(s"Recursive function $f need mesure.")
             LetIn(stainlessSome(findPiType(typeVars, varsWithTypes, ty)), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
           case (Some(measure), Some(ty)) =>
             val (x, xTy) = varsWithTypes.head
