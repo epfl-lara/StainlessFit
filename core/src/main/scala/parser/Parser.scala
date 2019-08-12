@@ -389,7 +389,7 @@ object ScalaParser extends Parsers[Token, TokenClass]
           case (None, None) =>
             LetIn(stainlessNone(), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
           case (None, Some(ty)) =>
-            if(f.isFreeIn(e1)) throw new java.lang.Exception(s"Recursive function $f need mesure.")
+            if(f.isFreeIn(e1)) throw new java.lang.Exception(s"Recursive function $f needs a measure.")
             LetIn(stainlessSome(findPiType(typeVars, varsWithTypes, ty)), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
           case (Some(measure), Some(ty)) =>
             val (x, xTy) = varsWithTypes.head
