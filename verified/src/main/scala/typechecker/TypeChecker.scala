@@ -369,13 +369,6 @@ case class Rule(
 
 object Rule {
 
-  def unzip[A,B](l: List[(A,B)]): (List[A], List[B]) = l match {
-    case Nil() => (Nil(), Nil())
-    case Cons((a,b), xs) =>
-      val (as, bs) = unzip(xs)
-      (Cons(a, as), Cons(b, bs))
-  }
-
   val InferBool = Rule {
     case g @ InferGoal(c, BoolLiteral(b)) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferBool : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
@@ -408,7 +401,7 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferVar : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       Some((List(), _ =>
         c.getTypeOf(id) match {
-          case None() => (false, ErrorJudgment(c, InferJudgment(c, Var(id), None())))
+          case None() => (false, ErrorJudgment(c, s"$id is not in context"))
           case Some(tpe) => (true, InferJudgment(c, Var(id), Some(tpe)))
         }
       ))
@@ -763,10 +756,11 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckRefinement : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val checkTy = CheckGoal(c.incrementLevel, t, ty)
       val c1 = c.bind(id, ty).addEquality(Var(id), t)
+      val checkB = CheckGoal(c1.incrementLevel, b, BoolType)
       val checkRef = EqualityGoal(c1.incrementLevel, b, BoolLiteral(true))
       Some((
-        List(_ => checkTy, _ => checkRef), {
-          case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
+        List(_ => checkTy, _ => checkB, _ => checkRef), {
+          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _))) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
             (false, ErrorJudgment(c, t))
@@ -919,7 +913,7 @@ object Rule {
   }
 
   val CheckLambda = Rule {
-    case g @ CheckGoal(c, e @ Lambda(Some(ty1), Bind(id1, body)), tpe @ PiType(ty2, Bind(id2, ty))) if (ty1 == ty2) =>
+    case g @ CheckGoal(c, e @ Lambda(Some(ty1), Bind(id1, body)), tpe @ PiType(ty2, Bind(id2, ty))) if (ty1.isEqual(ty2)) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val (freshId, c1) = c.bindFresh(id1.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, body.replace(id1, Var(freshId)), ty.replace(id2, Var(freshId)))
@@ -1460,7 +1454,7 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} EqualityInContext: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       Some((List(),
         {
-          case _ => (true, AreEqualJudgment(c, t1, t2, ""))
+          case _ => (true, AreEqualJudgment(c, t1, t2, "By Assumption"))
         }
       ))
     case g =>
@@ -1616,8 +1610,8 @@ object Rule {
       z3.delete
 
       solverResponse match {
-        case scala.None => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, "Failure in Z3"))))
-        case scala.Some(true) => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, s"Z3 found a counter-example: $modelString"))))
+        case scala.None => Some((List(), _ => (false, ErrorJudgment(c, "Failure in Z3"))))
+        case scala.Some(true) => Some((List(), _ => (false, ErrorJudgment(c, s"Z3 found a counter-example: $modelString"))))
         case scala.Some(false) => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, "Validated by Z3"))))
       }
 
@@ -1630,7 +1624,7 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewReflexivity: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       Some((List(),
         {
-          case _ => (true, AreEqualJudgment(c, t1, t2, ""))
+          case _ => (true, AreEqualJudgment(c, t1, t2, "By Reflexivity"))
         }
       ))
     case g =>

@@ -141,7 +141,11 @@ object Operator {
 object Tree {
   def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Map[Identifier, Identifier], Int) = {
     t match {
-      case Var(id) => (Var(m(id)), m, max)
+      case Var(id) =>
+        m.get(id) match {
+          case None() => throw new java.lang.Exception(s"Undefined variable $id")
+          case Some(id) => (Var(id), m, max)
+        }
       case IfThenElse(cond, t1, t2) =>
         val (newC, m1, max1) = setId(cond, m, max)
         val (newT1, m2, max2) = setId(t1, m1, max1)
@@ -474,11 +478,14 @@ object Tree {
 
   def hasEasySubstitution(t: Tree): Boolean = {
     t match {
+      case IfThenElse(BoolLiteral(_), t1, t2) => true
       case IfThenElse(cond, t1, t2) =>
         hasEasySubstitution(cond) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case App(Lambda(_, _), _) => true
       case App(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case Pair(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case First(Pair(_, _)) => true
+      case Second(Pair(_, _)) => true
       case First(t) => hasEasySubstitution(t)
       case Second(t) => hasEasySubstitution(t)
       case LeftTree(t) => hasEasySubstitution(t)
@@ -488,11 +495,16 @@ object Tree {
       case Lambda(_, t) => hasEasySubstitution(t)
       case Fix(_, t) => hasEasySubstitution(t)
       case LetIn(_, t1, t2) => true
+      case Match(NatLiteral(_), t1, t2) => true
       case Match(t, t1, t2) => hasEasySubstitution(t) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
+      case EitherMatch(LeftTree(_), _, _) => true
+      case EitherMatch(RightTree(_), _, _) => true
       case EitherMatch(t, t1, t2) => hasEasySubstitution(t) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case Primitive(op, args) => args.exists(hasEasySubstitution(_))
       case Inst(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case Fold(_, t) => hasEasySubstitution(t)
+      case Unfold(Fold(_, t1), t2) => true
+      case UnfoldPositive(Fold(_, t1), t2) => true
       case Unfold(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case UnfoldPositive(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
       case Abs(t) => hasEasySubstitution(t)
@@ -504,11 +516,15 @@ object Tree {
 
   def applyEasySubstitution(t: Tree): Tree = {
     t match {
+      case IfThenElse(BoolLiteral(true), t1, t2) => t1
+      case IfThenElse(BoolLiteral(false), t1, t2) => t2
       case IfThenElse(cond, t1, t2) =>
         IfThenElse(applyEasySubstitution(cond), applyEasySubstitution(t1), applyEasySubstitution(t2))
       case App(Lambda(_, bind), t) => replaceBind(bind, t)
       case App(t1, t2) => App(applyEasySubstitution(t1), applyEasySubstitution(t2))
       case Pair(t1, t2) => Pair(applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case First(Pair(t1, t2)) => applyEasySubstitution(t1)
+      case Second(Pair(t1, t2)) => applyEasySubstitution(t2)
       case First(t) => First(applyEasySubstitution(t))
       case Second(t) => Second(applyEasySubstitution(t))
       case LeftTree(t) => LeftTree(applyEasySubstitution(t))
@@ -518,11 +534,17 @@ object Tree {
       case Lambda(tp, t) => Lambda(tp, applyEasySubstitution(t))
       case Fix(tp, t) => Fix(tp, applyEasySubstitution(t))
       case LetIn(tp, t1, t2) => replaceBind(applyEasySubstitution(t2), t1)
+      case Match(NatLiteral(BigInt(0)), t1, _) => t1
+      case Match(NatLiteral(n), _, bind) => replaceBind(bind, NatLiteral(n - 1))
       case Match(t, t1, t2) => Match(applyEasySubstitution(t), applyEasySubstitution(t1), applyEasySubstitution(t2))
+      case EitherMatch(LeftTree(t), bind1, _) => replaceBind(bind1, t)
+      case EitherMatch(RightTree(t), _, bind2) => replaceBind(bind2, t)
       case EitherMatch(t, t1, t2) => EitherMatch(applyEasySubstitution(t), applyEasySubstitution(t1), applyEasySubstitution(t2))
       case Primitive(op, args) => Primitive(op, args.map(applyEasySubstitution(_)))
       case Inst(t1, t2) => Inst(applyEasySubstitution(t1), applyEasySubstitution(t2))
       case Fold(tp, t) => Fold(tp, applyEasySubstitution(t))
+      case Unfold(Fold(_, t1), bind) => replaceBind(bind, t1)
+      case UnfoldPositive(Fold(_, t1), bind) => replaceBind(bind, t1)
       case Unfold(t1, t2) => Unfold(applyEasySubstitution(t1), applyEasySubstitution(t2))
       case UnfoldPositive(t1, t2) => UnfoldPositive(applyEasySubstitution(t1), applyEasySubstitution(t2))
       case Abs(t) => Abs(applyEasySubstitution(t))

@@ -58,40 +58,21 @@ def zipWith[X][Y][Z] (f: X => Y => Z)
   )
 }
 
-
-val takeFix = Lambda X => {
-  fix[n => Rec(n)(stream => (X, Unit => stream)) => Nat => Rec(n)(list => (Unit + (X, list)))](take =>
-    fun (s: Rec(n)(stream => (X, Unit => stream))) (k: Nat) => {
-      if(k == 0) Fold[Rec(n)(list => (Unit + (X, list)))](Left(()))
-      else {
-        UnfoldPositive(s) in (
-          x => Fold[Rec(n)(list => (Unit + (X, list)))](Right((
-            First(x),
-            take ((Second(x))()) (k - 1)
-          )))
-        )
-      }
+val take2 = Lambda X => {
+  def take2 (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
+    Decreases(k)
+    if (k == 0) {
+      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Left(()))
     }
-  )
+    else {
+      Unfold(s) in (x =>
+        Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
+      )
+    }
+  }
 } in
 
-def take[X] (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) (k: Nat) = {
-  fix[n => Rec(n)(list => (Unit + (n, list)))](u =>
-    Inst(takeFix[X], k) (Inst(s, k)) k
-  )
-}
-
-def take2 (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list)))) = {
-  Decreases(k)
-  if (k == 0) {
-    Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Left(()))
-  }
-  else {
-    Unfold(s) in (x =>
-      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (Nat, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
-    )
-  }
-}
+def take[X] (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) (k: Nat) = { take2[X] k s }
 
 def mult (x: Nat) (y: Nat) = {x * y}
 def plus (x: Nat) (y: Nat) = {x + y}
@@ -122,4 +103,4 @@ val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
 val s = map[Nat][Nat] (fun (x: Nat) => { x + 1 }) (constant[Nat] 2) in
 val s2 = zipWith[Nat][Nat][Nat] plus fibonacci s in
 
-(sum 5 s2, take[Nat] s2 5, take[Nat] fibonacci 10, take2 10 fibonacci)
+(sum 5 s2, take[Nat] s2 5, take[Nat] fibonacci 10, take2[Nat] 10 fibonacci)
