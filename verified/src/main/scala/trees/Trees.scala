@@ -12,9 +12,9 @@ sealed abstract class Operator {
 
   def isNatBinOp: Boolean = Operator.isNatBinOp(this)
 
-  def isBoolBinOp: Boolean = Operator.isBoolBinOp(this)
+  def isBoolToBoolBinOp: Boolean = Operator.isBoolToBoolBinOp(this)
 
-  def isBoolUnOp: Boolean = Operator.isBoolBinOp(this)
+  def isBoolToBoolUnOp: Boolean = Operator.isBoolToBoolBinOp(this)
 
   def returnedType: Tree = Operator.returnedType(this)
 
@@ -68,7 +68,7 @@ case object Gt extends Operator {
 }
 
 case object Nop extends Operator {
-  override def toString = "-"
+  override def toString = "Nop"
 }
 
 
@@ -99,7 +99,7 @@ object Operator {
     isNatToNatBinOp(op) || isNatToBoolBinOp(op)
   }
 
-  def isBoolBinOp(op: Operator): Boolean = {
+  def isBoolToBoolBinOp(op: Operator): Boolean = {
     op match {
       case And => true
       case Or => true
@@ -107,7 +107,7 @@ object Operator {
     }
   }
 
-  def isBoolUnOp(op: Operator): Boolean = {
+  def isBoolToBoolUnOp(op: Operator): Boolean = {
     op match {
       case Not => true
       case _ => false
@@ -115,25 +115,25 @@ object Operator {
   }
 
   def isBinOp(op: Operator): Boolean = {
-    isNatBinOp(op) || isBoolBinOp(op)
+    isNatBinOp(op) || isBoolToBoolBinOp(op)
   }
 
   def isUnOp(op: Operator): Boolean = {
-    isBoolUnOp(op)
+    isBoolToBoolUnOp(op)
   }
 
   def returnedType(op: Operator): Tree = {
     if(isNatToNatBinOp(op)) return NatType
     else if(isNatToBoolBinOp(op)) return BoolType
-    else if(isBoolBinOp(op)) return BoolType
-    else if(isBoolUnOp(op)) return BoolType
+    else if(isBoolToBoolBinOp(op)) return BoolType
+    else if(isBoolToBoolUnOp(op)) return BoolType
     else return BottomType
   }
 
   def operandsType(op: Operator): Tree = {
     if(isNatBinOp(op)) return NatType
-    else if(isBoolBinOp(op)) return BoolType
-    else if(isBoolUnOp(op)) return BoolType
+    else if(isBoolToBoolBinOp(op)) return BoolType
+    else if(isBoolToBoolUnOp(op)) return BoolType
     else return BottomType
   }
 }

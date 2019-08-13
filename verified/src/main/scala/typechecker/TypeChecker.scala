@@ -548,7 +548,7 @@ object Rule {
             val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel()
             InferGoal(c1, body)
           case _ =>
-            ErrorGoal(c, s"Could not infer type for ${termDerivation(v)}.")
+            ErrorGoal(c, s"Could not infer type for ${termDerivation(v)}, then body of let is not typechecked.")
         }
       Some((
         List(_ => gv, fgb),
@@ -718,9 +718,9 @@ object Rule {
             case SumType(ty1, ty2) =>
               val c1 = c0.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
               InferGoal(c1, t1)
-            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
+            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}, then body of either_match is not typechecked.")
           }
-        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}.")
+        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}, then body of either_match is not typechecked.")
       }
       val finferT2: List[Judgment] => Goal = {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
@@ -728,9 +728,9 @@ object Rule {
             case SumType(ty1, ty2) =>
               val c2 = c0.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
               InferGoal(c2, t2)
-            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
+            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)} then body of either_match is not typechecked.")
           }
-        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}.")
+        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)} then body of either_match is not typechecked.")
       }
       Some((
         List(_ => inferScrutinee, finferT1, finferT2), {
@@ -1630,10 +1630,6 @@ object Rule {
       case NatLiteral(_) => true
       case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
         op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
-      case IfThenElse(t1, t2, t3) =>
-        isNatPredicate(termVariables, t1) && isNatExpression(termVariables, t2) && isNatExpression(termVariables, t3)
-      case Match(t1, t2, Bind(n, t3)) =>
-        isNatPredicate(termVariables, t1) && isNatExpression(termVariables, t2) && isNatExpression(termVariables.updated(n, t1), t3)
       case _ => false
     }
   }
@@ -1645,11 +1641,9 @@ object Rule {
         (isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
         (isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
       case Primitive(op, Cons(n1, Cons(n2, Nil()))) =>
-        op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
-      case IfThenElse(t1, t2, t3) =>
-        isNatPredicate(termVariables, t1) && isNatPredicate(termVariables, t2) && isNatPredicate(termVariables, t3)
-      case Match(t1, t2, Bind(n, t3)) =>
-        isNatPredicate(termVariables, t1) && isNatPredicate(termVariables, t2) && isNatPredicate(termVariables.updated(n, t1), t3)
+        (op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
+        (op.isBoolToBoolBinOp && isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
+      case Primitive(op, Cons(b, Nil())) => op.isBoolToBoolUnOp && isNatPredicate(termVariables, b)
       case _ => false
     }
   }
@@ -1710,21 +1704,22 @@ object Rule {
         val n2AST = z3Encode(z3, solver, variables, n2)
         z3.mkDiv(n1AST, n2AST)
 
+      case Primitive(Not, Cons(b, Nil())) =>
+        val bAST = z3Encode(z3, solver, variables, b)
+        z3.mkNot(bAST)
+
+      case Primitive(And, Cons(b1, Cons(b2, Nil()))) =>
+        val b1AST = z3Encode(z3, solver, variables, b1)
+        val b2AST = z3Encode(z3, solver, variables, b2)
+        z3.mkAnd(b1AST, b2AST)
+
+      case Primitive(Or, Cons(b1, Cons(b2, Nil()))) =>
+        val b1AST = z3Encode(z3, solver, variables, b1)
+        val b2AST = z3Encode(z3, solver, variables, b2)
+        z3.mkOr(b1AST, b2AST)
+
       // case Primitive(op, Cons(n1, Cons(n2, Nil()))) => ()
 
-      case IfThenElse(t1, t2, t3) =>
-        val t1AST = z3Encode(z3, solver, variables, t1)
-        val t2AST = z3Encode(z3, solver, variables, t2)
-        val t3AST = z3Encode(z3, solver, variables, t3)
-        z3.mkITE(t1AST, t2AST, t3AST)
-
-      case Match(t1, t2, Bind(n, t3)) =>
-        val t1AST = z3Encode(z3, solver, variables, t1)
-        val zeroAST = z3.mkInt(0, z3.mkIntSort())
-        val condAST = z3.mkEq(t1AST, zeroAST)
-        val t2AST = z3Encode(z3, solver, variables, t2)
-        val t3AST = z3Encode(z3, solver, variables, t3.replace(n, t1))
-        z3.mkITE(condAST, t2AST, t3AST)
       case _ => throw new java.lang.Exception(s"Error while making Z3 constraints. Unsupported tree: $t")
     }
   }
@@ -1783,7 +1778,7 @@ object Rule {
   }
 
   val NewReflexivity = Rule {
-    case g @ EqualityGoal(c, t1, t2) if t1 == t2 =>
+    case g @ EqualityGoal(c, t1, t2) if t1.isEqual(t2) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewReflexivity: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       Some((List(),
         {

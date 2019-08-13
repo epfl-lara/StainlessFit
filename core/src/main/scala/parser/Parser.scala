@@ -248,6 +248,12 @@ object ScalaParser extends Parsers[Token, TokenClass]
       f
   }
 
+  lazy val eqType = accept(OperatorClass(Eq)) {
+    case s =>
+      val f: (Tree, Tree) => Tree = (x: Tree, y: Tree) => EqualityType(x, y)
+      f
+  }
+
 
   lazy val bPiType: Parser[Tree] = {
     (piK ~ lpar ~ variable ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
@@ -284,7 +290,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
   lazy val operatorType: Parser[Tree] = {
     operators(simpleTypeExpr)(
       sumType is LeftAssociative,
-      piType is RightAssociative
+      piType is RightAssociative,
+      eqType is LeftAssociative
     )
   }
 

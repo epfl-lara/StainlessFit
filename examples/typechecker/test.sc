@@ -20,6 +20,10 @@ def F (x: {x: Nat, false}) = { x }
 
 def G (x: {x: Nat, false}) = { F x }
 
+def H (x: {x: Nat, true || false}) = { 2 }
+
+val two = H 2 in
+
 val div = fun (x: Unit) => {fix(div => div) } in
 
 val q: Nat = h() in
