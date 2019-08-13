@@ -1,11 +1,24 @@
+
+enablePlugins(GitVersioning)
+git.useGitDescribe := true
+
+ThisBuild / organization := "ch.epfl.lara"
 ThisBuild / scalaVersion := "2.12.8"
 
 ThisBuild / resolvers ++= Seq(
-    Resolver.bintrayRepo("epfl-lara", "maven")
+  Resolver.bintrayRepo("epfl-lara", "maven")
+)
+
+ThisBuild / scalacOptions ++= Seq(
+  "-encoding", "UTF-8",
+  "-deprecation",
+  "-unchecked",
+  "-feature"
 )
 
 lazy val core = project
   .in(file("core"))
+  .enablePlugins(JavaAppPackaging)
   .settings(
     name := "stainlesscore",
     assemblyJarName in assembly := "stainless-core.jar",
