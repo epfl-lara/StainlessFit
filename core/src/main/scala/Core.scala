@@ -11,7 +11,7 @@ import java.io.File
 import stainless.collection._
 import stainless.lang._
 
-object Main {
+object Core {
 
   val assertFun = """def assert(b: {b: Bool, b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
 
@@ -61,70 +61,4 @@ object Main {
   def typeCheckFile(s: String): Either[String, (Boolean, NodeTree[Judgment])] =
     typeCheckFile(new File(s))
 
-
-  object App {
-    def launch(config: Config): Unit = {
-      config.mode match {
-        case Eval => eval(config)
-        case TypeCheck => typeCheck(config)
-      }
-    }
-
-    val eval = watchable { config =>
-      evalFile(config.file) match {
-        case Left(error) =>
-          System.err.println(s"[ERROR] Error during evaluation: $error")
-          false
-        case Right(value) =>
-          System.out.println(s"$value")
-          true
-      }
-    }
-
-    val typeCheck = watchable { config =>
-      val file = config.file
-      typeCheckFile(file) match {
-        case Left(error) =>
-          System.err.println(s"[ERROR] $error")
-          false
-
-        case Right((success, _)) if success =>
-          System.out.println(s"Type checked file $file successfully.")
-          true
-
-        case _ =>
-          System.err.println(s"[ERROR] Error while type checking file $file.")
-          false
-      }
-    }
-
-    def watchable(action: Config => Boolean): Config => Unit = (c: Config) =>
-      if (c.watch) {
-        watchFile(c.file)(action(c))
-      }
-      else {
-        val result = action(c)
-        if (!result) System.exit(1)
-      }
-
-    def watchFile(file: File)(action: => Unit): Unit = {
-      val watcher = new util.FileWatcher(
-        scala.collection.immutable.Set(file.getAbsoluteFile),
-        () =>
-          try {
-            action
-          } catch {
-            case e: Throwable =>
-              println("[ERROR] An exception was thrown:")
-              e.printStackTrace()
-          }
-      )
-
-      watcher.run()
-    }
-  }
-
-  def main(args: Array[String]): Unit = {
-    Config.parse(args).foreach(App.launch)
-  }
 }

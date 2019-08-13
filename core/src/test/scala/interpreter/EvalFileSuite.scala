@@ -5,7 +5,7 @@ class EvalFileSuite extends FunSuite {
 
   for (f <- files("examples/parser", _.endsWith("sc"))) {
     test(s"Running file $f") {
-      Main.evalFile(f)
+      Core.evalFile(f)
     }
   }
 }

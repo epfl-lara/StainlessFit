@@ -1,9 +1,12 @@
+import buildinfo.BuildInfo
 import scopt.OParser
 import java.io.File
 
 sealed abstract class Mode
-case object Eval      extends Mode
-case object TypeCheck extends Mode
+object Mode {
+  case object Eval      extends Mode
+  case object TypeCheck extends Mode
+}
 
 case class Config(
   mode: Mode       = null,
@@ -24,7 +27,7 @@ object Config {
 
     OParser.sequence(
       programName("stainless-core"),
-      head("StainlessCore", "0.1"),
+      head("StainlessCore", BuildInfo.version),
       help("help").text("Prints help information"),
       opt[Unit]("verbose")
         .action((_, c) => c.copy(verbose = true))
@@ -36,7 +39,7 @@ object Config {
         .action((_, c) => c.copy(watch = true))
         .text("Re-run on file modification"),
       cmd("eval")
-        .action((_, c) => c.copy(mode = Eval))
+        .action((_, c) => c.copy(mode = Mode.Eval))
         .text("Evaluate the given file")
         .children(
           arg[File]("<file>...")
@@ -44,7 +47,7 @@ object Config {
             .action((f, c) => c.copy(file = f)),
         ),
       cmd("typecheck")
-        .action((_, c) => c.copy(mode = TypeCheck))
+        .action((_, c) => c.copy(mode = Mode.TypeCheck))
         .text("Type check the given file")
         .children(
           arg[File]("<file>...")
