@@ -15,85 +15,116 @@ object Main {
 
   val assertFun = """def assert(b: {b: Bool, b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
 
-  def parseFile(f: File): Tree = {
+  def parseFile(f: File): Either[String, Tree] = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val it = (assertFun + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
-        value
+        Right(value)
       case ScalaParser.UnexpectedEnd(_) =>
-        throw new java.lang.Exception("Error during parsing: unexpected end.\n")
+        Left("Error during parsing: unexpected end.")
       case ScalaParser.UnexpectedToken(t, _) =>
-        throw new java.lang.Exception("Error during parsing: unexpected token." + t)
+        Left("Error during parsing: unexpected token." + t)
     }
   }
 
-  def evalFile(f: File): Tree = {
-    val src = parseFile(f)
-    val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
+  def evalFile(f: File): Either[String, Tree] =
+    parseFile(f) flatMap { src =>
+      val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
 
-    Interpreter.evaluate(t.erase(), 100000000) match {
-      case ErrorTree(error, _) => throw new java.lang.Exception(s"Error during evaluation.\n${error}")
-      case v => v
+      Interpreter.evaluate(t.erase(), 100000000) match {
+        case ErrorTree(error, _) => Left(error)
+        case v => Right(v)
+      }
+    }
+
+  def typeCheckFile(f: File): Either[String, (Boolean, NodeTree[Judgment])] = {
+    parseFile(f) flatMap { src =>
+      val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
+      TypeChecker.infer(t, max) match {
+        case None() => Left(s"Could not type check: $f")
+        case Some((success, tree)) =>
+          Derivation.makeHTMLFile(
+            f,
+            List(tree),
+            success
+          )
+
+          Right((success, tree))
+      }
     }
   }
 
-  def typeCheckFile(f: File): (Boolean, NodeTree[Judgment]) = {
-    val src = parseFile(f)
-    val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
-    TypeChecker.infer(t, max) match {
-      case None() => throw new java.lang.Exception(s"Could not type check: $f")
-      case Some((success, tree)) =>
-        if (success)
-          println(s"Type checked file $f successfully.")
-        else
-          println(s"Error while type checking file $f.")
+  def evalFile(s: String): Either[String, Tree] =
+    evalFile(new File(s))
 
-        Derivation.makeHTMLFile(
-          f,
-          List(tree),
-          success
-        )
+  def typeCheckFile(s: String): Either[String, (Boolean, NodeTree[Judgment])] =
+    typeCheckFile(new File(s))
 
-        (success, tree)
+
+  object App {
+    def launch(config: Config): Unit = {
+      config.mode match {
+        case Eval => eval(config)
+        case TypeCheck => typeCheck(config)
+      }
     }
-  }
 
-  def evalFile(s: String): Tree = evalFile(new File(s))
+    val eval = watchable { config =>
+      evalFile(config.file) match {
+        case Left(error) =>
+          System.err.println(s"[ERROR] Error during evaluation: $error")
+          false
+        case Right(value) =>
+          System.out.println(s"$value")
+          true
+      }
+    }
 
-  def typeCheckFile(s: String): (Boolean, NodeTree[Judgment]) = typeCheckFile(new File(s))
+    val typeCheck = watchable { config =>
+      val file = config.file
+      typeCheckFile(file) match {
+        case Left(error) =>
+          System.err.println(s"[ERROR] $error")
+          false
 
-  def printHelp() = {
-    println(
-      """|Usage: run eval FILE
-         |       run typecheck FILE
-         |       run typecheckWatch FILE
-      """.stripMargin)
+        case Right((success, _)) if success =>
+          System.out.println(s"Type checked file $file successfully.")
+          true
+
+        case _ =>
+          System.err.println(s"[ERROR] Error while type checking file $file.")
+          false
+      }
+    }
+
+    def watchable(action: Config => Boolean): Config => Unit = (c: Config) =>
+      if (c.watch) {
+        watchFile(c.file)(action(c))
+      }
+      else {
+        val result = action(c)
+        if (!result) System.exit(1)
+      }
+
+    def watchFile(file: File)(action: => Unit): Unit = {
+      val watcher = new util.FileWatcher(
+        scala.collection.immutable.Set(file.getAbsoluteFile),
+        () =>
+          try {
+            action
+          } catch {
+            case e: Throwable =>
+              println("[ERROR] An exception was thrown:")
+              e.printStackTrace()
+          }
+      )
+
+      watcher.run()
+    }
   }
 
   def main(args: Array[String]): Unit = {
-    if (args.length == 0) printHelp()
-    else {
-      args(0) match {
-        case "eval" if (args.length == 2) =>
-          println(evalFile(args(1)))
-        case "typecheck" if (args.length == 2) =>
-          typeCheckFile(args(1))
-        case "typecheckWatch" if (args.length == 2) =>
-          new util.FileWatcher(
-            scala.collection.immutable.Set((new java.io.File(args(1))).getAbsoluteFile),
-            () =>
-              try {
-                typeCheckFile(args(1))
-              } catch {
-                case e: Throwable =>
-                  println("ERROR: An exception was thrown")
-                  e.printStackTrace()
-              }
-          ).run()
-        case _ =>
-          printHelp()
-      }
-    }
+    Config.parse(args).foreach(App.launch)
   }
 }

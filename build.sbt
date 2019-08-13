@@ -21,8 +21,11 @@ lazy val core = project
   .enablePlugins(JavaAppPackaging)
   .settings(
     name := "stainlesscore",
-    assemblyJarName in assembly := "stainless-core.jar",
-    test in assembly := {}
+    libraryDependencies ++= Seq(
+      "ch.epfl.lara"     %% "scallion"  % "0.1",
+      "com.github.scopt" %% "scopt"     % "4.0.0-RC2",
+      "org.scalatest"    %% "scalatest" % "3.0.8" % "test",
+    ),
   )
   .dependsOn(verified)
 
