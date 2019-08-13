@@ -98,7 +98,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("Unfold") | word("UnfoldPositive") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
-    word("Bool") | word("Unit") | word("Nat") | word("Rec")
+    word("Bool") | word("Unit") | word("Nat") | word("Rec") | word("Top")
       |>  { (cs, r) => TypeToken(cs.mkString, r) },
 
     // Var
@@ -220,8 +220,9 @@ object ScalaParser extends Parsers[Token, TokenClass]
   val natType = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType = accept(TypeClass("Bool")) { case _ => BoolType }
   val unitType = accept(TypeClass("Unit")) { case _ => UnitType }
+  val topType = accept(TypeClass("Top")) { case _ => TopType }
 
-  val literalType = natType | boolType | unitType
+  val literalType = natType | boolType | unitType | topType
 
   lazy val parTypeExpr: Parser[Tree] = {
     (lpar ~ rep1sep(typeExpr, comma) ~ rpar).map {

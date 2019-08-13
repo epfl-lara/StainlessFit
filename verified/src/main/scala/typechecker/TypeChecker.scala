@@ -64,19 +64,68 @@ case class Context(
     }
   }
 
-  def hasEasySubstitution: Boolean = {
+  def hasValueSimplification: Boolean = {
     termEqualities.exists {
-      case (t1, t2) => t1.hasEasySubstitution || t2.hasEasySubstitution
+      case (t1, t2) => t1.hasValueSimplification || t2.hasValueSimplification
     }
   }
 
-  def applyEasySubstitution: Context = {
+  def applyValueSimplification: Context = {
     copy(
       termEqualities = termEqualities.map { case (t1, t2) =>
-        (t1.applyEasySubstitution, t2.applyEasySubstitution)
+        (t1.applyValueSimplification, t2.applyValueSimplification)
       }
     )
   }
+
+  def typableIn(t: Tree): Boolean = {
+    TypeChecker.inferInContext(this, t) match {
+      case Some((s, _)) => s
+      case _ => false
+    }
+  }
+
+  def treeHasTopLevelSimplification(t: Tree): Boolean = {
+    t match {
+      case App(Lambda(_, _), t2) => typableIn(t2)
+      case LetIn(_, t1, t2) => typableIn(t1)
+      case EitherMatch(LeftTree(t), _, _) => typableIn(t)
+      case EitherMatch(RightTree(t), _, _) => typableIn(t)
+      case Unfold(Fold(_, t1), _) => typableIn(t1)
+      case UnfoldPositive(Fold(_, t1), _) => typableIn(t1)
+      case Primitive(op, l) => l.exists { case arg => treeHasTopLevelSimplification(arg) }
+      case _ => false
+    }
+  }
+
+  def hasTopLevelSimplification: Boolean = {
+    termEqualities.exists {
+      case (t1, t2) => treeHasTopLevelSimplification(t1) || treeHasTopLevelSimplification(t2)
+    }
+  }
+
+  def treeApplyTopLevelSimplification(t: Tree): Tree = {
+    t match {
+      case App(Lambda(_, bind), t2) if typableIn(t2) && bind.isBind => Tree.replaceBind(bind, t2)
+      case LetIn(_, t1, bind) if typableIn(t1) && bind.isBind => Tree.replaceBind(bind, t1)
+      case EitherMatch(LeftTree(t), bind, _) if typableIn(t) && bind.isBind => Tree.replaceBind(bind, t)
+      case EitherMatch(RightTree(t), _, bind) if typableIn(t) && bind.isBind => Tree.replaceBind(bind, t)
+      case Unfold(Fold(_, t1), bind) if typableIn(t1) && bind.isBind => Tree.replaceBind(bind, t1)
+      case UnfoldPositive(Fold(_, t1), bind) if typableIn(t1) && bind.isBind => Tree.replaceBind(bind, t1)
+      case Primitive(op, l) if l.exists { case arg => treeHasTopLevelSimplification(arg) } =>
+        Primitive(op, l.map { case arg => treeApplyTopLevelSimplification(arg) })
+
+      case _ => t
+    }
+  }
+
+  def applyTopLevelSimplification: Context = {
+    copy(
+      termEqualities = termEqualities.map { case (t1, t2) => (treeApplyTopLevelSimplification(t1), treeApplyTopLevelSimplification(t2))
+      }
+    )
+  }
+
 
   def replace(id: Identifier, t: Tree): Context = {
     copy(
@@ -96,8 +145,10 @@ sealed abstract class Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal
   def replace(id: Identifier, t: Tree): Goal
-  def hasEasySubstitution: Boolean
-  def applyEasySubstitution: Goal
+  def hasValueSimplification: Boolean
+  def applyValueSimplification: Goal
+  def hasTopLevelSimplification: Boolean
+  def applyTopLevelSimplification: Goal
 }
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
@@ -111,12 +162,21 @@ case class InferGoal(c: Context, t: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasEasySubstitution: Boolean = c.hasEasySubstitution || t.hasEasySubstitution
+  def hasValueSimplification: Boolean = c.hasValueSimplification || t.hasValueSimplification
 
-  def applyEasySubstitution: Goal = {
+  def applyValueSimplification: Goal = {
     copy(
-      c = c.applyEasySubstitution,
-      t = t.applyEasySubstitution
+      c = c.applyValueSimplification,
+      t = t.applyValueSimplification
+    )
+  }
+
+  def hasTopLevelSimplification: Boolean = c.hasTopLevelSimplification || c.treeHasTopLevelSimplification(t)
+
+  def applyTopLevelSimplification: Goal = {
+    copy(
+      c = c.applyTopLevelSimplification,
+      t = c.treeApplyTopLevelSimplification(t)
     )
   }
 }
@@ -132,12 +192,22 @@ case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasEasySubstitution: Boolean = c.hasEasySubstitution || t.hasEasySubstitution
+  def hasValueSimplification: Boolean = c.hasValueSimplification || t.hasValueSimplification
 
-  def applyEasySubstitution: Goal = {
+  def applyValueSimplification: Goal = {
     copy(
-      c = c.applyEasySubstitution,
-      t = t.applyEasySubstitution,
+      c = c.applyValueSimplification,
+      t = t.applyValueSimplification,
+      tp = tp
+    )
+  }
+
+  def hasTopLevelSimplification: Boolean = c.hasTopLevelSimplification || c.treeHasTopLevelSimplification(t)
+
+  def applyTopLevelSimplification: Goal = {
+    copy(
+      c = c.applyTopLevelSimplification,
+      t = c.treeApplyTopLevelSimplification(t),
       tp = tp
     )
   }
@@ -150,11 +220,20 @@ case class SynthesizeGoal(c: Context, tp: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasEasySubstitution: Boolean = c.hasEasySubstitution
+  def hasValueSimplification: Boolean = c.hasValueSimplification
 
-  def applyEasySubstitution: Goal = {
+  def applyValueSimplification: Goal = {
     copy(
-      c = c.applyEasySubstitution,
+      c = c.applyValueSimplification,
+      tp = tp
+    )
+  }
+
+  def hasTopLevelSimplification: Boolean = c.hasTopLevelSimplification
+
+  def applyTopLevelSimplification: Goal = {
+    copy(
+      c = c.applyTopLevelSimplification,
       tp = tp
     )
   }
@@ -171,13 +250,23 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasEasySubstitution: Boolean = c.hasEasySubstitution || t1.hasEasySubstitution || t2.hasEasySubstitution
+  def hasValueSimplification: Boolean = c.hasValueSimplification || t1.hasValueSimplification || t2.hasValueSimplification
 
-  def applyEasySubstitution: Goal = {
+  def applyValueSimplification: Goal = {
     copy(
-      c = c.applyEasySubstitution,
-      t1 = t1.applyEasySubstitution,
-      t2 = t2.applyEasySubstitution
+      c = c.applyValueSimplification,
+      t1 = t1.applyValueSimplification,
+      t2 = t2.applyValueSimplification
+    )
+  }
+
+  def hasTopLevelSimplification: Boolean = c.hasTopLevelSimplification || c.treeHasTopLevelSimplification(t1) || c.treeHasTopLevelSimplification(t2)
+
+  def applyTopLevelSimplification: Goal = {
+    copy(
+      c = c.applyTopLevelSimplification,
+      t1 = c.treeApplyTopLevelSimplification(t1),
+      t2 = c.treeApplyTopLevelSimplification(t2)
     )
   }
 }
@@ -195,11 +284,19 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
 
   def removeEquality(t1: Tree, t2: Tree): Goal = copy(c = c.removeEquality(t1, t2))
 
-  def hasEasySubstitution: Boolean = c.hasEasySubstitution
+  def hasValueSimplification: Boolean = c.hasValueSimplification
 
-  def applyEasySubstitution: Goal = {
+  def applyValueSimplification: Goal = {
     copy(
-      c = c.applyEasySubstitution,
+      c = c.applyValueSimplification,
+    )
+  }
+
+  def hasTopLevelSimplification: Boolean = c.hasTopLevelSimplification
+
+   def applyTopLevelSimplification: Goal = {
+    copy(
+      c = c.applyTopLevelSimplification
     )
   }
 }
@@ -355,7 +452,7 @@ case class Rule(
               accOpt.flatMap {
                 case (success, acc) =>
                   subgoalSolver(fsg(acc.map(_.node))).map { case (subSuccess: Boolean, subTree: NodeTree[Judgment]) =>
-                    (success && subSuccess, acc :+ subTree)
+                    (success /*&& subSuccess*/, acc :+ subTree)
                   }
               }
           }
@@ -368,6 +465,13 @@ case class Rule(
 }
 
 object Rule {
+
+  private def termDerivation(t: Tree): String =
+    Derivation.termColor(Derivation.shortString(t.toString))
+
+
+  private def typeDerivation(t: Tree): String =
+    Derivation.typeColor(Derivation.shortString(t.toString))
 
   val InferBool = Rule {
     case g @ InferGoal(c, BoolLiteral(b)) =>
@@ -410,6 +514,14 @@ object Rule {
       None()
   }
 
+  val CheckVar = Rule {
+    case g @ CheckGoal(c, Var(id), ty) if c.termVariables.getOrElse(id, UnitLiteral).isEqual(ty) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckVar : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      Some((List(), _ => (true, CheckJudgment(c, Var(id), ty))))
+    case g =>
+      None()
+  }
+
   val InferError = Rule {
     case g @ InferGoal(c, e @ ErrorTree(_, Some(tp))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferError : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
@@ -417,7 +529,7 @@ object Rule {
       Some((List(_ => errorGoal),
         {
           case Cons(AreEqualJudgment(_, _, _, _), _) => (true, InferJudgment(c, e, Some(tp)))
-          case _ => (false, ErrorJudgment(c, InferJudgment(c, e, Some(tp))))
+          case _ => (false, ErrorJudgment(c, s"Could not infer ${typeDerivation(tp)} for ${termDerivation(e)} with InferError."))
         }
       ))
 
@@ -435,7 +547,7 @@ object Rule {
             val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel()
             InferGoal(c1, body)
           case _ =>
-            ErrorGoal(c, s"Could not infer type for $v")
+            ErrorGoal(c, s"Could not infer type for ${termDerivation(v)}.")
         }
       Some((
         List(_ => gv, fgb),
@@ -458,7 +570,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(InferJudgment(_, _, Some(tyb)), _)) =>
             (true, InferJudgment(c, e, Some(tyb)))
           case _ =>
-            (false, ErrorJudgment(c, InferJudgment(c, e, None())))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferLet."))
         }
       ))
 
@@ -477,7 +589,8 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tyb)), _) =>
             (true, InferJudgment(c, e, Some(PiType(ty1, Bind(id, tyb)))))
           case _ =>
-            (false, ErrorJudgment(c, InferJudgment(c, e, None())))
+            (true, InferJudgment(c, e, Some(TopType)))
+            //(false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferLambda."))
         }
       ))
 
@@ -503,13 +616,18 @@ object Rule {
             _
           ))) =>
             TypeOperators.ifThenElse(tc, ty1, ty2) match {
-              case None() => (false, ErrorJudgment(c, s"Could not unify types $ty1 and $ty2"))
+              case None() => (false,
+                ErrorJudgment(
+                  c,
+                  s"Could not infer type for ${termDerivation(e)} with InferIf: cannot unify ${typeDerivation(ty1)}  and ${typeDerivation(ty2)}"
+                )
+              )
               case Some(ty) =>
                 (true, InferJudgment(c, e, Some(ty)))
             }
 
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"COuld not infer type for ${termDerivation(e)} with InferIf."))
         }
       ))
 
@@ -532,7 +650,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) if op != Minus =>
             (true, InferJudgment(c, e, Some(op.returnedType)))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferBinaryPrimitive."))
         }
       ))
 
@@ -550,7 +668,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, InferJudgment(c, e, Some(op.returnedType)))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferUnaryPrimitive."))
         }
       ))
 
@@ -559,7 +677,7 @@ object Rule {
 
   val InferMatch = Rule {
     case g @ InferGoal(c, e @ Match(t, t0, Bind(id, tn))) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferMatch: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val c0 = c.incrementLevel()
       val checkN = CheckGoal(c0, t, NatType)
       val inferT0 = InferGoal(c0, t0)
@@ -572,11 +690,16 @@ object Rule {
             Cons(InferJudgment(_, _, Some(tyn)), _
           ))) =>
             TypeOperators.matchSimpl(t, ty0, id, tyn) match {
-              case None() => (false, ErrorJudgment(c, s"Could not unify types $ty0 and $tyn."))
+              case None() => (false,
+                ErrorJudgment(
+                  c,
+                  s"Could not infer type for ${termDerivation(e)} with InferMatch: cannot unify types ${typeDerivation(ty0)} and ${typeDerivation(tyn)}."
+                )
+              )
               case Some(ty) => (true, InferJudgment(c, e, Some(ty)))
             }
 
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferMatch."))
         }
       ))
 
@@ -594,9 +717,9 @@ object Rule {
             case SumType(ty1, ty2) =>
               val c1 = c0.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
               InferGoal(c1, t1)
-            case _ => ErrorGoal(c, s"Expecting a sum type for $t, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
           }
-        case _ => ErrorGoal(c, s"Could not infer a type for $t.")
+        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}.")
       }
       val finferT2: List[Judgment] => Goal = {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
@@ -604,9 +727,9 @@ object Rule {
             case SumType(ty1, ty2) =>
               val c2 = c0.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
               InferGoal(c2, t2)
-            case _ => ErrorGoal(c, s"Expecting a sum type for $t, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
           }
-        case _ => ErrorGoal(c, s"Could not infer a type for $t.")
+        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}.")
       }
       Some((
         List(_ => inferScrutinee, finferT1, finferT2), {
@@ -615,11 +738,12 @@ object Rule {
             Cons(InferJudgment(_, _, Some(ty2)), _
           ))) =>
             TypeOperators.eitherMatch(t, id1, ty1, id2, ty2) match {
-              case None() => (false, ErrorJudgment(c, s"Could not unify types $ty1 and $ty2."))
+              case None() => (false, ErrorJudgment(c,
+              s"Could not infer a type for ${termDerivation(e)} with InferEitherMatch: cannot unify types ${typeDerivation(ty1)} and ${typeDerivation(ty2)}."))
               case Some(ty) => (true, InferJudgment(c, e, Some(ty)))
             }
 
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not infer a type for ${termDerivation(e)} with InferEitherMatch."))
         }
       ))
 
@@ -649,9 +773,17 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, InferJudgment(c, e, Some(IntersectionType(NatType, Bind(n, ty)))))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer a type for ${termDerivation(e)} with InferFix."))
         }
       ))
+
+    case _ => None()
+  }
+
+  val InferFixFail = Rule {
+    case g @ InferGoal(c, e @ Fix(None(), Bind(n1, Bind(y, t)))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferFixFail : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      Some((List(), _ => (false, ErrorJudgment(c, s"Could not infer a type for fix without annotation ${termDerivation(e)}"))))
 
     case _ => None()
   }
@@ -665,10 +797,10 @@ object Rule {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
           dropRefinements(ty) match {
             case IntersectionType(ty2, Bind(_, _)) => CheckGoal(c0, t2, ty2)
-            case _ => ErrorGoal(c, s"Expecting an intersection type for $t1, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting an intersection type for ${termDerivation(t1)}, found ${typeDerivation(ty)}.")
           }
         case _ =>
-         ErrorGoal(c, s"Could not infer a type for $t1.")
+         ErrorGoal(c, s"Could not infer type for ${termDerivation(t1)}.")
       }
       Some((
         List(_ => g1, fg2), {
@@ -679,14 +811,16 @@ object Rule {
               case IntersectionType(_, Bind(x, ty)) =>
                 TypeOperators.letIn(x, None(), t2, ty) match {
                   case None() =>
-                    (false, ErrorJudgment(c, s"Error in letIn($x, $t2, $ty)"))
+                    (false, ErrorJudgment(c,
+                    s"Could not infer type for ${termDerivation(e)} with InferIntersectionInstantiation: error in letIn($x, ${termDerivation(t2)}, ${typeDerivation(ty)})."))
                   case Some(t) =>
                     (true, InferJudgment(c, e, Some(t)))
                 }
-              case _ => (false, ErrorJudgment(c, s"Expecting an intersection type for $t1, found $ty."))
+              case _ => (false, ErrorJudgment(c,
+              s"Could not infer type for ${termDerivation(e)} with InferIntersectionInstantiation: expecting an intersection type for ${termDerivation(t1)}, found ${typeDerivation(ty)}."))
             }
 
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferIntersectionInstantiation."))
         }
       ))
 
@@ -702,10 +836,10 @@ object Rule {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
           dropRefinements(ty) match {
             case PiType(ty2, Bind(_, _)) => CheckGoal(c0, t2, ty2)
-            case _ => ErrorGoal(c, s"Expecting a pi type for $t1, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a pi type for ${termDerivation(t1)}, found ${typeDerivation(ty)}.")
           }
         case _ =>
-         ErrorGoal(c, s"Could not infer a type for $t1.")
+         ErrorGoal(c, s"Could not infer a type for ${termDerivation(t1)}.")
       }
       Some((
         List(_ => g1, fg2), {
@@ -714,14 +848,15 @@ object Rule {
             dropRefinements(ty) match {
               case PiType(_, Bind(x, ty)) =>
                 TypeOperators.letIn(x, None(), t2, ty) match {
-                  case None() => (false, ErrorJudgment(c, s"Error in letIn($x, $t2, $ty)"))
+                  case None() => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferApp: error in letIn($x, ${termDerivation(t2)}, ${typeDerivation(ty)})."))
                   case Some(t) =>
                     (true, InferJudgment(c, e, Some(t)))
                 }
-              case _ => (false, ErrorJudgment(c, s"Expecting a pi type for $t1, found $ty."))
+              case _ => (false, ErrorJudgment(c,
+                s"Could not infer type for ${termDerivation(e)} with InferApp: expecting a pi type for ${termDerivation(t1)}, found ${typeDerivation(ty)}."))
             }
 
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferApp."))
         }
       ))
 
@@ -756,14 +891,13 @@ object Rule {
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckRefinement : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val checkTy = CheckGoal(c.incrementLevel, t, ty)
       val c1 = c.bind(id, ty).addEquality(Var(id), t)
-      val checkB = CheckGoal(c1.incrementLevel, b, BoolType)
       val checkRef = EqualityGoal(c1.incrementLevel, b, BoolLiteral(true))
       Some((
-        List(_ => checkTy, _ => checkB, _ => checkRef), {
-          case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _))) =>
+        List(_ => checkTy, _ => checkRef), {
+          case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(tpe)} with CheckRefinement."))
         }
       ))
 
@@ -779,9 +913,9 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) if (dropRefinements(tpe) == ty) =>
             (true, CheckJudgment(c, t, ty))
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
-            (false, ErrorJudgment(c, s"Expecting type $ty for $t, found $tpe"))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(ty)} with CheckReflexive: infer ${typeDerivation(tpe)}."))
           case _ =>
-            (false, ErrorJudgment(c, s"Could not infer a type for $t"))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(ty)} with CheckReflexive: no type infer."))
         }
       ))
     case g =>
@@ -806,7 +940,7 @@ object Rule {
             val inferedType = SigmaType(ty1, Bind(Identifier(0, "X"), ty2))
             (true, InferJudgment(c, e, Some(inferedType)))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferPair."))
         }
       ))
     case g =>
@@ -822,7 +956,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(SigmaType(ty, _))), _) =>
             (true, InferJudgment(c, e, Some(ty)))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferFirst."))
         }
       ))
     case g =>
@@ -837,11 +971,12 @@ object Rule {
         {
           case Cons(InferJudgment(_, _, Some(SigmaType(_, Bind(x, ty)))), _) =>
             TypeOperators.letIn(x, None(), First(t), ty) match {
-                  case None() => (false, ErrorJudgment(c, s"Error in letIn($x, ${First(t)}, $ty)"))
+                  case None() => (false, ErrorJudgment(c,
+                    s"Could not infer type for ${termDerivation(e)} with InferSecond: error in letIn($x, ${termDerivation(First(t))}, ${typeDerivation(ty)})"))
                   case Some(t) => (true, InferJudgment(c, e, Some(t)))
                 }
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferSecond."))
         }
       ))
     case g =>
@@ -857,7 +992,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(tpe, BottomType))))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferLeft."))
         }
       ))
     case g =>
@@ -873,7 +1008,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(SumType(BottomType, tpe))))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferRight."))
         }
       ))
     case g =>
@@ -889,7 +1024,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, e, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(tpe)} with CheckLeft."))
         }
       ))
     case g =>
@@ -905,7 +1040,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, e, tpe))
           case _ =>
-            (false, ErrorJudgment(c, t))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(tpe)} with CheckRight."))
         }
       ))
     case g =>
@@ -922,7 +1057,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, e, tpe))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(tpe)} with CheckLambda."))
         }
       ))
     case g =>
@@ -939,7 +1074,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, e, tpe))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(tpe)} with CheckPi."))
         }
       ))
     case g =>
@@ -965,7 +1100,7 @@ object Rule {
           ))) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(ty)} with CheckIf."))
         }
       ))
 
@@ -988,7 +1123,7 @@ object Rule {
             Cons(CheckJudgment(_, _, _), _
           ))) =>
             (true, CheckJudgment(c, e, ty))
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(ty)} with CheckMatch."))
         }
       ))
 
@@ -1006,9 +1141,9 @@ object Rule {
             case SumType(ty1, ty2) =>
               val c1 = c0.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
               CheckGoal(c1, t1, tpe)
-            case _ => ErrorGoal(c, s"Expecting a sum type for $t, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
           }
-        case _ => ErrorGoal(c, s"Could not infer a type for $t.")
+        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}.")
       }
       val fcheckT2: List[Judgment] => Goal = {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
@@ -1016,9 +1151,9 @@ object Rule {
             case SumType(ty1, ty2) =>
               val c2 = c0.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
               CheckGoal(c2, t2, tpe)
-            case _ => ErrorGoal(c, s"Expecting a sum type for $t, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a sum type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
           }
-        case _ => ErrorGoal(c, s"Could not infer a type for $t.")
+        case _ => ErrorGoal(c, s"Could not infer a type for ${termDerivation(t)}.")
       }
       Some((
         List(_ => inferScrutinee, fcheckT1, fcheckT2), {
@@ -1028,7 +1163,7 @@ object Rule {
           ))) =>
             (true, CheckJudgment(c, e, tpe))
 
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(tpe)} with CheckEitherMatch."))
         }
       ))
 
@@ -1045,7 +1180,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(ty)} with CheckPair."))
         }
       ))
     case g =>
@@ -1063,7 +1198,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(tpe)} with CheckSigma."))
         }
       ))
     case g =>
@@ -1080,7 +1215,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(tpe)} with CheckIntersection."))
         }
       ))
     case g =>
@@ -1097,7 +1232,7 @@ object Rule {
             val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel()
             CheckGoal(c1, body, ty)
           case _ =>
-            ErrorGoal(c, s"Could not infer type for $v")
+            ErrorGoal(c, s"Could not infer type for ${termDerivation(v)}")
         }
       Some((
         List(_ => gv, fgb),
@@ -1105,7 +1240,7 @@ object Rule {
           case Cons(_, Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(ty)} with CheckLet."))
         }
       ))
 
@@ -1120,7 +1255,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _)) =>
             (true, CheckJudgment(c, e, ty))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(e)} has type ${typeDerivation(ty)} with CheckLet."))
         }
       ))
 
@@ -1148,11 +1283,19 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), Cons(CheckJudgment(_, _, _), _))) =>
             (true, InferJudgment(c, e, Some(tpe)))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferFold."))
         }
       ))
     case g =>
       None()
+  }
+
+  val InferFoldFail = Rule {
+    case g @ InferGoal(c, e @ Fold(None(), t)) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferFoldFail : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      Some((List(), _ => (false, ErrorJudgment(c, s"Could not infer a type for fold without annotation ${termDerivation(e)}"))))
+
+    case _ => None()
   }
 
   val CheckRecursive = Rule {
@@ -1165,10 +1308,10 @@ object Rule {
             dropRefinements(ty) match {
               case RecType(n2, Bind(b, ty2)) =>
                 EqualityGoal(c.incrementLevel, n, n2)
-              case _ => ErrorGoal(c, s"Expecting a rec type for $t, found $ty.")
+              case _ => ErrorGoal(c, s"Expecting a rec type for ${termDerivation(t)}, found ${typeDerivation(ty)}.")
             }
           case _ =>
-            ErrorGoal(c, s"Could not infer type for $t")
+            ErrorGoal(c, s"Could not infer type for ${termDerivation(t)}")
         }
       Some((
         List(_ => subgoal, fEquality),
@@ -1176,7 +1319,7 @@ object Rule {
           case Cons(InferJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(t)} with CheckRec."))
         }
       ))
 
@@ -1192,7 +1335,7 @@ object Rule {
           case Cons(InferJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, t, TopType))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(TopType)} with CheckTop2."))
         }
       ))
     case g =>
@@ -1225,10 +1368,10 @@ object Rule {
               val nTy = tpe.replace(a, ty)
               val c1 = c0.bind(x, nTy).addEquality(t1, Fold(Some(ty), Var(x)))
               InferGoal(c1, t2)
-            case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a rec type for ${termDerivation(t1)}, found ${typeDerivation(ty)}.")
           }
         case _ =>
-         ErrorGoal(c, s"Could not infer a type for $t1.")
+         ErrorGoal(c, s"Could not infer a type for ${termDerivation(t1)}.")
       }
       val fg3: List[Judgment] => Goal = {
         case Cons(InferJudgment(_, _, Some(ty)), _) =>
@@ -1242,10 +1385,10 @@ object Rule {
               InferGoal(c2, t2)
             case ty @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, _)))) =>
               InferGoal(c0, BoolLiteral(true))
-            case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a rec type for ${termDerivation(t1)}, found ${typeDerivation(ty)}.")
           }
         case _ =>
-          ErrorGoal(c, s"Could not infer a type for $t1.")
+          ErrorGoal(c, s"Could not infer a type for ${termDerivation(t1)}.")
       }
       Some((
         List(_ => g1, fg2, fg3), {
@@ -1254,16 +1397,15 @@ object Rule {
             Cons(InferJudgment(_, _, Some(ty2)), _))) =>
             dropRefinements(ty) match {
               case RecType(n, Bind(x, ty)) =>
-                if(ty1.isEvidentSubType(ty2)) (true, InferJudgment(c, e, Some(ty1)))
-                else if(ty2.isEvidentSubType(ty1)) (true, InferJudgment(c, e, Some(ty2)))
-                //if(ty1 == ty2) (true, InferJudgment(c, e, Some(ty1)))
-                else (false, ErrorJudgment(c, g))
+                if(ty1.isEqual(ty2)) (true, InferJudgment(c, e, Some(ty1)))
+                else (false, ErrorJudgment(c,
+                  s"Could not infer type for ${termDerivation(e)} with InferFold: ${typeDerivation(ty1)} not equal to ${typeDerivation(ty2)}."))
               case IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty)))) =>
                 if(TypeOperators.spos(a, ty)) (true, InferJudgment(c, e, Some(ty1)))
-                else (false, ErrorJudgment(c, s"$a does not appears strictly positively in $ty"))
-              case _ => (false, ErrorJudgment(c, s"Expecting a rec type for $t1, found $ty."))
+                else (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferUnFold: $a does not appears strictly positively in ${typeDerivation(ty)}"))
+              case _ => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferUnFold: expecting a rec type for ${termDerivation(t1)}, found ${typeDerivation(ty)}."))
             }
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferUnFold."))
         }
       ))
 
@@ -1285,17 +1427,17 @@ object Rule {
                 Fold(Some(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty))), Var(x))
               ).bind(x, nTy)
               InferGoal(c2, t2)
-            case _ => ErrorGoal(c, s"Expecting a rec type for $t1, found $ty.")
+            case _ => ErrorGoal(c, s"Expecting a rec type for ${termDerivation(t1)}, found ${typeDerivation(ty)}.")
           }
         case _ =>
-          ErrorGoal(c, s"Could not infer a type for $t1.")
+          ErrorGoal(c, s"Could not infer a type for ${termDerivation(t1)}.")
       }
       Some((
         List(_ => g1, fg3), {
           case Cons(InferJudgment(_, _, _),
             Cons(InferJudgment(_, _, Some(ty2)), _)) =>
             (true, InferJudgment(c, e, Some(ty2)))
-          case _ => (false, ErrorJudgment(c, g))
+          case _ => (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferUnFold."))
         }
       ))
 
@@ -1312,7 +1454,7 @@ object Rule {
           case Cons(InferJudgment(_, _, Some(tpe)), _) =>
             (true, InferJudgment(c, e, Some(PolyForallType(Bind(a, tpe)))))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferTypeAbs."))
         }
       ))
     case g =>
@@ -1328,8 +1470,11 @@ object Rule {
         {
           case Cons(InferJudgment(_, _, Some(PolyForallType(Bind(x, tpe)))), _) =>
             (true, InferJudgment(c, e, Some(tpe.replace(x, ty))))
+          case Cons(InferJudgment(_, _, Some(ty)), _) =>
+            (false, ErrorJudgment(c,
+              s"Could not infer type for ${termDerivation(e)} with InferTypeApp: expecting poly forall type for ${termDerivation(t)}, found ${typeDerivation(ty)}."))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferTypeApp."))
         }
       ))
     case g =>
@@ -1346,7 +1491,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) =>
             (true, CheckJudgment(c, t, tpe))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check ${termDerivation(t)} has type ${typeDerivation(tpe)} with CheckTypeAbs."))
         }
       ))
     case g =>
@@ -1374,7 +1519,8 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
-            (false, ErrorJudgment(c, s"Could not prove equality between $t1 and $t2."))
+            (false, ErrorJudgment(c,
+            s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)} with NewUseContextEqualities."))
         }
       ))
     case g =>
@@ -1406,23 +1552,23 @@ object Rule {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)} with NewUnfoldRefinementInContext."))
         }
       ))
     case g =>
       None()
   }
 
-  val NewApplyApp = Rule {
-    case g @ EqualityGoal(c, t1, t2) if g.hasEasySubstitution =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyApp: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val subgoal =  g.applyEasySubstitution
+  val NewApplyValueSimplification = Rule {
+    case g @ EqualityGoal(c, t1, t2) if g.hasValueSimplification =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} ApplyValueSimplification: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal =  g.applyValueSimplification
       Some((List(_ => subgoal),
         {
           case Cons(AreEqualJudgment(_, _, _, b), _) =>
             (true, AreEqualJudgment(c, t1, t2, ""))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)} with NewApplyValueSimplification."))
         }
       ))
     case g =>
@@ -1441,7 +1587,7 @@ object Rule {
           case Cons(CheckJudgment(_, _, _), _) if TypeOperators.spos(a, ty) =>
             (true, InferJudgment(c, e, Some(tpe)))
           case _ =>
-            (false, ErrorJudgment(c, g))
+            (false, ErrorJudgment(c, s"Could not infer type for ${termDerivation(e)} with InferUnFoldGen."))
         }
       ))
     case g =>
@@ -1455,6 +1601,22 @@ object Rule {
       Some((List(),
         {
           case _ => (true, AreEqualJudgment(c, t1, t2, "By Assumption"))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+  val NewApplyTopLevelSimplification = Rule {
+    case g @ EqualityGoal(c, t1, t2) if g.hasTopLevelSimplification =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewApplyTopLevelSimplification : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = g.applyTopLevelSimplification
+      Some((List(_ => subgoal),
+        {
+          case Cons(AreEqualJudgment(_, _, _, b), _) =>
+            (true, AreEqualJudgment(c, t1, t2, ""))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)} with NewApplyTopLevelSimplification."))
         }
       ))
     case g =>
@@ -1610,8 +1772,8 @@ object Rule {
       z3.delete
 
       solverResponse match {
-        case scala.None => Some((List(), _ => (false, ErrorJudgment(c, "Failure in Z3"))))
-        case scala.Some(true) => Some((List(), _ => (false, ErrorJudgment(c, s"Z3 found a counter-example: $modelString"))))
+        case scala.None => Some((List(), _ => (false, ErrorJudgment(c, s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)}: Failure in Z3."))))
+        case scala.Some(true) => Some((List(), _ => (false, ErrorJudgment(c, s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)}: Z3 found a counter-example: $modelString."))))
         case scala.Some(false) => Some((List(), _ => (true, AreEqualJudgment(c, t1, t2, "Validated by Z3"))))
       }
 
@@ -1655,13 +1817,14 @@ object TypeChecker {
     InferUnaryPrimitive.t ||
     InferMatch.t ||
     InferEitherMatch.t ||
-    InferFix.t ||
+    InferFix.t || InferFixFail.t ||
     InferTypeAbs.t ||
     InferTypeApp.t ||
     InferForallInstantiation.t ||
     InferFold.t ||
     InferUnfold.t || NewInferUnfoldPositive.t ||
     InferFoldGen.t ||
+    CheckVar.t ||
     CheckIf.t ||
     CheckMatch.t ||
     CheckEitherMatch.t ||
@@ -1680,7 +1843,8 @@ object TypeChecker {
     NewEqualityInContext.t ||
     NewUnfoldRefinementInContext.t ||
     NewUseContextEqualities.t ||
-    NewApplyApp.t ||
+    NewApplyValueSimplification.t ||
+    NewApplyTopLevelSimplification.t ||
     NewZ3ArithmeticSolver.t ||
     UnsafeIgnoreEquality.t ||
     CatchErrorGoal.t ||
@@ -1693,6 +1857,11 @@ object TypeChecker {
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context(List(), Map(), Set(), List(), max, 0), t)
+    tactic.apply(g, sg => None())
+  }
+
+  def inferInContext(c: Context, t: Tree) = {
+    val g = InferGoal(c, t)
     tactic.apply(g, sg => None())
   }
 

@@ -336,6 +336,7 @@ object Tree {
 
       case BottomTree => BottomTree
       case BottomType => BottomType
+      case TopType => TopType
 
       case _ => throw new java.lang.Exception(s"Function replace is not implemented on $body (${body.getClass}).")
     }
@@ -476,80 +477,80 @@ object Tree {
     }
   }
 
-  def hasEasySubstitution(t: Tree): Boolean = {
+  def hasValueSimplification(t: Tree): Boolean = {
     t match {
       case IfThenElse(BoolLiteral(_), t1, t2) => true
       case IfThenElse(cond, t1, t2) =>
-        hasEasySubstitution(cond) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case App(Lambda(_, _), _) => true
-      case App(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case Pair(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case First(Pair(_, _)) => true
-      case Second(Pair(_, _)) => true
-      case First(t) => hasEasySubstitution(t)
-      case Second(t) => hasEasySubstitution(t)
-      case LeftTree(t) => hasEasySubstitution(t)
-      case RightTree(t) => hasEasySubstitution(t)
-      case Because(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case Bind(_, t) => hasEasySubstitution(t)
-      case Lambda(_, t) => hasEasySubstitution(t)
-      case Fix(_, t) => hasEasySubstitution(t)
-      case LetIn(_, t1, t2) => true
+        hasValueSimplification(cond) || hasValueSimplification(t1) || hasValueSimplification(t2)
+      case App(Lambda(_, _), t2) if t2.isValue => true
+      case App(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
+      case Pair(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
+      case First(Pair(t1, t2)) if t1.isValue && t2.isValue => true
+      case Second(Pair(t1, t2)) if t1.isValue && t2.isValue => true
+      case First(t) => hasValueSimplification(t)
+      case Second(t) => hasValueSimplification(t)
+      case LeftTree(t) => hasValueSimplification(t)
+      case RightTree(t) => hasValueSimplification(t)
+      case Because(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
+      case Bind(_, t) => hasValueSimplification(t)
+      case Lambda(_, t) => hasValueSimplification(t)
+      case Fix(_, t) => hasValueSimplification(t)
+      case LetIn(_, t1, t2) if t1.isValue => true
       case Match(NatLiteral(_), t1, t2) => true
-      case Match(t, t1, t2) => hasEasySubstitution(t) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case EitherMatch(LeftTree(_), _, _) => true
-      case EitherMatch(RightTree(_), _, _) => true
-      case EitherMatch(t, t1, t2) => hasEasySubstitution(t) || hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case Primitive(op, args) => args.exists(hasEasySubstitution(_))
-      case Inst(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case Fold(_, t) => hasEasySubstitution(t)
-      case Unfold(Fold(_, t1), t2) => true
-      case UnfoldPositive(Fold(_, t1), t2) => true
-      case Unfold(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case UnfoldPositive(t1, t2) => hasEasySubstitution(t1) || hasEasySubstitution(t2)
-      case Abs(t) => hasEasySubstitution(t)
+      case Match(t, t1, t2) => hasValueSimplification(t) || hasValueSimplification(t1) || hasValueSimplification(t2)
+      case EitherMatch(LeftTree(t), _, _) if t.isValue => true
+      case EitherMatch(RightTree(t), _, _) if t.isValue => true
+      case EitherMatch(t, t1, t2) => hasValueSimplification(t) || hasValueSimplification(t1) || hasValueSimplification(t2)
+      case Primitive(op, args) => args.exists(hasValueSimplification(_))
+      case Inst(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
+      case Fold(_, t) => hasValueSimplification(t)
+      case Unfold(Fold(_, t1), t2) if t1.isValue => true
+      case UnfoldPositive(Fold(_, t1), t2) if t1.isValue => true
+      case Unfold(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
+      case UnfoldPositive(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
+      case Abs(t) => hasValueSimplification(t)
       case TypeApp(Abs(_), _) => true
-      case TypeApp(t, _) => hasEasySubstitution(t)
+      case TypeApp(t, _) => hasValueSimplification(t)
       case _ => false
     }
   }
 
-  def applyEasySubstitution(t: Tree): Tree = {
+  def applyValueSimplification(t: Tree): Tree = {
     t match {
       case IfThenElse(BoolLiteral(true), t1, t2) => t1
       case IfThenElse(BoolLiteral(false), t1, t2) => t2
       case IfThenElse(cond, t1, t2) =>
-        IfThenElse(applyEasySubstitution(cond), applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case App(Lambda(_, bind), t) => replaceBind(bind, t)
-      case App(t1, t2) => App(applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case Pair(t1, t2) => Pair(applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case First(Pair(t1, t2)) => applyEasySubstitution(t1)
-      case Second(Pair(t1, t2)) => applyEasySubstitution(t2)
-      case First(t) => First(applyEasySubstitution(t))
-      case Second(t) => Second(applyEasySubstitution(t))
-      case LeftTree(t) => LeftTree(applyEasySubstitution(t))
-      case RightTree(t) => RightTree(applyEasySubstitution(t))
-      case Because(t1, t2) => Because(applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case Bind(x, t) => Bind(x, applyEasySubstitution(t))
-      case Lambda(tp, t) => Lambda(tp, applyEasySubstitution(t))
-      case Fix(tp, t) => Fix(tp, applyEasySubstitution(t))
-      case LetIn(tp, t1, t2) => replaceBind(applyEasySubstitution(t2), t1)
+        IfThenElse(applyValueSimplification(cond), applyValueSimplification(t1), applyValueSimplification(t2))
+      case App(Lambda(_, bind), t2) if t2.isValue => replaceBind(bind, t2)
+      case App(t1, t2) => App(applyValueSimplification(t1), applyValueSimplification(t2))
+      case Pair(t1, t2) => Pair(applyValueSimplification(t1), applyValueSimplification(t2))
+      case First(Pair(t1, t2)) if t1.isValue && t2.isValue => applyValueSimplification(t1)
+      case Second(Pair(t1, t2)) if t1.isValue && t2.isValue => applyValueSimplification(t2)
+      case First(t) => First(applyValueSimplification(t))
+      case Second(t) => Second(applyValueSimplification(t))
+      case LeftTree(t) => LeftTree(applyValueSimplification(t))
+      case RightTree(t) => RightTree(applyValueSimplification(t))
+      case Because(t1, t2) => Because(applyValueSimplification(t1), applyValueSimplification(t2))
+      case Bind(x, t) => Bind(x, applyValueSimplification(t))
+      case Lambda(tp, t) => Lambda(tp, applyValueSimplification(t))
+      case Fix(tp, t) => Fix(tp, applyValueSimplification(t))
+      case LetIn(tp, t1, t2) if t1.isValue => replaceBind(applyValueSimplification(t2), applyValueSimplification(t1))
       case Match(NatLiteral(BigInt(0)), t1, _) => t1
       case Match(NatLiteral(n), _, bind) => replaceBind(bind, NatLiteral(n - 1))
-      case Match(t, t1, t2) => Match(applyEasySubstitution(t), applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case EitherMatch(LeftTree(t), bind1, _) => replaceBind(bind1, t)
-      case EitherMatch(RightTree(t), _, bind2) => replaceBind(bind2, t)
-      case EitherMatch(t, t1, t2) => EitherMatch(applyEasySubstitution(t), applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case Primitive(op, args) => Primitive(op, args.map(applyEasySubstitution(_)))
-      case Inst(t1, t2) => Inst(applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case Fold(tp, t) => Fold(tp, applyEasySubstitution(t))
-      case Unfold(Fold(_, t1), bind) => replaceBind(bind, t1)
-      case UnfoldPositive(Fold(_, t1), bind) => replaceBind(bind, t1)
-      case Unfold(t1, t2) => Unfold(applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case UnfoldPositive(t1, t2) => UnfoldPositive(applyEasySubstitution(t1), applyEasySubstitution(t2))
-      case Abs(t) => Abs(applyEasySubstitution(t))
+      case Match(t, t1, t2) => Match(applyValueSimplification(t), applyValueSimplification(t1), applyValueSimplification(t2))
+      case EitherMatch(LeftTree(t), bind1, _) if t.isValue => replaceBind(bind1, applyValueSimplification(t))
+      case EitherMatch(RightTree(t), _, bind2) if t.isValue => replaceBind(bind2, applyValueSimplification(t))
+      case EitherMatch(t, t1, t2) => EitherMatch(applyValueSimplification(t), applyValueSimplification(t1), applyValueSimplification(t2))
+      case Primitive(op, args) => Primitive(op, args.map(applyValueSimplification(_)))
+      case Inst(t1, t2) => Inst(applyValueSimplification(t1), applyValueSimplification(t2))
+      case Fold(tp, t) => Fold(tp, applyValueSimplification(t))
+      case Unfold(Fold(_, t1), bind) if t1.isValue => replaceBind(bind, t1)
+      case UnfoldPositive(Fold(_, t1), bind) if t1.isValue => replaceBind(bind, t1)
+      case Unfold(t1, t2) => Unfold(applyValueSimplification(t1), applyValueSimplification(t2))
+      case UnfoldPositive(t1, t2) => UnfoldPositive(applyValueSimplification(t1), applyValueSimplification(t2))
+      case Abs(t) => Abs(applyValueSimplification(t))
       case TypeApp(Abs(t), _) => t
-      case TypeApp(t, ty) => TypeApp(applyEasySubstitution(t), ty)
+      case TypeApp(t, ty) => TypeApp(applyValueSimplification(t), ty)
       case t => t
     }
   }
@@ -615,9 +616,9 @@ sealed abstract class Tree {
 
   def erase(): Tree = Tree.erase(this)
 
-  def hasEasySubstitution: Boolean = Tree.hasEasySubstitution(this)
+  def hasValueSimplification: Boolean = Tree.hasValueSimplification(this)
 
-  def applyEasySubstitution: Tree = Tree.applyEasySubstitution(this)
+  def applyValueSimplification: Tree = Tree.applyValueSimplification(this)
 }
 
 case class Var(id: Identifier) extends Tree {
