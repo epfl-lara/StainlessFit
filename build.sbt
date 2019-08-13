@@ -34,6 +34,6 @@ lazy val verified = project
   .settings(
     name := "stainlesscore-verified",
     Compile / unmanagedJars += {
-      baseDirectory.value / "unmanaged" / "scalaz3-unix-64-2.12.jar"
+      (ThisBuild / baseDirectory).value / "unmanaged" / s"scalaz3-${OS.name}-${OS.arch}-${scalaBinaryVersion.value}.jar"
     }
   )
