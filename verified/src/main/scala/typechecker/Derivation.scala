@@ -85,6 +85,7 @@ object Derivation {
     fw.write("<meta charset=\"UTF-8\">\n")
     // fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
+    fw.write("<style>body { font-family: \"Fira Code\", Menlo, Monaco, monospace }</style>\n")
     fw.write("</head>\n\n")
     fw.write("<body>\n")
     fw.write("""<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>""")
