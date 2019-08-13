@@ -469,9 +469,10 @@ object Rule {
   private def termDerivation(t: Tree): String =
     Derivation.termColor(Derivation.shortString(t.toString))
 
-
   private def typeDerivation(t: Tree): String =
     Derivation.typeColor(Derivation.shortString(t.toString))
+
+  private def bold(s: String): String = Derivation.bold(s)
 
   val InferBool = Rule {
     case g @ InferGoal(c, BoolLiteral(b)) =>
@@ -867,7 +868,7 @@ object Rule {
     case g @ EqualityGoal(c, t1, t2) =>
       TypeChecker.equalityDebug(s"Context:\n${c}\n")
       TypeChecker.equalityDebug(s"Ignoring equality ${t1} = ${t2}.\n\n")
-      Some(List(), _ => (false, AreEqualJudgment(c, t1, t2, "IGNORED")))
+      Some(List(), _ => (false, ErrorJudgment(c, s"Equality between ${termDerivation(t1)} and ${termDerivation(t2)} ${bold("IGNORED")}.")))
     case g =>
       None()
   }

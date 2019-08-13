@@ -15,6 +15,9 @@ def h(x: Unit) = {
 
 def badDef(x: {x: Nat, x < Second((fix[n => Nat => Nat](fac => fun (y: Nat) => { fac(y) }), 2))}): Nat = { 2 }
 
+
+def F (x: Rec(Second((fix(div => div), 0)))(a => Nat)): Rec(0)(a => Nat) = { x }
+
 val div = fun (x: Unit) => {fix(div => div) } in
 
 val q: Nat = h() in

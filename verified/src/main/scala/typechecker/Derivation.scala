@@ -14,6 +14,7 @@ object Derivation {
   def color(c: String, s: String) = s"<span style='color:$c'>$s</span>"
   def termColor(s: String) = color("#007c46", s)
   def typeColor(s: String) = color("#9b2600", s)
+  def bold(s: String) = s"<b>$s</b>"
 
   sealed abstract class Judgment {
     val c: Context
@@ -39,7 +40,7 @@ object Derivation {
 
   case class AreEqualJudgment(override val c: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
     override def toString = {
-      s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))} <b>$s</b>"
+      s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))} ${bold(s)}"
     }
   }
 
