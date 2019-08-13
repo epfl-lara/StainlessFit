@@ -16,15 +16,24 @@ ThisBuild / scalacOptions ++= Seq(
   "-feature"
 )
 
+lazy val cli = project
+  .in(file("cli"))
+  .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
+  .settings(
+    name := "stainlesscore-cli",
+    libraryDependencies ++= Seq(
+      "com.github.scopt" %% "scopt" % "4.0.0-RC2",
+    ),
+  )
+  .dependsOn(core)
+
 lazy val core = project
   .in(file("core"))
-  .enablePlugins(JavaAppPackaging)
   .settings(
     name := "stainlesscore",
     libraryDependencies ++= Seq(
-      "ch.epfl.lara"     %% "scallion"  % "0.1",
-      "com.github.scopt" %% "scopt"     % "4.0.0-RC2",
-      "org.scalatest"    %% "scalatest" % "3.0.8" % "test",
+      "ch.epfl.lara"  %% "scallion"  % "0.1",
+      "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     ),
   )
   .dependsOn(verified)
