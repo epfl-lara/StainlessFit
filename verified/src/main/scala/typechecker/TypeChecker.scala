@@ -38,6 +38,10 @@ case class Context(
 
   def incrementLevel() = copy(level = level + 1)
 
+  def containsVarOfType(tp: Tree): Boolean = variables.exists(termVariables(_) == tp)
+
+  def getVarOfType(tp: Tree): Option[Identifier] = variables.find(termVariables(_) == tp)
+
   override def toString: String = {
     "Term equalities:\n" ++
     termEqualities.foldLeft("") {
@@ -1788,6 +1792,93 @@ object Rule {
     case g =>
       None()
   }
+
+
+  val NewSyntheseUnit = Rule {
+    case g @ SynthesizeGoal(c, UnitType) =>
+      Some((List(), _ => (true, SyntheseJudgment(c, UnitType, UnitLiteral))))
+    case g =>
+      None()
+  }
+
+  val NewSyntheseBool = Rule {
+    case g @ SynthesizeGoal(c, BoolType) =>
+      Some((List(), _ => (true, SyntheseJudgment(c, BoolType, BoolLiteral(true)))))
+    case g =>
+      None()
+  }
+
+  val NewSyntheseNat = Rule {
+    case g @ SynthesizeGoal(c, NatType) =>
+      Some((List(), _ => (true, SyntheseJudgment(c, NatType, NatLiteral(0)))))
+    case g =>
+      None()
+  }
+
+  val NewSyntheseVar = Rule {
+    case g @ SynthesizeGoal(c, tp) if c.containsVarOfType(tp) =>
+      Some((List(), _ => (true, SyntheseJudgment(c, NatType, Var(c.getVarOfType(tp).get)))))
+    case g =>
+      None()
+  }
+
+  val NewSynthesePi = Rule {
+    case g @ SynthesizeGoal(c, tp @ PiType(tyX, Bind(x, ty))) =>
+      val c1 = c.bind(x, tyX).incrementLevel
+      val gb = SynthesizeGoal(c, ty)
+      Some((
+        List(_ => gb),
+        {
+          case Cons(SyntheseJudgment(_, _, t), _) =>
+            (true, SyntheseJudgment(c, tp, Lambda(Some(tyX), Bind(x, t))))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not synthesize term of type ${typeDerivation(tp)}."))
+        }
+      ))
+    case _ => None()
+  }
+
+  val NewSyntheseSigma = Rule {
+    case g @ SynthesizeGoal(c, tp @ SigmaType(ty1, Bind(id, ty2))) =>
+      val g1 = SynthesizeGoal(c.incrementLevel, ty1)
+      val fg2: List[Judgment] => Goal = {
+        case Cons(SyntheseJudgment(_, _, t1), _) =>
+          val c1 = c.incrementLevel.bind(id, t1)
+          SynthesizeGoal(c1, ty2)
+        case _ =>
+          ErrorGoal(c, s"Could not synthesize term of type ${typeDerivation(ty1)}.")
+      }
+      Some((
+        List(_ => g1, fg2),
+        {
+          case Cons(SyntheseJudgment(_, _, t1), Cons(SyntheseJudgment(_, _, t2), _)) =>
+            (true, SyntheseJudgment(c, tp, Pair(t1, t2)))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not synthesize term of type ${typeDerivation(tp)}."))
+        }
+      ))
+    case _ => None()
+  }
+
+  val NewSyntheseSum = Rule {
+    case g @ SynthesizeGoal(c, tp @ SumType(ty1, ty2)) =>
+      val g1 = SynthesizeGoal(c.incrementLevel, ty1)
+      val g2 = SynthesizeGoal(c.incrementLevel, ty1)
+      Some((
+        List(_ => g1, _ => g2),
+        {
+          case Cons(SyntheseJudgment(_, _, t1), _) =>
+            (true, SyntheseJudgment(c, tp, LeftTree(t1)))
+          case Cons(_, Cons(SyntheseJudgment(_, _, t2), _)) =>
+            (true, SyntheseJudgment(c, tp, RightTree(t2)))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not synthesize term of type ${typeDerivation(tp)}."))
+        }
+      ))
+    case _ => None()
+  }
+
+
 }
 
 

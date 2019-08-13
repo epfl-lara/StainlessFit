@@ -48,6 +48,13 @@ object Derivation {
     override def toString = s"⊢ error: $error"
   }
 
+  case class SyntheseJudgment(override val c: Context, tp: Tree, t: Tree) extends Judgment {
+    override def toString = {
+      s"⊢ Synthesize ${typeColor(shortString(t.toString))} for type ${typeColor(shortString(tp.toString))}"
+    }
+  }
+
+
   case class FileJudgment(override val c: Context, s: String) extends Judgment {
     override def toString = s"⊢ File ${typeColor(shortString(s))}"
   }
