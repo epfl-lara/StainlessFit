@@ -15,9 +15,9 @@ object Core {
 
   val assertFun = """def assert(b: {b: Bool, b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
 
-  def parseFile(f: File): Either[String, Tree] = {
+  def parseFile(f: File, functions: List[String] = List(assertFun)): Either[String, Tree] = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val it = (assertFun + s).toIterator
+    val it = (functions.foldLeft("")(_ + _) + s).toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         Right(value)
@@ -39,7 +39,7 @@ object Core {
     }
 
   def typeCheckFile(f: File): Either[String, (Boolean, NodeTree[Judgment])] = {
-    parseFile(f) flatMap { src =>
+    parseFile(f, List()) flatMap { src =>
       val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
       TypeChecker.infer(t, max) match {
         case None() => Left(s"Could not type check: $f")
