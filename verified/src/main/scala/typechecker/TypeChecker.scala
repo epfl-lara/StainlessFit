@@ -1943,7 +1943,7 @@ object TypeChecker {
   val zdebug = false
 
   def infer(t: Tree, max: Int) = {
-    val g = InferGoal(Context(List(), Map(), Set(), List(), max, 0), t)
+    val g = InferGoal(Context(List(), Map(), Set(), List(), 0, max), t)
     tactic.apply(g, sg => None())
   }
 
