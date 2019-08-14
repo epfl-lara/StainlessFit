@@ -303,7 +303,9 @@ object Tree {
       case RightTree(t) => RightTree(replace(xvar, v, t))
       case Because(t1, t2) => Because(replace(xvar, v, t1), replace(xvar, v, t2))
       case Bind(yvar, e) if (xvar == yvar) => body
-      case Bind(yvar, e) => Bind(yvar, replace(xvar, v, e))
+      case Bind(yvar, e) =>
+        assert(!yvar.isFreeIn(body))
+        Bind(yvar, replace(xvar, v, e))
       case Lambda(None(), bind) => Lambda(None(), replace(xvar, v, bind))
       case Lambda(Some(tp), bind) => Lambda(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
       case Fix(None(), bind) => Fix(None(), replace(xvar, v, bind))
