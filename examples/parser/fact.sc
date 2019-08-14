@@ -1,3 +1,5 @@
+Include("examples/assert.sc")
+
 val fact = fix[n => Nat => Nat](fac =>
   fun (m: Nat) => {
       if(m == 0) 1

@@ -811,7 +811,7 @@ case class Fold(tp: Option[Tree], t: Tree) extends Tree {
       case Some(ty) => "[" + ty.toString + "]"
       case _ => ""
     }
-    "Fold(" + typeString + t.toString
+    "Fold(" + typeString + t.toString + ")"
   }
 }
 

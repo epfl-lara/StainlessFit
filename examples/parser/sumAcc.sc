@@ -1,3 +1,5 @@
+Include("examples/assert.sc")
+
 val sumAcc = fix[o => Nat](sumAcc =>
   fun (acc : Nat) => {
     fun (v : Unit + Nat) => {

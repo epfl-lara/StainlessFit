@@ -1,3 +1,5 @@
+Include("examples/assert.sc")
+
 val x = (
   val x = 5 in
   def f(x: Nat): Nat = { 2 * x }

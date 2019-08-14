@@ -1,3 +1,5 @@
+Include("examples/assert.sc")
+
 def f(x: Nat): Nat = {
   if(x > 2) { x - 2} else { x + 2 }
 }

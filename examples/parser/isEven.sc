@@ -1,3 +1,5 @@
+Include("examples/assert.sc")
+
 val oddEven = fix[n => (Nat => Nat => Bool)](oddEven =>
   fun(p: Nat) => {
     if(p == 0) { fun(x: Nat) => { if(x == 0) true else oddEven 1 (x - 1) } }

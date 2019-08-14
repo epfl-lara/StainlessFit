@@ -1,3 +1,5 @@
+Include("examples/assert.sc")
+
 val ackermann = fix[o => Nat => Nat => Nat](ackermann =>
   fun (m: Nat) => {
     fun (n: Nat) => {

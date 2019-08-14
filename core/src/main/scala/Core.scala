@@ -13,11 +13,8 @@ import stainless.lang._
 
 object Core {
 
-  val assertFun = """def assert(b: {b: Bool, b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }"""
-
-  def parseFile(f: File, functions: List[String] = List(assertFun)): Either[String, Tree] = {
-    val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val it = (functions.foldLeft("")(_ + _) + s).toIterator
+  def parseString(s: String): Either[String, Tree] = {
+    val it = s.toIterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         Right(value)
@@ -26,6 +23,13 @@ object Core {
       case ScalaParser.UnexpectedToken(t, _) =>
         Left("Error during parsing: unexpected token." + t)
     }
+  }
+
+  def parseFile(f: File): Either[String, Tree] = {
+    val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
+    val regex = """Include\("(.*)\.sc"\)""".r
+    val completeString = regex.replaceAllIn(s, m => scala.io.Source.fromFile(new File(m.group(1) + ".sc")).getLines.mkString("\n"))
+    parseString(completeString)
   }
 
   def evalFile(f: File): Either[String, Tree] =
@@ -39,7 +43,7 @@ object Core {
     }
 
   def typeCheckFile(f: File): Either[String, (Boolean, NodeTree[Judgment])] = {
-    parseFile(f, List()) flatMap { src =>
+    parseFile(f) flatMap { src =>
       val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
       TypeChecker.infer(t, max) match {
         case None() => Left(s"Could not type check: $f")
