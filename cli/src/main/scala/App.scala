@@ -1,75 +1,83 @@
-import trees._
-import interpreter._
-import typechecker._
-import typechecker.Derivation._
-
-import parser.ScalaParser
-import parser.ScalaLexer
-
+import stainless.lang._
+import scala.collection.immutable.{Set => ScalaSet}
 import java.io.File
 
-import stainless.collection._
-import stainless.lang._
+class App(val config: Config, val reporter: inox.Reporter) {
 
-object App {
-  def launch(config: Config): Unit = {
-    config.mode match {
-      case Mode.Eval => eval(config)
-      case Mode.TypeCheck => typeCheck(config)
-    }
-  }
+  implicit val debugSection = App.debugMode
 
-  val eval = watchable { config =>
+  def eval(file: File) = watchable(file) {
     Core.evalFile(config.file) match {
       case Left(error) =>
-        System.err.println(s"[ERROR] Error during evaluation: $error")
+        reporter.error(s"Error during evaluation: $error")
         false
       case Right(value) =>
-        System.out.println(s"$value")
+        reporter.info(s"$value")
         true
     }
   }
 
-  val typeCheck = watchable { config =>
+  def typeCheck(file: File) = watchable(file) {
     val file = config.file
     Core.typeCheckFile(file) match {
       case Left(error) =>
-        System.err.println(s"[ERROR] $error")
+        reporter.error(s"$error")
         false
 
       case Right((success, _)) if success =>
-        System.out.println(s"Type checked file $file successfully.")
+        reporter.info(s"Successfully type checked file '$file'.")
         true
 
       case _ =>
-        System.err.println(s"[ERROR] Error while type checking file $file.")
+        reporter.error(s"Error while type checking file '$file'.")
         false
     }
   }
 
-  def watchable(action: Config => Boolean): Config => Unit = (c: Config) =>
-    if (c.watch) {
-      watchFile(c.file)(action(c))
+  def watchable(file: File)(action: => Boolean): Unit = {
+    if (config.watch) {
+      watchFile(file)(action)
     }
     else {
-      val result = action(c)
+      val result = action
       if (!result) System.exit(1)
     }
+  }
 
   def watchFile(file: File)(action: => Unit): Unit = {
     val watcher = new util.FileWatcher(
-      scala.collection.immutable.Set(file.getAbsoluteFile),
+      ScalaSet(file.getAbsoluteFile),
       () =>
         try {
           action
         } catch {
           case e: Throwable =>
-            println("[ERROR] An exception was thrown:")
-            e.printStackTrace()
+            reporter.error("An exception was thrown:")
+            reporter.error(e)
         }
     )
 
     watcher.run()
+  }
+}
+
+object App {
+  object debugMode extends inox.DebugSection("debug")
+
+  def launch(config: Config): Unit = {
+    val debugSections: ScalaSet[inox.DebugSection] =
+      if (config.debug) ScalaSet(debugMode) else ScalaSet.empty
+
+    val reporter =
+      if (config.colors) new inox.DefaultReporter(debugSections)
+      else new inox.PlainTextReporter(debugSections)
+
+    val app = new App(config, reporter)
+
+    config.mode match {
+      case Mode.Eval      => app.eval(config.file)
+      case Mode.TypeCheck => app.typeCheck(config.file)
+    }
   }
 }
 
