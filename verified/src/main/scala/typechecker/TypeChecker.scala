@@ -777,7 +777,10 @@ object Rule {
       Some((
         List(_ => CheckGoal(c1, t, ty)), {
           case Cons(CheckJudgment(_, _, _), _) =>
-            (true, InferJudgment(c, e, Some(IntersectionType(NatType, Bind(n, ty)))))
+            if(n.isFreeIn(t.erase))
+              (false, ErrorJudgment(c, s"Could not infer a type for ${termDerivation(e)} with InferFix: ${termDerivation(Var(n))} appears free in ${termDerivation(t.erase)}."))
+            else
+             (true, InferJudgment(c, e, Some(IntersectionType(NatType, Bind(n, ty)))))
           case _ =>
             (false, ErrorJudgment(c, s"Could not infer a type for ${termDerivation(e)} with InferFix."))
         }
