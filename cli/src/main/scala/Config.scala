@@ -13,6 +13,7 @@ case class Config(
   file: File       = null,
   watch: Boolean   = false,
   debug: Boolean   = false,
+  colors: Boolean  = true,
   verbose: Boolean = false,
 )
 
@@ -38,6 +39,9 @@ object Config {
       opt[Unit]("watch")
         .action((_, c) => c.copy(watch = true))
         .text("Re-run on file modification"),
+      opt[Unit]("no-colors")
+        .action((_, c) => c.copy(colors = false))
+        .text("Disable colors in output"),
       cmd("eval")
         .action((_, c) => c.copy(mode = Mode.Eval))
         .text("Evaluate the given file")
