@@ -1,6 +1,7 @@
 package typechecker
 
 import _root_.trees._
+import _root_.solver._
 
 import stainless.annotation._
 import stainless.collection._
@@ -1731,9 +1732,9 @@ object Rule {
   val NewZ3ArithmeticSolver = Rule {
     case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, Cons(t1, Cons(t2, Nil())))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} Z3ArithmeticSolver: ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
-      val z3 = new Z3Context("MODEL" -> true)
+      val factory = Solver.getFactory
+      val z3 = factory.getContext
       val solver = z3.mkSolver
-
       val i = z3.mkIntSort
 
       val z3Variables =
@@ -1769,7 +1770,7 @@ object Rule {
         case scala.Some(false) => ""
       }
 
-      z3.delete
+      Solver.reclaim(factory)
 
       solverResponse match {
         case scala.None => Some((List(), _ => (false, ErrorJudgment(c, s"Could not check equality between ${termDerivation(t1)} and ${termDerivation(t2)}: Failure in Z3."))))
