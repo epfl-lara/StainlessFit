@@ -58,19 +58,17 @@ def zipWith[X][Y][Z] (f: X => Y => Z)
   )
 }
 
-val take2 = Lambda X => {
-  def take2 (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
-    Decreases(k)
-    if (k == 0) {
-      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Left(()))
-    }
-    else {
-      Unfold(s) in (x =>
-        Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
-      )
-    }
+def take2[X] (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
+  Decreases(k)
+  if (k == 0) {
+    Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Left(()))
   }
-} in
+  else {
+    Unfold(s) in (x =>
+      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
+    )
+  }
+}
 
 def take[X] (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) (k: Nat) = { take2[X] k s }
 

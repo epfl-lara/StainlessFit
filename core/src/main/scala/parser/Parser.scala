@@ -360,14 +360,16 @@ object ScalaParser extends Parsers[Token, TokenClass]
     }
   }
 
-  def createFun(typeVars: Seq[Identifier], varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
-    typeVars.foldRight(
-      varsWithTypes.foldRight(body) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
-    ) { case (x, acc) => Abs(Bind(x, acc)) }
-  }
-
   def foldArgs(varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
     varsWithTypes.foldRight(body) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
+  }
+
+  def foldTypeArgs(typeVars: Seq[Identifier], body: Tree): Tree = {
+    typeVars.foldRight(body) { case (x, acc) => Abs(Bind(x, acc)) }
+  }
+
+  def createFun(typeVars: Seq[Identifier], varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
+    foldTypeArgs(typeVars, foldArgs(varsWithTypes, body))
   }
 
   lazy val retTypeP: Parser[Tree] = { (colon ~ typeExpr).map { case _ ~ t => t } }
@@ -419,7 +421,8 @@ object ScalaParser extends Parsers[Token, TokenClass]
                 Lambda(stainlessSome(xTy), Bind(x, App(Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))), Var(x))))
               )
             )
-            LetIn(stainlessNone(), instFix, Bind(f, followingExpr))
+            val finalExpr = foldTypeArgs(typeVars, instFix)
+            LetIn(stainlessNone(), finalExpr, Bind(f, followingExpr))
         }
     }
   }
