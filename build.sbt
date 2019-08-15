@@ -34,7 +34,7 @@ lazy val core = project
   .settings(
     name := "stainlesscore",
     libraryDependencies ++= Seq(
-      "ch.epfl.lara"  %% "scallion"  % "0.1",
+      "ch.epfl.lara"  %% "scallion"  % "0.2",
       "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     ),
     Test / fork := true,

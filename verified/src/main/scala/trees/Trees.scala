@@ -136,6 +136,23 @@ object Operator {
     else if(isBoolToBoolUnOp(op)) return BoolType
     else return BottomType
   }
+
+  def fromString(str: String): Operator = str match {
+    case "!" => Not
+    case "&&" => And
+    case "||" => Or
+    case "+" => Plus
+    case "-" => Minus
+    case "*" => Mul
+    case "/" => Div
+    case "==" => Eq
+    case "!=" => Neq
+    case "<=" => Lteq
+    case ">=" => Gteq
+    case "<" => Lt
+    case ">" => Gt
+    case _ => throw new java.lang.Exception(s"$str is not an operator")
+  }
 }
 
 object Tree {
@@ -336,7 +353,6 @@ object Tree {
       case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(xvar, v, bind))
 
-      case BottomTree => BottomTree
       case BottomType => BottomType
       case TopType => TopType
 
@@ -636,10 +652,6 @@ case class Succ(t: Tree) extends Tree
 
 case object UnitLiteral extends Tree {
   override def toString: String = "unit"
-}
-
-case object BottomTree extends Tree {
-  override def toString: String = "⊥"
 }
 
 case class BoolLiteral(b: Boolean) extends Tree {
