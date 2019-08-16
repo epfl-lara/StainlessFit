@@ -54,6 +54,10 @@ object Derivation {
     }
   }
 
+  case class EmptyJudgment(override val c: Context) extends Judgment {
+    override def toString = ""
+  }
+
 
   case class FileJudgment(override val c: Context, s: String) extends Judgment {
     override def toString = s"⊢ File ${typeColor(shortString(s))}"
