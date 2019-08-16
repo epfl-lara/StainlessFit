@@ -803,13 +803,13 @@ object Rule {
             Cons(EmptyJudgment(_), _))))) => (true, InferJudgment(c, e, Some(TypeOperators.eitherMatch(t, id1, ty1, id2, ty2).get)))
 
           case Cons(InferJudgment(_, _, _),
-            Cons(InferJudgment(_, _, Some(ty1)),
+            Cons(_,
             Cons(InferJudgment(_, _, Some(ty2)),
             Cons(AreEqualJudgment(_, _, _, _), _)))) => (true, InferJudgment(c, e, Some(ty2)))
 
           case Cons(InferJudgment(_, _, _),
             Cons(InferJudgment(_, _, Some(ty1)),
-            Cons(InferJudgment(_, _, Some(ty2)),
+            Cons(_,
             Cons(_,
             Cons(AreEqualJudgment(_, _, _, _), _))))) => (true, InferJudgment(c, e, Some(ty1)))
 
