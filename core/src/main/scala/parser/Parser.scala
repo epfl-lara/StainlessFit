@@ -58,7 +58,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
 
 
     // Separator
-    oneOf("{},().:[]") | word("=>")
+    word("{{") | word("}}") | oneOf("{},().:[]") | word("=>")
       |> { (cs, r) => SeparatorToken(cs.mkString, r) },
 
     // Space
@@ -161,6 +161,8 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   val rpar: Syntax[Token] = elem(SeparatorClass(")"))
   val lbra: Syntax[Token] = elem(SeparatorClass("{"))
   val rbra: Syntax[Token] = elem(SeparatorClass("}"))
+  val dlbra: Syntax[Token] = elem(SeparatorClass("{{"))
+  val drbra: Syntax[Token] = elem(SeparatorClass("}}"))
   val lsbra: Syntax[Token] = elem(SeparatorClass("["))
   val rsbra: Syntax[Token] = elem(SeparatorClass("]"))
   val comma: Syntax[Token] = elem(SeparatorClass(","))
@@ -326,7 +328,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   }
 
   lazy val bracketArg: Syntax[(Identifier, Tree)] = {
-    (lbra ~ variable ~ rbra).map { case _ ~ Var(v) ~ _ => (v, Ghost(UnitLiteral)) }
+    (dlbra ~ variable ~ drbra).map { case _ ~ Var(v) ~ _ => (v, Ghost(UnitLiteral)) }
   }
 
   lazy val parArg: Syntax[(Identifier, Tree)] = {
@@ -354,9 +356,9 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
 
   def createApp(args: Seq[(Tree, Tree)], fun: Tree): Tree = {
     args.foldLeft(fun) {
-      case (acc, (id, Abs(_))) => TypeApp(acc, stainlessSome(id))
-      case (acc, (id, Ghost(_))) => acc
-      case (acc, (id, ty))         => App(acc, id)
+      case (acc, (id, Abs(_)))   => TypeApp(acc, stainlessSome(id))
+      case (acc, (id, Ghost(_))) => Inst(acc, id)
+      case (acc, (id, ty))       => App(acc, id)
     }
   }
 
@@ -482,7 +484,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     }
   }
 
-  lazy val sBracketType: Syntax[Tree] = {
+  /*lazy val sBracketType: Syntax[Tree] = {
     (lsbra ~ typeExpr ~ rsbra).map { case _ ~ e ~ _ => e }
   }
 
@@ -493,6 +495,26 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
           typeArgs.foldLeft(f) { case (acc: Tree, e) => TypeApp(acc, stainlessSome(e)) }
         ) { case (acc, e) => App(acc, e) }
     }
+  }*/
+
+
+  lazy val sBracketAppArg: Syntax[(Tree, Tree)] = {
+    (lsbra ~ typeExpr ~ rsbra).map { case _ ~ e ~ _ => (e, Abs(UnitLiteral)) }
+  }
+
+  lazy val bracketAppArg: Syntax[(Tree, Tree)] = {
+    (dlbra ~ expression ~ drbra).map { case _ ~ ty ~ _ => (ty, Ghost(UnitLiteral)) }
+  }
+
+  lazy val parAppArg: Syntax[(Tree, Tree)] = {
+    (simpleExpr).map { case e => (e, UnitLiteral)
+    }
+  }
+
+  lazy val appArg: Syntax[(Tree, Tree)] = parAppArg | bracketAppArg | sBracketAppArg
+
+  lazy val application: Syntax[Tree] = {
+    (simpleExpr ~ many(appArg)).map { case f ~ args => createApp(args, f) }
   }
 
   lazy val eitherMatch: Syntax[Tree] = recursive {
