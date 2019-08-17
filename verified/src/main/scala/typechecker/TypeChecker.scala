@@ -1837,6 +1837,43 @@ object Rule {
   }
 
 
+  val NewInferGhost = Rule {
+    case g @ InferGoal(c, e @ Ghost(Bind(n, t))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewInferGhost : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c.incrementLevel, t)
+      Some((
+        List(_ => subgoal), {
+          case Cons(InferJudgment(_, _, Some(ty)), _) =>
+            if(n.isFreeIn(t.erase))
+              (false, ErrorJudgment(c, s"Could not infer a type for ${termOutput(e)} with NewInferGhost: ${termOutput(Var(n))} appears free in ${termOutput(t.erase)}."))
+            else
+             (true, InferJudgment(c, e, Some(IntersectionType(NatType, Bind(n, ty)))))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not infer a type for ${termOutput(e)} with NewInferGhost."))
+        }
+      ))
+
+    case _ => None()
+  }
+
+  val NewCheckGhost = Rule {
+    case g @ CheckGoal(c, e @ Ghost(Bind(n, body)), tpe @ IntersectionType(NatType, Bind(id2, ty))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewCheckGhost : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val (freshId, c1) = c.bindFresh(n.name, NatType)
+      val subgoal = CheckGoal(c1.incrementLevel, body.replace(n, Var(freshId)), ty.replace(id2, Var(freshId)))
+      Some((List(_ => subgoal),
+        {
+          case Cons(CheckJudgment(_, _, _), _) =>
+            (true, CheckJudgment(c, e, tpe))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not check ${termOutput(e)} has type ${typeOutput(tpe)} with NewCheckGhost."))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+
   def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
     t match {
       case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType
@@ -2120,6 +2157,7 @@ object TypeChecker {
     InferFold.t ||
     InferUnfold.t || NewInferUnfoldPositive.t ||
     InferFoldGen.t ||
+    NewInferGhost.t ||
     CheckVar.t ||
     CheckIf.t ||
     CheckMatch.t ||
@@ -2128,6 +2166,7 @@ object TypeChecker {
     CheckLeft.t || CheckRight.t ||
     CheckIntersection.t ||
     CheckLambda.t || CheckPi.t ||
+    NewCheckGhost.t ||
     CheckPair.t || CheckSigma.t ||
     CheckRefinement.t ||
     CheckTypeAbs.t ||

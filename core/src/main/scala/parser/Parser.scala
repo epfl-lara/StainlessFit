@@ -341,7 +341,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   def defType(args: Seq[(Identifier, Tree)], retType: Tree): Tree = {
     args.foldRight(retType: Tree) {
       case ((id: Identifier, Abs(t)), acc) => PolyForallType(Bind(id, acc))
-      case ((id, Ghost(_)), acc)           => PolyForallType(Bind(id, acc))
+      case ((id, Ghost(_)), acc)           => IntersectionType(NatType, Bind(id, acc))
       case ((id, ty), acc)                 => PiType(ty, Bind(id, acc))
     }
   }
