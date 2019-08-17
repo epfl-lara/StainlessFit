@@ -1129,7 +1129,7 @@ object Rule {
 
   val CheckLambda = Rule {
     case g @ CheckGoal(c, e @ Lambda(Some(ty1), Bind(id1, body)), tpe @ PiType(ty2, Bind(id2, ty))) if (ty1.isEqual(ty2)) =>
-      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckLambda : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val (freshId, c1) = c.bindFresh(id1.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, body.replace(id1, Var(freshId)), ty.replace(id2, Var(freshId)))
       Some((List(_ => subgoal),
@@ -1148,7 +1148,7 @@ object Rule {
     case g @ CheckGoal(c, e @ t, tpe @ PiType(ty1, Bind(id,ty2))) =>
       TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} CheckPi : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
       val (freshId, c1) = c.bindFresh(id.name, ty1)
-      val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2)
+      val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2.replace(id, Var(freshId)))
       Some((List(_ => subgoal),
         {
           case Cons(CheckJudgment(_, _, _), _) =>
@@ -1733,6 +1733,110 @@ object Rule {
       None()
   }
 
+
+  def topIf(c: Context, t1: Tree, t2: Tree): Option[(List[List[Judgment] => Goal], List[Judgment] => (Boolean, Judgment))] = {
+    t1 match {
+      case IfThenElse(tc, tt, tf) =>
+        val c0 = c.incrementLevel()
+        val c1 = c0.addEquality(tc, BoolLiteral(true))
+        val c2 = c0.addEquality(tc, BoolLiteral(false))
+        val checkC = CheckGoal(c0, tc, BoolType)
+        val equalT1 = EqualityGoal(c1, tt, t2)
+        val equalT2 = EqualityGoal(c2, tf, t2)
+        Some((
+          List(_ => checkC, _ => equalT1, _ => equalT2),
+          {
+            case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), Cons(AreEqualJudgment(_, _, _, _), _))) =>
+              (true, AreEqualJudgment(c, t1, t2, ""))
+            case _ =>
+              (false, ErrorJudgment(c, s"Could not check equality between ${termOutput(t1)} and ${termOutput(t2)} with NewTopIf."))
+          }
+        ))
+      case _ => None()
+    }
+  }
+
+  val NewTopIf = Rule {
+    case g @ EqualityGoal(c, t1 @ IfThenElse(tc, tt, tf), t2) if c.typableIn(tc) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewTopIf : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      topIf(c, t1, t2)
+    case g @ EqualityGoal(c, t1, t2 @ IfThenElse(tc, tt, tf)) if c.typableIn(tc) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewTopIf : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      topIf(c, t2, t1)
+    case g =>
+      None()
+  }
+
+
+  def topMatch(c: Context, t1: Tree, t2: Tree): Option[(List[List[Judgment] => Goal], List[Judgment] => (Boolean, Judgment))] = {
+    t1 match {
+      case Match(tc, t0, Bind(y, tf)) =>
+        val c0 = c.incrementLevel()
+        val c1 = c0.addEquality(tc, NatLiteral(0))
+        val c2 = c0.addEquality(tc, Primitive(Plus, List(Var(y), NatLiteral(1)))).bind(y, NatType)
+        val checkC = CheckGoal(c0, tc, NatType)
+        val equalT1 = EqualityGoal(c1, t0, t2)
+        val equalT2 = EqualityGoal(c2, tf, t2)
+        Some((
+          List(_ => checkC, _ => equalT1, _ => equalT2),
+          {
+            case Cons(CheckJudgment(_, _, _), Cons(AreEqualJudgment(_, _, _, _), Cons(AreEqualJudgment(_, _, _, _), _))) =>
+              (true, AreEqualJudgment(c, t1, t2, ""))
+            case _ =>
+              (false, ErrorJudgment(c, s"Could not check equality between ${termOutput(t1)} and ${termOutput(t2)} with NewTopEitherMatch."))
+          }
+        ))
+      case _ => None()
+    }
+  }
+
+  val NewTopMatch = Rule {
+    case g @ EqualityGoal(c, t1 @ Match(tc, tt, tf), t2) if c.typableIn(tc) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewTopMath : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      topEitherMatch(c, t1, t2)
+    case g @ EqualityGoal(c, t1, t2 @ Match(tc, tt, tf)) if c.typableIn(tc) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewTopMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      topEitherMatch(c, t2, t1)
+    case g =>
+      None()
+  }
+
+
+
+  // TODODO : find a good way to check the type of tc, or maybe just infer it.
+  def topEitherMatch(c: Context, t1: Tree, t2: Tree): Option[(List[List[Judgment] => Goal], List[Judgment] => (Boolean, Judgment))] = {
+    t1 match {
+      case EitherMatch(tc, Bind(x, tt), Bind(y, tf)) =>
+        val c0 = c.incrementLevel()
+        val c1 = c0.addEquality(tc, LeftTree(Var(x)))
+        val c2 = c0.addEquality(tc, RightTree(Var(y)))
+        val equalT1 = EqualityGoal(c1, tt, t2)
+        val equalT2 = EqualityGoal(c2, tf, t2)
+        Some((
+          List(_ => equalT1, _ => equalT2),
+          {
+            case Cons(AreEqualJudgment(_, _, _, _), Cons(AreEqualJudgment(_, _, _, _), _)) =>
+              (true, AreEqualJudgment(c, t1, t2, ""))
+            case _ =>
+              (false, ErrorJudgment(c, s"Could not check equality between ${termOutput(t1)} and ${termOutput(t2)} with NewTopEitherMatch."))
+          }
+        ))
+      case _ => None()
+    }
+  }
+
+  val NewTopEitherMatch = Rule {
+    case g @ EqualityGoal(c, t1 @ EitherMatch(tc, tt, tf), t2) if c.typableIn(tc) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewTopEitherMath : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      topEitherMatch(c, t1, t2)
+    case g @ EqualityGoal(c, t1, t2 @ EitherMatch(tc, tt, tf)) if c.typableIn(tc) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} NewTopEitherMatch : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      topEitherMatch(c, t2, t1)
+    case g =>
+      None()
+  }
+
+
   def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
     t match {
       case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType
@@ -2037,6 +2141,8 @@ object TypeChecker {
     NewUseContextEqualities.t ||
     NewApplyValueSimplification.t ||
     NewApplyTopLevelSimplification.t ||
+    NewTopIf.t ||
+    NewTopMatch.t ||
     NewContradiction.t ||
     NewZ3ArithmeticSolver.t ||
     UnsafeIgnoreEquality.t ||

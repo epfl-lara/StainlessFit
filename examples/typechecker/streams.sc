@@ -65,7 +65,7 @@ def take2[X] (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))))
   }
   else {
     Unfold(s) in (x =>
-      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((First(x), take2 (k-1) ((Second(x))()))))
+      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((First(x), take2[X] (k-1) ((Second(x))()))))
     )
   }
 }

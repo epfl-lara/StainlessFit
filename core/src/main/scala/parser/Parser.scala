@@ -315,80 +315,95 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     }
   }
 
-  lazy val sBracketVar: Syntax[Identifier] = {
-    (lsbra ~ variable ~ rsbra).map { case _ ~ Var(v) ~ _ => v }
-  }
-
   lazy val varTypeDef: Syntax[(Identifier, Tree)] = {
     (lpar ~ variable ~ colon ~ typeExpr ~ rpar).map {
       case _ ~ Var(v) ~ _ ~ ty ~ _ => (v, ty)
     }
   }
 
-  def foldArgs(varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
-    varsWithTypes.foldRight(body) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
+  lazy val sBracketArg: Syntax[(Identifier, Tree)] = {
+    (lsbra ~ variable ~ rsbra).map { case _ ~ Var(v) ~ _ => (v, Abs(UnitLiteral)) }
   }
 
-  def foldTypeArgs(typeVars: Seq[Identifier], body: Tree): Tree = {
-    typeVars.foldRight(body) { case (x, acc) => Abs(Bind(x, acc)) }
+  lazy val bracketArg: Syntax[(Identifier, Tree)] = {
+    (lbra ~ variable ~ rbra).map { case _ ~ Var(v) ~ _ => (v, Inst(UnitLiteral, UnitLiteral)) }
   }
 
-  def createFun(typeVars: Seq[Identifier], varsWithTypes: Seq[(Identifier, Tree)], body: Tree): Tree = {
-    foldTypeArgs(typeVars, foldArgs(varsWithTypes, body))
-  }
-
-  lazy val retTypeP: Syntax[Tree] = { (colon ~ typeExpr).map { case _ ~ t => t } }
-  lazy val measureP: Syntax[Tree] = { (decreasesK ~ lpar ~ expression ~rpar).map { case _ ~ _ ~ e ~ _ => e } }
-
-  def findPiType(typeVars: Seq[Identifier], varsWithTypes: Seq[(Identifier, Tree)], retType: Tree): Tree = {
-    typeVars.foldRight(
-      varsWithTypes.foldRight(retType) { case ((x, ty), acc) => PiType(ty, Bind(x, acc)) }
-    ) { case (x, acc) => PolyForallType(Bind(x, acc)) }
-  }
-
-
-  lazy val function: Syntax[Tree] = {
-    (funK ~ many(sBracketVar) ~ many1(varTypeDef) ~ arrow ~ bracketExpr).map {
-      case _ ~ typeVars ~ varsWithTypes ~ _ ~ e => createFun(typeVars, varsWithTypes, e)
+  lazy val parArg: Syntax[(Identifier, Tree)] = {
+    (lpar ~ variable ~ colon ~ typeExpr ~ rpar).map {
+      case _ ~ Var(v) ~ _ ~ ty ~ _ => (v, ty)
     }
   }
 
+
+  def defType(args: Seq[(Identifier, Tree)], retType: Tree): Tree = {
+    args.foldRight(retType: Tree) {
+      case ((id: Identifier, Abs(t)), acc)     => PolyForallType(Bind(id, acc))
+      case ((id, Inst(_, _)), acc) => acc
+      case ((id, ty), acc)         => PiType(ty, Bind(id, acc))
+    }
+  }
+
+  def createFun(args: Seq[(Identifier, Tree)], body: Tree): Tree = {
+    args.foldRight(body) {
+      case ((id: Identifier, Abs(_)), acc) => Abs(Bind(id, acc))
+      case ((id, Inst(_, _)), acc) => acc
+      case ((id, ty), acc)         => Lambda(stainlessSome(ty), Bind(id, acc))
+    }
+  }
+
+  def createApp(args: Seq[(Identifier, Tree)], fun: Tree): Tree = {
+    args.foldLeft(fun) {
+      case (acc, (id: Identifier, Abs(_))) => TypeApp(acc, stainlessSome(Var(id)))
+      case (acc, (id, Inst(_, _))) => acc
+      case (acc, (id, ty))         => App(acc, Var(id))
+    }
+  }
+
+  lazy val argument: Syntax[(Identifier, Tree)] = sBracketArg | bracketArg | parArg
+
   lazy val defFunction: Syntax[Tree] = recursive {
-    (defK ~ variable ~ many(sBracketVar) ~ many1(varTypeDef) ~ opt(retTypeP) ~ assignation ~ lbra ~ opt(measureP) ~
+    (defK ~ variable ~ many1(argument) ~ opt(retTypeP) ~ assignation ~ lbra ~ opt(measureP) ~
     expression ~ rbra ~ opt(expression)).map {
-      case _ ~ Var(f) ~ typeVars ~ varsWithTypes ~ retType ~ _ ~ _ ~ measure ~ e1 ~ _ ~ e2 =>
+      case _ ~ Var(f) ~ args ~ retType ~ _ ~ _ ~ measure ~ e1 ~ _ ~ e2 =>
         val followingExpr = e2.getOrElse(Var(f))
         (measure, retType) match {
           case (Some(_), None) =>
             throw new java.lang.Exception(s"Recursive function $f needs return type.")
           case (None, None) =>
-            LetIn(stainlessNone(), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
+            LetIn(stainlessNone(), createFun(args, e1), Bind(f, followingExpr))
           case (None, Some(ty)) =>
             if(f.isFreeIn(e1)) throw new java.lang.Exception(s"Recursive function $f needs a measure.")
-            LetIn(stainlessSome(findPiType(typeVars, varsWithTypes, ty)), createFun(typeVars, varsWithTypes, e1), Bind(f, followingExpr))
+            LetIn(stainlessSome(defType(args, ty)), createFun(args, e1), Bind(f, followingExpr))
           case (Some(measure), Some(ty)) =>
-            val (x, xTy) = varsWithTypes.head
             val n = Identifier(0, "_n")
             val expr = e1.replace(f,
               Inst(App(Var(f), UnitLiteral),
                 Primitive(Minus, List(Var(n), NatLiteral(1)))
               )
             )
-            val body = varsWithTypes.tail.foldRight(expr) { case ((x, ty1), acc) => Lambda(stainlessSome(ty1), Bind(x, acc)) }
-            val bodyTy = varsWithTypes.tail.foldRight(ty) { case ((x, ty), acc) => PiType(ty, Bind(x, acc)) }
-            val refin = RefinementType(xTy, Bind(x, Primitive(Lteq, List(measure, Var(n)))))
-            val fun = Lambda(stainlessSome(refin), Bind(x, body))
-            val funTy = PiType(refin, Bind(x, bodyTy))
+            val reverseArgs = args.reverse.toList
+            val (x, xTy) = reverseArgs.head
+            val refinedArgs = ((x, RefinementType(xTy, Bind(x, Primitive(Lteq, List(measure, Var(n)))))) :: reverseArgs.tail).reverse
+            val fun = createFun(refinedArgs, expr)
+            val funTy = defType(refinedArgs, ty)
             val fix = Fix(stainlessSome(Bind(n, funTy)), Bind(n, Bind(f, fun)))
-            val instFix = LetIn(stainlessNone(),
-              fix,
-              Bind(f,
-                Lambda(stainlessSome(xTy), Bind(x, App(Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))), Var(x))))
-              )
-            )
-            val finalExpr = foldTypeArgs(typeVars, instFix)
-            LetIn(stainlessNone(), finalExpr, Bind(f, followingExpr))
+
+            val instBody = createApp(args, Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))))
+            val instFun = createFun(args, instBody)
+            val complete = LetIn(stainlessNone(), fix, Bind(f, instFun))
+            LetIn(stainlessNone(), complete, Bind(f, followingExpr))
         }
+    }
+  }
+
+  lazy val retTypeP: Syntax[Tree] = { (colon ~ typeExpr).map { case _ ~ t => t } }
+  lazy val measureP: Syntax[Tree] = { (decreasesK ~ lpar ~ expression ~rpar).map { case _ ~ _ ~ e ~ _ => e } }
+
+
+  lazy val function: Syntax[Tree] = {
+    (funK ~ many(argument) ~ arrow ~ bracketExpr).map {
+      case _ ~ args ~ _ ~ e => createFun(args, e)
     }
   }
 
