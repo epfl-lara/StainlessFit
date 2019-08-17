@@ -326,7 +326,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   }
 
   lazy val bracketArg: Syntax[(Identifier, Tree)] = {
-    (lbra ~ variable ~ rbra).map { case _ ~ Var(v) ~ _ => (v, Inst(UnitLiteral, UnitLiteral)) }
+    (lbra ~ variable ~ rbra).map { case _ ~ Var(v) ~ _ => (v, Ghost(UnitLiteral)) }
   }
 
   lazy val parArg: Syntax[(Identifier, Tree)] = {
@@ -338,25 +338,25 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
 
   def defType(args: Seq[(Identifier, Tree)], retType: Tree): Tree = {
     args.foldRight(retType: Tree) {
-      case ((id: Identifier, Abs(t)), acc)     => PolyForallType(Bind(id, acc))
-      case ((id, Inst(_, _)), acc) => acc
-      case ((id, ty), acc)         => PiType(ty, Bind(id, acc))
+      case ((id: Identifier, Abs(t)), acc) => PolyForallType(Bind(id, acc))
+      case ((id, Ghost(_)), acc)           => PolyForallType(Bind(id, acc))
+      case ((id, ty), acc)                 => PiType(ty, Bind(id, acc))
     }
   }
 
   def createFun(args: Seq[(Identifier, Tree)], body: Tree): Tree = {
     args.foldRight(body) {
       case ((id: Identifier, Abs(_)), acc) => Abs(Bind(id, acc))
-      case ((id, Inst(_, _)), acc) => acc
+      case ((id, Inst(_, _)), acc) => Ghost(Bind(id, acc))
       case ((id, ty), acc)         => Lambda(stainlessSome(ty), Bind(id, acc))
     }
   }
 
-  def createApp(args: Seq[(Identifier, Tree)], fun: Tree): Tree = {
+  def createApp(args: Seq[(Tree, Tree)], fun: Tree): Tree = {
     args.foldLeft(fun) {
-      case (acc, (id: Identifier, Abs(_))) => TypeApp(acc, stainlessSome(Var(id)))
-      case (acc, (id, Inst(_, _))) => acc
-      case (acc, (id, ty))         => App(acc, Var(id))
+      case (acc, (id, Abs(_))) => TypeApp(acc, stainlessSome(id))
+      case (acc, (id, Ghost(_))) => acc
+      case (acc, (id, ty))         => App(acc, id)
     }
   }
 
@@ -389,7 +389,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
             val funTy = defType(refinedArgs, ty)
             val fix = Fix(stainlessSome(Bind(n, funTy)), Bind(n, Bind(f, fun)))
 
-            val instBody = createApp(args, Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))))
+            val instBody = createApp(args.map { case (id, t) => (Var(id), t) }, Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))))
             val instFun = createFun(args, instBody)
             val complete = LetIn(stainlessNone(), fix, Bind(f, instFun))
             LetIn(stainlessNone(), complete, Bind(f, followingExpr))

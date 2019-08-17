@@ -256,6 +256,9 @@ object Tree {
       case Abs(bind) =>
         val (newBind, m1, max1) = setId(bind, m, max)
         (Abs(newBind), m1, max1)
+      case Ghost(bind) =>
+        val (newBind, m1, max1) = setId(bind, m, max)
+        (Ghost(newBind), m1, max1)
       case TypeApp(abs, None()) =>
         val (newAbs, m1, max1) = setId(abs, m, max)
         (TypeApp(newAbs, None()), m1, max1)
@@ -338,6 +341,7 @@ object Tree {
       case Unfold(t, bind) => Unfold(replace(xvar, v, t), replace(xvar, v, bind))
       case UnfoldPositive(t, bind) => UnfoldPositive(replace(xvar, v, t), replace(xvar, v, bind))
       case Abs(bind) => Abs(replace(xvar, v, bind))
+      case Ghost(bind) => Ghost(replace(xvar, v, bind))
       case TypeApp(abs, None()) => TypeApp(replace(xvar, v, abs), None())
       case TypeApp(abs, Some(t)) => TypeApp(replace(xvar, v, abs), Some(replace(xvar, v, t)))
       case ErrorTree(_, _) => body
@@ -385,6 +389,7 @@ object Tree {
     case Unfold(t, bind) => Unfold(erase(t), erase(bind))
     case UnfoldPositive(t, bind) => Unfold(erase(t), erase(bind))
     case Abs(bind) => Abs(erase(bind))
+    case Ghost(Bind(_, body)) => body
     case TypeApp(abs, _) => TypeApp(erase(abs), None())
     case ErrorTree(s, _) => ErrorTree(s, None())
     case _ => throw new java.lang.Exception(s"Function erase is not implemented on $t (${t.getClass}).")
@@ -411,6 +416,7 @@ object Tree {
       case LeftTree(t) => isValue(t)
       case Fold(_, t) => isValue(t)
       case Abs(_) => true
+      case Ghost(Bind(_, t)) => isValue(t)
       case _ => false
     }
   }
@@ -482,6 +488,7 @@ object Tree {
       case (Unfold(t1, bind1), Unfold(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (UnfoldPositive(t1, bind1), UnfoldPositive(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
       case (Abs(bind1), Abs(bind2)) => isEqual(bind1, bind2)
+      case (Ghost(bind1), Ghost(bind2)) => isEqual(bind1, bind2)
       case (TypeApp(abs1, Some(t1)), TypeApp(abs2, Some(t2))) => isEqual(abs1, abs2) && isEqual(t1, t2)
       case (TypeApp(abs1, None()), TypeApp(abs2, None())) => isEqual(abs1, abs2)
       case (SumType(t1, bind1), SumType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
@@ -527,6 +534,7 @@ object Tree {
       case Unfold(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
       case UnfoldPositive(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
       case Abs(t) => hasValueSimplification(t)
+      case Ghost(_) => true
       case TypeApp(Abs(_), _) => true
       case TypeApp(t, _) => hasValueSimplification(t)
       case _ => false
@@ -567,6 +575,7 @@ object Tree {
       case Unfold(t1, t2) => Unfold(applyValueSimplification(t1), applyValueSimplification(t2))
       case UnfoldPositive(t1, t2) => UnfoldPositive(applyValueSimplification(t1), applyValueSimplification(t2))
       case Abs(t) => Abs(applyValueSimplification(t))
+      case Ghost(Bind(n, t)) => t
       case TypeApp(Abs(t), _) => t
       case TypeApp(t, ty) => TypeApp(applyValueSimplification(t), ty)
       case t => t
@@ -607,6 +616,7 @@ case class Identifier(id: Int, name: String) {
       case Abs(bind) => isFreeIn(bind)
       case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp.getOrElse(UnitLiteral))
+      case Ghost(bind) => isFreeIn(bind)
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
@@ -867,6 +877,16 @@ case class TypeApp(t1: Tree, t2: Option[Tree]) extends Tree {
   }
 }
 
+case class Ghost(t: Tree) extends Tree {
+  override def toString: String = {
+    t match {
+      case Bind(n, t) =>
+        "Ghost(" + n.toString + ", " + t.toString + ")"
+      case _ => "<Missing bind in Ghost>"
+    }
+  }
+}
+
 case object BottomType extends Tree {
   override def toString: String = "⊥"
 }
@@ -959,7 +979,6 @@ case class UnionType(t1: Tree, t2: Tree) extends Tree
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
 
 case class SingletonType(t: Tree) extends Tree
-
 
 
 
