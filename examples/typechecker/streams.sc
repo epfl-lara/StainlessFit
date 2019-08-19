@@ -1,10 +1,8 @@
-def constant[X](x: X) = {
-  fix[n => Rec(n)(stream => (X, Unit => stream))] (constant =>
-    Fold[Rec(n)(stream => (X, Unit => stream))](
-      (
-        x,
-        fun(y: Unit) => { constant }
-      )
+def constant[X](x: X){{n}}: Rec(n)(stream => (X, Unit => stream)) = {
+  Fold[Rec(n)(stream => (X, Unit => stream))](
+    (
+      x,
+      fun(y: Unit) => { constant{{n - 1}} }
     )
   )
 }

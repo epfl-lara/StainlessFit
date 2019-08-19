@@ -328,7 +328,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   }
 
   lazy val bracketArg: Syntax[(Identifier, Tree)] = {
-    (dlbra ~ variable ~ drbra).map { case _ ~ Var(v) ~ _ => (v, Ghost(UnitLiteral)) }
+    (dlbra ~ variable ~ drbra).map { case _ ~ Var(v) ~ _ => (v, Inst(UnitLiteral, UnitLiteral)) }
   }
 
   lazy val parArg: Syntax[(Identifier, Tree)] = {
@@ -337,27 +337,26 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     }
   }
 
-
-  def defType(args: Seq[(Identifier, Tree)], retType: Tree): Tree = {
-    args.foldRight(retType: Tree) {
-      case ((id: Identifier, Abs(t)), acc) => PolyForallType(Bind(id, acc))
-      case ((id, Ghost(_)), acc)           => IntersectionType(NatType, Bind(id, acc))
-      case ((id, ty), acc)                 => PiType(ty, Bind(id, acc))
+  def createFun(args: Seq[(Identifier, Tree)], retType: Option[Tree], body: Tree, f: Identifier): (Tree, Option[Tree]) = {
+    val (fun, funType) = args.foldRight((body, retType.getOrElse(UnitType))) {
+      case ((id, ty), acc) =>
+        val (accTree, accType) = acc
+        ty match {
+          case Abs(_)     => (Abs(Bind(id, accTree)), PolyForallType(Bind(id, accType)))
+          case Inst(_, _)  =>
+            if(retType.isEmpty) throw new java.lang.Exception(s"Recursive function $f needs return type.")
+            (Fix(stainlessSome(Bind(id, accType)), Bind(id, Bind(f, accTree))), IntersectionType(NatType, Bind(id, accType)))
+          case _         => (Lambda(stainlessSome(ty), Bind(id, accTree)), PiType(ty, Bind(id, accType)))
+        }
     }
-  }
-
-  def createFun(args: Seq[(Identifier, Tree)], body: Tree): Tree = {
-    args.foldRight(body) {
-      case ((id: Identifier, Abs(_)), acc) => Abs(Bind(id, acc))
-      case ((id, Inst(_, _)), acc) => Ghost(Bind(id, acc))
-      case ((id, ty), acc)         => Lambda(stainlessSome(ty), Bind(id, acc))
-    }
+    if(retType.isEmpty) (fun, None)
+    else (fun, Some(funType))
   }
 
   def createApp(args: Seq[(Tree, Tree)], fun: Tree): Tree = {
     args.foldLeft(fun) {
       case (acc, (id, Abs(_)))   => TypeApp(acc, stainlessSome(id))
-      case (acc, (id, Ghost(_))) => Inst(acc, id)
+      case (acc, (id, Inst(_, _))) => Inst(App(acc, UnitLiteral), id)
       case (acc, (id, ty))       => App(acc, id)
     }
   }
@@ -373,10 +372,11 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
           case (Some(_), None) =>
             throw new java.lang.Exception(s"Recursive function $f needs return type.")
           case (None, None) =>
-            LetIn(stainlessNone(), createFun(args, e1), Bind(f, followingExpr))
-          case (None, Some(ty)) =>
-            if(f.isFreeIn(e1)) throw new java.lang.Exception(s"Recursive function $f needs a measure.")
-            LetIn(stainlessSome(defType(args, ty)), createFun(args, e1), Bind(f, followingExpr))
+            if(f.isFreeIn(e1) && args.exists { case (id, Inst(_, _)) => true }) throw new java.lang.Exception(s"Recursive function $f needs return type.")
+            val (fun, _) = createFun(args, None, e1, f)
+            LetIn(stainlessNone(), fun, Bind(f, followingExpr))
+          case (None, Some(ty)) =>val (fun, funType) = createFun(args, Some(ty), e1, f)
+            LetIn(stainlessSome(funType.get), fun, Bind(f, followingExpr))
           case (Some(measure), Some(ty)) =>
             val n = Identifier(0, "_n")
             val expr = e1.replace(f,
@@ -387,12 +387,11 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
             val reverseArgs = args.reverse.toList
             val (x, xTy) = reverseArgs.head
             val refinedArgs = ((x, RefinementType(xTy, Bind(x, Primitive(Lteq, List(measure, Var(n)))))) :: reverseArgs.tail).reverse
-            val fun = createFun(refinedArgs, expr)
-            val funTy = defType(refinedArgs, ty)
-            val fix = Fix(stainlessSome(Bind(n, funTy)), Bind(n, Bind(f, fun)))
+            val (fun, funTy) = createFun(refinedArgs, Some(ty), expr, f)
+            val fix = Fix(stainlessSome(Bind(n, funTy.get)), Bind(n, Bind(f, fun)))
 
             val instBody = createApp(args.map { case (id, t) => (Var(id), t) }, Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))))
-            val instFun = createFun(args, instBody)
+            val (instFun, _) = createFun(args, Some(ty), instBody, f)
             val complete = LetIn(stainlessNone(), fix, Bind(f, instFun))
             LetIn(stainlessNone(), complete, Bind(f, followingExpr))
         }
@@ -405,7 +404,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
 
   lazy val function: Syntax[Tree] = {
     (funK ~ many(argument) ~ arrow ~ bracketExpr).map {
-      case _ ~ args ~ _ ~ e => createFun(args, e)
+      case _ ~ args ~ _ ~ e => createFun(args, None, e, Identifier(0, "__"))._1
     }
   }
 
@@ -484,26 +483,12 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     }
   }
 
-  /*lazy val sBracketType: Syntax[Tree] = {
-    (lsbra ~ typeExpr ~ rsbra).map { case _ ~ e ~ _ => e }
-  }
-
-  lazy val application: Syntax[Tree] = recursive {
-    (simpleExpr ~ many(sBracketType) ~ many(simpleExpr)).map {
-      case f ~ typeArgs ~ args =>
-        args.foldLeft(
-          typeArgs.foldLeft(f) { case (acc: Tree, e) => TypeApp(acc, stainlessSome(e)) }
-        ) { case (acc, e) => App(acc, e) }
-    }
-  }*/
-
-
   lazy val sBracketAppArg: Syntax[(Tree, Tree)] = {
     (lsbra ~ typeExpr ~ rsbra).map { case _ ~ e ~ _ => (e, Abs(UnitLiteral)) }
   }
 
   lazy val bracketAppArg: Syntax[(Tree, Tree)] = {
-    (dlbra ~ expression ~ drbra).map { case _ ~ ty ~ _ => (ty, Ghost(UnitLiteral)) }
+    (dlbra ~ expression ~ drbra).map { case _ ~ ty ~ _ => (ty, Inst(UnitLiteral, UnitLiteral)) }
   }
 
   lazy val parAppArg: Syntax[(Tree, Tree)] = {
