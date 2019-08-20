@@ -16,23 +16,17 @@ def sum(k: Nat) (stream: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))
   }
 }
 
-def mapFix[X][Y] (f: X => Y) = {
-  fix[n => Rec(n)(stream => (X, Unit => stream)) => Rec(n)(stream => (Y, Unit => stream))](map =>
-    fun (s: Rec(n)(stream => (X, Unit => stream))) => {
-      Fold[Rec(n)(stream => (Y, Unit => stream))]((
-        f (Unfold(s) in (x => First(x))),
-        fun (u: Unit) => {
-          map (UnfoldPositive(s) in (x => (Second(x))()))
-        }
-      ))
+def mapFix[X][Y] (f: X => Y){{n}}(s: Rec(n)(stream => (X, Unit => stream))): Rec(n)(stream => (Y, Unit => stream)) = {
+  Fold[Rec(n)(stream => (Y, Unit => stream))]((
+    f (Unfold(s) in (x => First(x))),
+    fun (u: Unit) => {
+      mapFix {{n - 1}} (UnfoldPositive(s) in (x => (Second(x))()))
     }
-  )
+  ))
 }
 
-def map[X][Y] (f: X => Y) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) = {
-  fix[n => Rec(n)(stream => (Y, Unit => stream))](u =>
-    Inst(mapFix[X][Y] f, n) (Inst(s, n))
-  )
+def map[X][Y] (f: X => Y) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))){{n}}: Rec(n)(stream => (Y, Unit => stream)) = {
+  Inst(mapFix[X][Y] f, n) (Inst(s, n))
 }
 
 def zipWithFix[X][Y][Z] (f: X => Y => Z) = {
