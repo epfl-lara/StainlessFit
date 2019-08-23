@@ -1,4 +1,4 @@
-Include("examples/assert.sc")
+Include("../assert.sc")
 
 val x = 5 in
 def lessThanX(y: Nat): Bool = { y < x }

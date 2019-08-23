@@ -42,7 +42,7 @@ object ListTree {
       Some(Var(None(), "l")),
       EitherMatch(
         Var(None(), "l"),
-        Bind(None(), ErrorTree(None())),
+        Bind(None(), Error(None())),
         Bind(Some(Var(None(), "t")), Second(Var(None(), "t")))
       )
     )
@@ -54,7 +54,7 @@ object ListTree {
       Some(Var(None(), "l")),
       EitherMatch(
         Var(None(), "l"),
-        Bind(None(), ErrorTree(None())),
+        Bind(None(), Error(None())),
         Bind(Some(Var(None(), "t")), First(Var(None(), "t")))
       )
     )
@@ -66,8 +66,8 @@ object ListTree {
       Some(Var(None(), "l")),
       EitherMatch(
         Var(None(), "l"),
-        Bind(None(), BoolLiteral(true)),
-        Bind(None(), BoolLiteral(false))
+        Bind(None(), BooleanLiteral(true)),
+        Bind(None(), BooleanLiteral(false))
       )
     )
   )
@@ -181,13 +181,13 @@ class ListTreeTest extends FunSuite  {
   test("evaluate head of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(head, t1), 1000) == NatLiteral(l1.head))
     assert(evaluate(App(head, t2), 1000) == NatLiteral(l2.head))
-    assert(evaluate(App(head, nil), 1000) == ErrorTree(None()))
+    assert(evaluate(App(head, nil), 1000) == Error(None()))
   }
 
   test("evaluate tail of a list is correct and leads to bottom if empty list") {
     assert(evaluate(App(tail, t1), 1000) == listToTree(l1.tail))
     assert(evaluate(App(tail, t2), 1000) == listToTree(l2.tail))
-    assert(evaluate(App(tail, nil), 1000) == ErrorTree(None()))
+    assert(evaluate(App(tail, nil), 1000) == Error(None()))
   }
 
   test("cons of list...") {
@@ -197,9 +197,9 @@ class ListTreeTest extends FunSuite  {
   }
 
   test("test is empty..."){
-    assert(evaluate(App(isEmpty, t1), 1000) == BoolLiteral(l1.isEmpty))
-    assert(evaluate(App(isEmpty, t2), 1000) == BoolLiteral(l2.isEmpty))
-    assert(evaluate(App(isEmpty, nil), 1000) == BoolLiteral(true))
+    assert(evaluate(App(isEmpty, t1), 1000) == BooleanLiteral(l1.isEmpty))
+    assert(evaluate(App(isEmpty, t2), 1000) == BooleanLiteral(l2.isEmpty))
+    assert(evaluate(App(isEmpty, nil), 1000) == BooleanLiteral(true))
   }
 
   test("test len") {

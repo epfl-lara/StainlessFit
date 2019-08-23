@@ -71,8 +71,8 @@ class InterpreterSuite extends FunSuite {
   }
 
   test("condition evaluation takes the correct branch") {
-    val c1 = IfThenElse(BoolLiteral(true), NatLiteral(2), NatLiteral(3))
-    val c2 = IfThenElse(BoolLiteral(false), NatLiteral(2), NatLiteral(3))
+    val c1 = IfThenElse(BooleanLiteral(true), NatLiteral(2), NatLiteral(3))
+    val c2 = IfThenElse(BooleanLiteral(false), NatLiteral(2), NatLiteral(3))
     assert(evaluate(c1, 1000) === NatLiteral(2))
     assert(evaluate(c2, 1000) === NatLiteral(3))
   }
@@ -85,10 +85,10 @@ class InterpreterSuite extends FunSuite {
   test("tupleSelect evaluation") {
     val e = First(
       Second(
-        Pair(BoolLiteral(true), Pair(BoolLiteral(false), NatLiteral(3)))
+        Pair(BooleanLiteral(true), Pair(BooleanLiteral(false), NatLiteral(3)))
       )
     )
-    assert(evaluate(e, 1000) === BoolLiteral(false))
+    assert(evaluate(e, 1000) === BooleanLiteral(false))
   }
 
   test("app evaluation") {

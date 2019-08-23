@@ -1,4 +1,4 @@
-Include("examples/assert.sc")
+Include("../assert.sc")
 
 val fact = fix[n => Nat => Nat](fac =>
   fun (m: Nat) => {

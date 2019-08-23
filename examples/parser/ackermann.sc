@@ -1,4 +1,4 @@
-Include("examples/assert.sc")
+Include("../assert.sc")
 
 val ackermann = fix[o => Nat => Nat => Nat](ackermann =>
   fun (m: Nat) => {

@@ -156,146 +156,155 @@ object Operator {
 }
 
 object Tree {
-  def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Map[Identifier, Identifier], Int) = {
+  def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Int) = {
     t match {
+      case UnitLiteral => (t, max)
+      case NatLiteral(_) => (t, max)
+      case BooleanLiteral(_) => (t, max)
+      case UnitType => (t, max)
+      case NatType => (t, max)
+      case BoolType => (t, max)
+      case Error(s, Some(t)) =>
+        val (newT, max1) = setId(t, m, max)
+        (Error(s, Some(newT)), max1)
+      case Error(_, None()) => (t, max)
       case Var(id) =>
         m.get(id) match {
-          case None() => throw new java.lang.Exception(s"Undefined variable $id")
-          case Some(id) => (Var(id), m, max)
+          case None() => throw new java.lang.Exception(s"Error in setId: undefined variable $id")
+          case Some(newId) => (Var(newId), max)
         }
       case IfThenElse(cond, t1, t2) =>
-        val (newC, m1, max1) = setId(cond, m, max)
-        val (newT1, m2, max2) = setId(t1, m1, max1)
-        val (newT2, m3, max3) = setId(t2, m2, max2)
-        (IfThenElse(newC, newT1, newT2), m3, max3)
+        val (newC, max1) = setId(cond, m, max)
+        val (newT1, max2) = setId(t1, m, max1)
+        val (newT2, max3) = setId(t2, m, max2)
+        (IfThenElse(newC, newT1, newT2), max3)
       case App(t1, t2) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newT2, m2, max2) = setId(t2, m1, max1)
-        (App(newT1, newT2), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newT2, max2) = setId(t2, m, max1)
+        (App(newT1, newT2), max2)
       case Pair(t1, t2) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newT2, m2, max2) = setId(t2, m1, max1)
-        (Pair(newT1, newT2), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newT2, max2) = setId(t2, m, max1)
+        (Pair(newT1, newT2), max2)
       case First(t) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        (First(newT), m1, max1)
+        val (newT, max1) = setId(t, m, max)
+        (First(newT), max1)
       case Second(t) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        (Second(newT), m1, max1)
+        val (newT, max1) = setId(t, m, max)
+        (Second(newT), max1)
       case LeftTree(t) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        (LeftTree(newT), m1, max1)
+        val (newT, max1) = setId(t, m, max)
+        (LeftTree(newT), max1)
       case RightTree(t) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        (RightTree(newT), m1, max1)
+        val (newT, max1) = setId(t, m, max)
+        (RightTree(newT), max1)
       case Bind(y, e) =>
         val m1 = m.updated(y, Identifier(max, y.name))
-        val (newE, m2, max2) = setId(e, m1, max + 1)
-        (Bind(Identifier(max, y.name), newE), m, max2)
+        val (newE, max2) = setId(e, m1, max + 1)
+        (Bind(Identifier(max, y.name), newE), max2)
       case Lambda(Some(tp), bind) =>
-        val (newTp, m1, max1) = setId(tp, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (Lambda(Some(newTp), newBind), m2, max2)
+        val (newTp, max1) = setId(tp, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (Lambda(Some(newTp), newBind), max2)
       case Lambda(None(), bind) =>
-        val (newBind, m1, max1) = setId(bind, m, max)
-        (Lambda(None(), newBind), m1, max1)
-      case Fix(Some(Bind(n, tp)), Bind(_, bind)) =>
-        val m1 = m.updated(n, Identifier(max, n.name))
-        val newN = Identifier(max, n.name)
-        val (newTp, m2, max2) = setId(tp, m1, max + 1)
-        val (newBind, m3, max3) = setId(bind, m2, max2)
-        (Fix(Some(Bind(newN, newTp)), Bind(newN, newBind)), m3, max3)
+        val (newBind, max1) = setId(bind, m, max)
+        (Lambda(None(), newBind), max1)
+      case ErasableLambda(tp, bind) =>
+        val (newTp, max1) = setId(tp, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (ErasableLambda(newTp, newBind), max2)
+      case Fix(Some(tp), bind) =>
+        val (newTp, max1) = setId(tp, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (Fix(Some(newTp), newBind), max2)
       case Fix(None(), bind) =>
-        val (newBind, m1, max1) = setId(bind, m, max)
-        (Fix(None(), newBind), m1, max1)
+        val (newBind, max1) = setId(bind, m, max)
+        (Fix(None(), newBind), max1)
       case LetIn(Some(tp), v, bind) =>
-        val (newTp, m1, max1) = setId(tp, m, max)
-        val (newV, m2, max2) = setId(v, m1, max1)
-        val (newBind, m3, max3) = setId(bind, m2, max2)
-        (LetIn(Some(newTp), newV, newBind), m3, max3)
+        val (newTp, max1) = setId(tp, m, max)
+        val (newV, max2) = setId(v, m, max1)
+        val (newBind, max3) = setId(bind, m, max2)
+        (LetIn(Some(newTp), newV, newBind), max3)
       case LetIn(None(), v, bind) =>
-        val (newV, m1, max1) = setId(v, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (LetIn(None(), newV, newBind), m2, max2)
+        val (newV, max1) = setId(v, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (LetIn(None(), newV, newBind), max2)
       case Match(t, t0, bind) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        val (newT0, m2, max2) = setId(t0, m1, max1)
-        val (newBind, m3, max3) = setId(bind, m2, max2)
-        (Match(newT, newT0, newBind), m3, max3)
+        val (newT, max1) = setId(t, m, max)
+        val (newT0, max2) = setId(t0, m, max1)
+        val (newBind, max3) = setId(bind, m, max2)
+        (Match(newT, newT0, newBind), max3)
       case EitherMatch(t, bind1, bind2) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        val (newBind1, m2, max2) = setId(bind1, m1, max1)
-        val (newBind2, m3, max3) = setId(bind2, m2, max2)
-        (EitherMatch(newT, newBind1, newBind2), m3, max3)
+        val (newT, max1) = setId(t, m, max)
+        val (newBind1, max2) = setId(bind1, m, max1)
+        val (newBind2, max3) = setId(bind2, m, max2)
+        (EitherMatch(newT, newBind1, newBind2), max3)
       case Primitive(op, Cons(t, Nil())) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        (Primitive(op, Cons(newT, Nil())), m1, max1)
+        val (newT, max1) = setId(t, m, max)
+        (Primitive(op, Cons(newT, Nil())), max1)
       case Primitive(op, Cons(t1, Cons(t2, Nil()))) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newT2, m2, max2) = setId(t2, m1, max1)
-        (Primitive(op, Cons(newT1, Cons(newT2, Nil()))), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newT2, max2) = setId(t2, m, max1)
+        (Primitive(op, Cons(newT1, Cons(newT2, Nil()))), max2)
       case Inst(t1, t2) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newT2, m2, max2) = setId(t2, m1, max1)
-        (Inst(newT1, newT2), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newT2, max2) = setId(t2, m, max1)
+        (Inst(newT1, newT2), max2)
       case Fold(Some(tp), t) =>
-        val (newTp, m1, max1) = setId(tp, m, max)
-        val (newT, m2, max2) = setId(t, m1, max1)
-        (Fold(Some(newTp), newT), m2, max2)
+        val (newTp, max1) = setId(tp, m, max)
+        val (newT, max2) = setId(t, m, max1)
+        (Fold(Some(newTp), newT), max2)
       case Fold(None(), t) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        (Fold(None(), newT), m1, max1)
+        val (newT,max1) = setId(t, m, max)
+        (Fold(None(), newT), max1)
       case Unfold(t, bind) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (Unfold(newT, newBind), m2, max2)
+        val (newT,max1) = setId(t, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (Unfold(newT, newBind), max2)
       case UnfoldPositive(t, bind) =>
-        val (newT, m1, max1) = setId(t, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (UnfoldPositive(newT, newBind), m2, max2)
+        val (newT,max1) = setId(t, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (UnfoldPositive(newT, newBind), max2)
       case Abs(bind) =>
-        val (newBind, m1, max1) = setId(bind, m, max)
-        (Abs(newBind), m1, max1)
-      case TypeApp(abs, None()) =>
-        val (newAbs, m1, max1) = setId(abs, m, max)
-        (TypeApp(newAbs, None()), m1, max1)
-      case TypeApp(abs, Some(t)) =>
-        val (newAbs, m1, max1) = setId(abs, m, max)
-        val (newT, m2, max2) = setId(t, m1, max1)
-        (TypeApp(newAbs, Some(newT)), m2, max2)
+        val (newBind, max1) = setId(bind, m, max)
+        (Abs(newBind), max1)
+      case TypeApp(abs, t) =>
+        val (newAbs, max1) = setId(abs, m, max)
+        val (newT, max2) = setId(t, m, max1)
+        (TypeApp(newAbs, newT), max2)
       case SumType(t1, t2) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newT2, m2, max2) = setId(t2, m1, max1)
-        (SumType(newT1, newT2), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newT2, max2) = setId(t2, m, max1)
+        (SumType(newT1, newT2), max2)
       case PiType(t1, bind) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (PiType(newT1, newBind), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (PiType(newT1, newBind), max2)
       case SigmaType(t1, bind) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (SigmaType(newT1, newBind), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (SigmaType(newT1, newBind), max2)
       case IntersectionType(t1, bind) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (IntersectionType(newT1, newBind), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (IntersectionType(newT1, newBind), max2)
       case RefinementType(t1, bind) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (RefinementType(newT1, newBind), m2, max2)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (RefinementType(newT1, newBind), max2)
       case RecType(n, bind) =>
-        val (newN, m1, max1) = setId(n, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (RecType(newN, newBind), m2, max2)
+        val (newN, max1) = setId(n, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (RecType(newN, newBind), max2)
       case PolyForallType(bind) =>
-        val (newBind, m1, max1) = setId(bind, m, max)
-        (PolyForallType(newBind), m1, max1)
-
+        val (newBind, max1) = setId(bind, m, max)
+        (PolyForallType(newBind), max1)
       case TypeDefinition(t1, bind) =>
-        val (newT1, m1, max1) = setId(t1, m, max)
-        val (newBind, m2, max2) = setId(bind, m1, max1)
-        (TypeDefinition(newT1, newBind), m2, max2)
-      case _ => (t, m, max)
+        val (newT1, max1) = setId(t1, m, max)
+        val (newBind, max2) = setId(bind, m, max1)
+        (TypeDefinition(newT1, newBind), max2)
+
+      case _ => throw new java.lang.Exception(s"Function `setId` is not defined on tree: $t")
     }
   }
 
@@ -313,7 +322,7 @@ object Tree {
       case Var(_) => body
       case UnitLiteral => body
       case NatLiteral(_) => body
-      case BoolLiteral(_) => body
+      case BooleanLiteral(_) => body
       case IfThenElse(cond, t1, t2) =>
         IfThenElse(replace(xvar, v, cond), replace(xvar, v, t1), replace(xvar, v, t2))
       case App(t1, t2) =>
@@ -330,6 +339,7 @@ object Tree {
         Bind(yvar, replace(xvar, v, e))
       case Lambda(None(), bind) => Lambda(None(), replace(xvar, v, bind))
       case Lambda(Some(tp), bind) => Lambda(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
+      case ErasableLambda(tp, bind) => ErasableLambda(replace(xvar, v, tp), replace(xvar, v, bind))
       case Fix(None(), bind) => Fix(None(), replace(xvar, v, bind))
       case Fix(Some(tp), bind) => Fix(Some(replace(xvar, v, tp)), replace(xvar, v, bind))
       case LetIn(None(), v1, bind) => LetIn(None(), replace(xvar, v, v1), replace(xvar, v, bind))
@@ -343,9 +353,8 @@ object Tree {
       case Unfold(t, bind) => Unfold(replace(xvar, v, t), replace(xvar, v, bind))
       case UnfoldPositive(t, bind) => UnfoldPositive(replace(xvar, v, t), replace(xvar, v, bind))
       case Abs(bind) => Abs(replace(xvar, v, bind))
-      case TypeApp(abs, None()) => TypeApp(replace(xvar, v, abs), None())
-      case TypeApp(abs, Some(t)) => TypeApp(replace(xvar, v, abs), Some(replace(xvar, v, t)))
-      case ErrorTree(_, _) => body
+      case TypeApp(abs, t) => TypeApp(replace(xvar, v, abs), replace(xvar, v, t))
+      case Error(_, _) => body
 
       case NatType => body
       case BoolType => body
@@ -371,7 +380,8 @@ object Tree {
     case Var(_) => t
     case UnitLiteral => t
     case NatLiteral(_) => t
-    case BoolLiteral(_) => t
+    case BooleanLiteral(_) => t
+    case Refl(_, _) => UnitLiteral
     case IfThenElse(cond, t1, t2) => IfThenElse(erase(cond), erase(t1), erase(t2))
     case App(t1, t2) => App(erase(t1), erase(t2))
     case Pair(t1, t2) => Pair(erase(t1), erase(t2))
@@ -382,18 +392,19 @@ object Tree {
     case Because(t1, t2) => Because(erase(t1), erase(t2))
     case Bind(yvar, e) => Bind(yvar, erase(e))
     case Lambda(_, bind) => Lambda(None(), erase(bind))
+    case ErasableLambda(_, Bind(id, body)) => erase(body)
     case Fix(_, bind) => Fix(None(), erase(bind))
-    case LetIn(_, v1, bind) => LetIn(None(), erase(v1), erase(bind))
+    case LetIn(_, t1, bind) => App(Lambda(None(), erase(bind)), erase(t1))
     case Match(t, t0, bind) => Match(erase(t), erase(t0), erase(bind))
     case EitherMatch(t, bind1, bind2) => EitherMatch(erase(t), erase(bind1), erase(bind2))
     case Primitive(op, args) => Primitive(op, args.map(erase(_)))
-    case Inst(t1, t2) => erase(t1)
-    case Fold(_, t) => Fold(None(), erase(t))
-    case Unfold(t, bind) => Unfold(erase(t), erase(bind))
-    case UnfoldPositive(t, bind) => Unfold(erase(t), erase(bind))
-    case Abs(bind) => Abs(erase(bind))
-    case TypeApp(abs, _) => TypeApp(erase(abs), None())
-    case ErrorTree(s, _) => ErrorTree(s, None())
+    case Inst(t1, _) => erase(t1)
+    case Fold(_, t) => erase(t)
+    case Unfold(t1, bind) => App(Lambda(None(), erase(bind)), erase(t1))
+    case UnfoldPositive(t1, bind) => App(Lambda(None(), erase(bind)), erase(t1))
+    case Abs(Bind(id, body)) => erase(body)
+    case TypeApp(t1, _) => erase(t1)
+    case Error(s, _) => Error(s, None())
     case TypeDefinition(_, Bind(_, t)) => erase(t)
     case _ => throw new java.lang.Exception(s"Function erase is not implemented on $t (${t.getClass}).")
   }
@@ -401,7 +412,7 @@ object Tree {
   def isError(e: Tree): Boolean = {
     decreases(e)
     e match {
-      case ErrorTree(_, _) => true
+      case Error(_, _) => true
       case _ => false
     }
   }
@@ -411,7 +422,7 @@ object Tree {
     e match {
       case UnitLiteral => true
       case NatLiteral(_) => true
-      case BoolLiteral(_) => true
+      case BooleanLiteral(_) => true
       case Var(_) => true
       case Lambda(_, _) => true
       case Pair(t1, t2) => isValue(t1) && isValue(t2)
@@ -425,170 +436,71 @@ object Tree {
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
-  def isEvidentSubType(ty1: Tree, ty2: Tree): Boolean = {
+  def isObviousSubType(ty1: Tree, ty2: Tree): Boolean = {
     (ty1, ty2) match {
       case (BottomType, _) => true
       case (_, TopType) => true
       case (ty1, ty2) if ty1 == ty2 => true
-      case (RefinementType(ty, Bind(a, t)), ty2) => isEvidentSubType(ty, ty2)
-      case (SumType(l1, r1), SumType(l2, r2)) => isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2)
+      case (RefinementType(ty, Bind(a, t)), ty2) => isObviousSubType(ty, ty2)
+      case (SumType(l1, r1), SumType(l2, r2)) => isObviousSubType(l1, l2) && isObviousSubType(r1, r2)
       case (SigmaType(l1, Bind(x, r1)), SigmaType(l2, Bind(y, r2))) =>
-        isEvidentSubType(l1, l2) && isEvidentSubType(r1, r2.replace(y, Var(x)))
+        isObviousSubType(l1, l2) && isObviousSubType(r1, r2.replace(y, Var(x)))
       case (PiType(ty1, Bind(x, ty1b)), PiType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty1b, ty2b.replace(y, Var(x)))
+        isObviousSubType(ty2, ty1) && isObviousSubType(ty1b, ty2b.replace(y, Var(x)))
       case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
-        isEvidentSubType(ty2, ty1) && isEvidentSubType(ty2b, ty1b.replace(y, Var(x)))
+        isObviousSubType(ty2, ty1) && isObviousSubType(ty2b, ty1b.replace(y, Var(x)))
       case (PolyForallType(Bind(x1, ty1)), PolyForallType(Bind(x2, ty2))) =>
-        isEvidentSubType(ty1, ty2.replace(x2, Var(x1)))
+        isObviousSubType(ty1, ty2.replace(x2, Var(x1)))
       case _ => false
     }
   }
 
-  def isType(t: Tree): Boolean = {
-    t match {
-      case NatType => true
-      case BoolType => true
-      case BottomType => true
-      case TopType => true
-      case UnitType => true
-      case RefinementType(_, _) => true
-      case SumType(_, _) => true
-      case PiType(_, _) => true
-      case IntersectionType(_, _) => true
-      case RecType(_, _) => true
-      case PolyForallType(_) => true
-      case UnionType(_, _) => true
-      case EqualityType(_, _) => true
-      case SingletonType(_) => true
-      case _ => false
-    }
-  }
-
-  def isEqual(t1: Tree, t2: Tree): Boolean = {
+  def areEqual(t1: Tree, t2: Tree): Boolean = {
     (t1, t2) match {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
-        isEqual(cond1, cond2) && isEqual(t11, t21) && isEqual(t12, t22)
-      case (App(t11, t12), App(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
-      case (Pair(t11, t12), Pair(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
-      case (First(t1), First(t2)) => isEqual(t1, t2)
-      case (Second(t1), Second(t2)) => isEqual(t1, t2)
-      case (LeftTree(t1), LeftTree(t2)) => isEqual(t1, t2)
-      case (RightTree(t1), RightTree(t2)) => isEqual(t1, t2)
-      case (Because(t11, t12), Because(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
-      case (Bind(x1, t1), Bind(x2, t2)) => isEqual(t1, t2.replace(x2, Var(x1)))
-      case (Lambda(_, bind1), Lambda(_, bind2)) => isEqual(bind1, bind2)
-      case (Fix(_, bind1), Fix(_, bind2)) => isEqual(bind1, bind2)
-      case (LetIn(_, v1, bind1), LetIn(_, v2, bind2)) => isEqual(v1, v2) && isEqual(bind1, bind2)
-      case (Match(n1, t1, bind1), Match(n2, t2, bind2)) => isEqual(n1, n2) && isEqual(t1, t2) && isEqual(bind1, bind2)
+        areEqual(cond1, cond2) && areEqual(t11, t21) && areEqual(t12, t22)
+      case (App(t11, t12), App(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
+      case (Pair(t11, t12), Pair(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
+      case (First(t1), First(t2)) => areEqual(t1, t2)
+      case (Second(t1), Second(t2)) => areEqual(t1, t2)
+      case (LeftTree(t1), LeftTree(t2)) => areEqual(t1, t2)
+      case (RightTree(t1), RightTree(t2)) => areEqual(t1, t2)
+      case (Because(t11, t12), Because(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
+      case (Bind(x1, t1), Bind(x2, t2)) => areEqual(t1, t2.replace(x2, Var(x1)))
+      case (Lambda(_, bind1), Lambda(_, bind2)) => areEqual(bind1, bind2)
+      case (ErasableLambda(_, bind1), ErasableLambda(_, bind2)) => areEqual(bind1, bind2)
+      case (Fix(_, bind1), Fix(_, bind2)) => areEqual(bind1, bind2)
+      case (LetIn(_, v1, bind1), LetIn(_, v2, bind2)) => areEqual(v1, v2) && areEqual(bind1, bind2)
+      case (Match(n1, t1, bind1), Match(n2, t2, bind2)) => areEqual(n1, n2) && areEqual(t1, t2) && areEqual(bind1, bind2)
       case (EitherMatch(t1, bind11, bind12), EitherMatch(t2, bind21, bind22)) =>
-        isEqual(t1, t2) && isEqual(bind11, bind21) && isEqual(bind12, bind22)
+        areEqual(t1, t2) && areEqual(bind11, bind21) && areEqual(bind12, bind22)
       case (Primitive(op1, args1), Primitive(op2, args2)) =>
-        if(op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => isEqual(t1, t2)}
+        if(op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => areEqual(t1, t2)}
         else false
-      case (Inst(t11, t12), Inst(t21, t22)) => isEqual(t11, t21) && isEqual(t12, t22)
-      case (Fold(_, t1), Fold(_, t2)) => isEqual(t1, t2)
-      case (Unfold(t1, bind1), Unfold(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (UnfoldPositive(t1, bind1), UnfoldPositive(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (Abs(bind1), Abs(bind2)) => isEqual(bind1, bind2)
-      case (TypeApp(abs1, Some(t1)), TypeApp(abs2, Some(t2))) => isEqual(abs1, abs2) && isEqual(t1, t2)
-      case (TypeApp(abs1, None()), TypeApp(abs2, None())) => isEqual(abs1, abs2)
-      case (SumType(t1, bind1), SumType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (PiType(t1, bind1), PiType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (RecType(t1, bind1), RecType(t2, bind2)) => isEqual(t1, t2) && isEqual(bind1, bind2)
-      case (PolyForallType(bind1), PolyForallType(bind2)) => isEqual(bind1, bind2)
+      case (Inst(t11, t12), Inst(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
+      case (Fold(_, t1), Fold(_, t2)) => areEqual(t1, t2)
+      case (Unfold(t1, bind1), Unfold(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (UnfoldPositive(t1, bind1), UnfoldPositive(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (Abs(bind1), Abs(bind2)) => areEqual(bind1, bind2)
+      case (TypeApp(abs1, t1), TypeApp(abs2, t2)) => areEqual(abs1, abs2) && areEqual(t1, t2)
+      case (SumType(t1, bind1), SumType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (PiType(t1, bind1), PiType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
       case _ => t1 == t2
-    }
-  }
-
-  def hasValueSimplification(t: Tree): Boolean = {
-    t match {
-      case IfThenElse(BoolLiteral(_), t1, t2) => true
-      case IfThenElse(cond, t1, t2) =>
-        hasValueSimplification(cond) || hasValueSimplification(t1) || hasValueSimplification(t2)
-      case App(Lambda(_, _), t2) if t2.isValue => true
-      case App(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
-      case Pair(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
-      case First(Pair(t1, t2)) if t1.isValue && t2.isValue => true
-      case Second(Pair(t1, t2)) if t1.isValue && t2.isValue => true
-      case First(t) => hasValueSimplification(t)
-      case Second(t) => hasValueSimplification(t)
-      case LeftTree(t) => hasValueSimplification(t)
-      case RightTree(t) => hasValueSimplification(t)
-      case Because(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
-      case Bind(_, t) => hasValueSimplification(t)
-      case Lambda(_, t) => hasValueSimplification(t)
-      case Fix(_, t) => hasValueSimplification(t)
-      case LetIn(_, t1, t2) if t1.isValue => true
-      case Match(NatLiteral(_), t1, t2) => true
-      case Match(t, t1, t2) => hasValueSimplification(t) || hasValueSimplification(t1) || hasValueSimplification(t2)
-      case EitherMatch(LeftTree(t), _, _) if t.isValue => true
-      case EitherMatch(RightTree(t), _, _) if t.isValue => true
-      case EitherMatch(t, t1, t2) => hasValueSimplification(t) || hasValueSimplification(t1) || hasValueSimplification(t2)
-      case Primitive(op, args) => args.exists(hasValueSimplification(_))
-      case Inst(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
-      case Fold(_, t) => hasValueSimplification(t)
-      case Unfold(Fold(_, t1), t2) if t1.isValue => true
-      case UnfoldPositive(Fold(_, t1), t2) if t1.isValue => true
-      case Unfold(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
-      case UnfoldPositive(t1, t2) => hasValueSimplification(t1) || hasValueSimplification(t2)
-      case Abs(t) => hasValueSimplification(t)
-
-      case TypeApp(Abs(_), _) => true
-      case TypeApp(t, _) => hasValueSimplification(t)
-      case _ => false
-    }
-  }
-
-  def applyValueSimplification(t: Tree): Tree = {
-    t match {
-      case IfThenElse(BoolLiteral(true), t1, t2) => t1
-      case IfThenElse(BoolLiteral(false), t1, t2) => t2
-      case IfThenElse(cond, t1, t2) =>
-        IfThenElse(applyValueSimplification(cond), applyValueSimplification(t1), applyValueSimplification(t2))
-      case App(Lambda(_, bind), t2) if t2.isValue => replaceBind(bind, t2)
-      case App(t1, t2) => App(applyValueSimplification(t1), applyValueSimplification(t2))
-      case Pair(t1, t2) => Pair(applyValueSimplification(t1), applyValueSimplification(t2))
-      case First(Pair(t1, t2)) if t1.isValue && t2.isValue => applyValueSimplification(t1)
-      case Second(Pair(t1, t2)) if t1.isValue && t2.isValue => applyValueSimplification(t2)
-      case First(t) => First(applyValueSimplification(t))
-      case Second(t) => Second(applyValueSimplification(t))
-      case LeftTree(t) => LeftTree(applyValueSimplification(t))
-      case RightTree(t) => RightTree(applyValueSimplification(t))
-      case Because(t1, t2) => Because(applyValueSimplification(t1), applyValueSimplification(t2))
-      case Bind(x, t) => Bind(x, applyValueSimplification(t))
-      case Lambda(tp, t) => Lambda(tp, applyValueSimplification(t))
-      case Fix(tp, t) => Fix(tp, applyValueSimplification(t))
-      case LetIn(tp, t1, t2) if t1.isValue => replaceBind(applyValueSimplification(t2), applyValueSimplification(t1))
-      case Match(NatLiteral(BigInt(0)), t1, _) => t1
-      case Match(NatLiteral(n), _, bind) => replaceBind(bind, NatLiteral(n - 1))
-      case Match(t, t1, t2) => Match(applyValueSimplification(t), applyValueSimplification(t1), applyValueSimplification(t2))
-      case EitherMatch(LeftTree(t), bind1, _) if t.isValue => replaceBind(bind1, applyValueSimplification(t))
-      case EitherMatch(RightTree(t), _, bind2) if t.isValue => replaceBind(bind2, applyValueSimplification(t))
-      case EitherMatch(t, t1, t2) => EitherMatch(applyValueSimplification(t), applyValueSimplification(t1), applyValueSimplification(t2))
-      case Primitive(op, args) => Primitive(op, args.map(applyValueSimplification(_)))
-      case Inst(t1, t2) => Inst(applyValueSimplification(t1), applyValueSimplification(t2))
-      case Fold(tp, t) => Fold(tp, applyValueSimplification(t))
-      case Unfold(Fold(_, t1), bind) if t1.isValue => replaceBind(bind, t1)
-      case UnfoldPositive(Fold(_, t1), bind) if t1.isValue => replaceBind(bind, t1)
-      case Unfold(t1, t2) => Unfold(applyValueSimplification(t1), applyValueSimplification(t2))
-      case UnfoldPositive(t1, t2) => UnfoldPositive(applyValueSimplification(t1), applyValueSimplification(t2))
-      case Abs(t) => Abs(applyValueSimplification(t))
-      case TypeApp(Abs(t), _) => t
-      case TypeApp(t, ty) => TypeApp(applyValueSimplification(t), ty)
-      case t => t
     }
   }
 }
 
 case class Identifier(id: Int, name: String) {
-  override def toString: String = name.toString// + "#" + id.toString
+  override def toString: String = name.toString + "#" + id.toString
 
   def isFreeIn(e: Tree): Boolean = {
     e match {
-      case Var(id) if id == this => true
+      case Var(id2) if id2 == this => true
       case IfThenElse(cond, t1, t2) =>
         isFreeIn(t1) || isFreeIn(t2) ||
         isFreeIn(cond)
@@ -600,9 +512,9 @@ case class Identifier(id: Int, name: String) {
       case RightTree(t) => isFreeIn(t)
       case Bind(y, e) if (this == y) => false
       case Bind(_, t) => isFreeIn(t)
-      case Lambda(tp, bind) => isFreeIn(bind) || isFreeIn(tp.getOrElse(UnitLiteral))
-      case Fix(tp, Bind(n, bind)) => isFreeIn(bind) || isFreeIn(tp.getOrElse(UnitLiteral))
-      case LetIn(tp, v, bind) => isFreeIn(bind) || isFreeIn(v) || isFreeIn(tp.getOrElse(UnitLiteral))
+      case Lambda(tp, bind) => isFreeIn(bind) || tp.exists(isFreeIn)
+      case Fix(tp, Bind(n, bind)) => isFreeIn(bind) || tp.exists(isFreeIn)
+      case LetIn(tp, v, bind) => isFreeIn(bind) || isFreeIn(v) || tp.exists(isFreeIn)
       case Match(t, t0, bind) =>
         isFreeIn(t) || isFreeIn(t0) || isFreeIn(bind)
       case EitherMatch(t, bind1, bind2) =>
@@ -610,12 +522,12 @@ case class Identifier(id: Int, name: String) {
         isFreeIn(t)
       case Primitive(op, args) =>
         args.exists(isFreeIn(_))
-      case Fold(tp, t) => isFreeIn(t) || isFreeIn(tp.getOrElse(UnitLiteral))
+      case Fold(tp, t) => isFreeIn(t) || tp.exists(isFreeIn)
       case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case UnfoldPositive(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case Abs(bind) => isFreeIn(bind)
       case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
-      case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp.getOrElse(UnitLiteral))
+      case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
@@ -636,17 +548,15 @@ sealed abstract class Tree {
 
   def isValue: Boolean = Tree.isValue(this)
 
-  def isEvidentSubType(ty: Tree): Boolean = Tree.isEvidentSubType(this, ty)
+  def isObviousSubType(ty: Tree): Boolean = Tree.isObviousSubType(this, ty)
 
-  def isEqual(t: Tree): Boolean = Tree.isEqual(this, t)
+  def areEqual(t: Tree): Boolean = Tree.areEqual(this, t)
 
   def replace(id: Identifier, t: Tree): Tree = Tree.replace(id, t, this)
 
+  def replace(id: Identifier, id2: Identifier): Tree = replace(id, Var(id2))
+
   def erase(): Tree = Tree.erase(this)
-
-  def hasValueSimplification: Boolean = Tree.hasValueSimplification(this)
-
-  def applyValueSimplification: Tree = Tree.applyValueSimplification(this)
 }
 
 case class Var(id: Identifier) extends Tree {
@@ -664,7 +574,7 @@ case object UnitLiteral extends Tree {
   override def toString: String = "unit"
 }
 
-case class BoolLiteral(b: Boolean) extends Tree {
+case class BooleanLiteral(b: Boolean) extends Tree {
    override def toString: String = b.toString
 }
 
@@ -691,15 +601,22 @@ case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree {
   }
 }
 
-case class Lambda(tp: Option[Tree], body: Tree) extends Tree {
+case class Lambda(tp: Option[Tree], bind: Tree) extends Tree {
   override def toString: String = {
-    body match {
-      case Bind(x, b) =>
-        tp match {
-          case Some(ty) => "λ" + Bind(x, b).toStringWithType(ty)
-          case _ => "λ" + Bind(x, b).toString
-        }
+    (tp, bind) match {
+      case (Some(ty), Bind(id, body)) => s"fun ($id: $ty) => {\n  $body\n}"
+      case (None(), Bind(id, body)) => s"fun $id => {\n  $body\n}"
       case _ => "<Missing bind in λ>"
+    }
+  }
+}
+
+case class ErasableLambda(ty: Tree, bind: Tree) extends Tree {
+  override def toString: String = {
+    bind match {
+      case Bind(id, body) =>
+        s"fun {{$id: $ty}} => {\n  $body\n}"
+      case _ => "<Missing bind in ErasableLambda>"
     }
   }
 }
@@ -799,7 +716,7 @@ case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree {
   }
 }
 
-case class ErrorTree(s: String, t: Option[Tree]) extends Tree {
+case class Error(s: String, t: Option[Tree]) extends Tree {
   override def toString: String = t match {
     case None() => s"Error($s)"
     case Some(tp) => s"Error[$tp]($s)"
@@ -819,7 +736,7 @@ case class Primitive(op: Operator, args: List[Tree]) extends Tree {
 
 case class Inst(t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
-    "Inst(" + t1.toString + ", " + t2.toString + ")"
+    s"$t1{{$t2}}"
   }
 }
 
@@ -867,13 +784,9 @@ case class Abs(t: Tree) extends Tree {
   }
 }
 
-case class TypeApp(t1: Tree, t2: Option[Tree]) extends Tree {
+case class TypeApp(t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
-    val t2S = t2 match {
-      case Some(t) => t.toString
-      case _ => ""
-    }
-    t1.toString + "[" + t2S + "]"
+    s"$t1[$t2]"
   }
 }
 
@@ -937,7 +850,7 @@ case class RefinementType(t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
     t2 match {
       case Bind(x, t2) =>
-        "{" + x.toString + ": " + t1.toString + ", " + t2.toString + "}"
+        "{" + x.toString + ": " + t1.toString + " | " + t2.toString + "}"
       case _ => "<Missing bind in RefinementType>"
     }
   }

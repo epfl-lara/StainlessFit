@@ -14,10 +14,12 @@ object Derivation {
   def color(c: String, s: String) = s"<span style='color:$c'>$s</span>"
   def termColor(s: String) = color("#007c46", s)
   def typeColor(s: String) = color("#9b2600", s)
+  def headerColor(s: String) = color("#002875", s)
   def bold(s: String) = s"<b>$s</b>"
 
   sealed abstract class Judgment {
     val c: Context
+    val name: String
   }
 
   def shortString(s: String, maxWidth: Int = 160): String = {
@@ -26,41 +28,39 @@ object Derivation {
     else r
   }
 
-  case class CheckJudgment(override val c: Context, e: Tree, t: Tree) extends Judgment {
+  case class CheckJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {
     override def toString =
-      s"⊢ ${termColor(shortString(e.toString))} ⇓ ${typeColor(shortString(t.toString))}"
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇓ ${typeColor(shortString(t.toString))}"
   }
 
-  case class InferJudgment(override val c: Context, e: Tree, t: Option[Tree]) extends Judgment {
-    override def toString = t match {
-      case None() => s"⊢ ${termColor(shortString(e.toString))} ⇑ ??"
-      case Some(tpe) => s"⊢ ${termColor(shortString(e.toString))} ⇑ ${typeColor(shortString(tpe.toString))}"
-    }
-  }
-
-  case class AreEqualJudgment(override val c: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
+  case class InferJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {
     override def toString = {
-      s"⊢ ${typeColor(shortString(t1.toString))} =:= ${typeColor(shortString(t2.toString))} ${bold(s)}"
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇑ ${typeColor(shortString(t.toString))}"
     }
   }
 
-  case class ErrorJudgment[T](override val c: Context, error: T) extends Judgment {
-    override def toString = s"⊢ error: $error"
-  }
-
-  case class SyntheseJudgment(override val c: Context, tp: Tree, t: Tree) extends Judgment {
+  case class AreEqualJudgment(override val name: String, override val c: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
     override def toString = {
-      s"⊢ Synthesize ${typeColor(shortString(t.toString))} for type ${typeColor(shortString(tp.toString))}"
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t1.toString))} ≡ ${typeColor(shortString(t2.toString))} ${bold(s)}"
     }
   }
 
-  case class EmptyJudgment(override val c: Context) extends Judgment {
+  case class ErrorJudgment(override val name: String, override val c: Context, error: String) extends Judgment {
+    override def toString = s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${bold("error: " + error)}"
+  }
+
+  case class SynthesisJudgment(override val name: String, override val c: Context, tp: Tree, t: Tree) extends Judgment {
+    override def toString = {
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
+    }
+  }
+
+  case class EmptyJudgment(override val name: String, override val c: Context) extends Judgment {
     override def toString = ""
   }
 
-
-  case class FileJudgment(override val c: Context, s: String) extends Judgment {
-    override def toString = s"⊢ File ${typeColor(shortString(s))}"
+  case class FileJudgment(override val name: String, override val c: Context, s: String) extends Judgment {
+    override def toString = s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
   }
 
   case class NodeTree[T](node: T, children: List[NodeTree[T]])
