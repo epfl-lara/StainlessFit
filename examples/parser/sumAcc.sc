@@ -1,4 +1,4 @@
-Include("examples/assert.sc")
+Include("../assert.sc")
 
 val sumAcc = fix[o => Nat](sumAcc =>
   fun (acc : Nat) => {

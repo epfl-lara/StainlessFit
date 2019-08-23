@@ -1,3 +1,3 @@
-Include("examples/assert.sc")
+Include("../assert.sc")
 
 assert(4 * (2 + 3) + 2 * 3 / 2 - 1 == 22)

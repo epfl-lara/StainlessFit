@@ -6,6 +6,8 @@ import scala.language.implicitConversions
 
 import stainless.annotation._
 
+import stainless.lang.StaticChecks._
+
 @library
 @isabelle.typ(name = "Option.option")
 sealed abstract class Option[T] {

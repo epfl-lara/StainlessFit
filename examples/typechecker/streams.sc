@@ -1,89 +1,114 @@
-type NatStream = Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) in
+def headN[X]{{n: Nat}}(s: Rec(n)(stream => (X, Unit => stream))): X = {
+  Unfold(s) in (x => First(x))
+}
 
-def constant[X](x: X){{n}}: Rec(n)(stream => (X, Unit => stream)) = {
+def tailN[X]{{ n: {n: Nat | n > 0} }}(s: Rec(n)(stream => (X, Unit => stream))): Rec(n-1)(stream => (X, Unit => stream)) = {
+  UnfoldPositive(s) in (x => (Second(x))())
+}
+
+def head[X](s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): X = {
+  Unfold(s) in (x => First(x))
+}
+
+def tail[X](s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))) = {
+  Unfold(s) in (x => (Second(x))())
+}
+
+def constant[X](x: X){{n: Nat}}: Rec(n)(stream => (X, Unit => stream)) = {
+  Decreases(n)
   Fold[Rec(n)(stream => (X, Unit => stream))](
     (
       x,
-      fun(y: Unit) => { constant{{n - 1}} }
+      fun(y: Unit) => { constant[X](x){{n - 1}} }
     )
   )
 }
 
+type NatStream = Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) in
+
 def sum(k: Nat) (stream: NatStream): Nat = {
   Decreases(k)
-  if(k == 0) 0
+  if (k == 0) 0
   else {
     val x = (Unfold(stream) in (x => x)) in
     First(x) + sum(k - 1) (Second(x)())
   }
 }
 
-def mapFix[X][Y] (f: X => Y){{n}}(s: Rec(n)(stream => (X, Unit => stream))): Rec(n)(stream => (Y, Unit => stream)) = {
+def mapN[X][Y] (f: X => Y){{n: Nat}}(s: Rec(n)(stream => (X, Unit => stream))): Rec(n)(stream => (Y, Unit => stream)) = {
+  Decreases(n)
   Fold[Rec(n)(stream => (Y, Unit => stream))]((
-    f (Unfold(s) in (x => First(x))),
-    fun (u: Unit) => {
-      mapFix {{n - 1}} (UnfoldPositive(s) in (x => (Second(x))()))
-    }
+    f (headN[X]{{n}}(s)),
+    fun (u: Unit) => { mapN[X][Y] (f) {{n - 1}} (tailN[X]{{n}}(s)) }
   ))
 }
 
-def map[X][Y] (f: X => Y) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))){{n}}: Rec(n)(stream => (Y, Unit => stream)) = {
-  Inst(mapFix[X][Y] f, n) (Inst(s, n))
+def map[X][Y] (f: X => Y) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(stream => (Y, Unit => stream))) = {
+  fun {{n: Nat}} => { mapN[X][Y](f){{n}}(s{{n}}) }
 }
 
-def zipWithFix[X][Y][Z] (f: X => Y => Z){{n}} (s1: Rec(n)(stream => (X, Unit => stream)))
-                        (s2: Rec(n)(stream => (Y, Unit => stream))): Rec(n)(stream => (Z, Unit => stream)) = {
+def zipWithN
+  [X][Y][Z]
+  (f: X => Y => Z)
+  {{n: Nat}}
+  (s1: Rec(n)(stream => (X, Unit => stream)))
+  (s2: Rec(n)(stream => (Y, Unit => stream))):
+    Rec(n)(stream => (Z, Unit => stream)) = {
+
+  Decreases(n)
+
   Fold[Rec(n)(stream => (Z, Unit => stream))]((
-    f (Unfold(s1) in (x => First(x))) (Unfold(s2) in (x => First(x))),
+    f (headN[X]{{n}}(s1)) (headN[Y]{{n}}(s2)),
     fun (u: Unit) => {
-      zipWithFix {{n - 1}} (UnfoldPositive(s1) in (x => (Second(x))())) (UnfoldPositive(s2) in (x => (Second(x))()))
+      zipWithN[X][Y][Z] (f) {{n - 1}} (tailN[X]{{n}}(s1)) (tailN[Y]{{n}}(s2))
     }
   ))
 }
 
-def zipWith[X][Y][Z] (f: X => Y => Z) (s1: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))))
-                     (s2: Forall(n: Nat, Rec(n)(stream => (Y, Unit => stream)))) {{n}}: Rec(n)(stream => (Z, Unit => stream)) = {
-  Inst(zipWithFix[X][Y][Z] f, n) (Inst(s1, n)) (Inst(s2, n))
+def zipWith
+  [X][Y][Z]
+  (f: X => Y => Z)
+  (s1: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream))))
+  (s2: Forall(n: Nat, Rec(n)(stream => (Y, Unit => stream)))):
+    Forall(n: Nat, Rec(n)(stream => (Z, Unit => stream))) = {
+
+  fun {{n: Nat}} => { zipWithN[X][Y][Z](f){{n}}(s1{{n}})(s2{{n}}) }
 }
 
-def take2[X] (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
+def nil[X]: Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
+  Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Left(()))
+}
+
+def cons[X](x: X)(xs: Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))): Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
+  Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((x, xs)))
+}
+
+def take[X] (k: Nat) (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))): Forall(n: Nat, Rec(n)(list => (Unit + (X, list)))) = {
   Decreases(k)
   if (k == 0) {
-    Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Left(()))
+    nil[X]
   }
   else {
-    Unfold(s) in (x =>
-      Fold[Forall(n: Nat, Rec(n)(list => (Unit + (X, list))))](Right((First(x), take2[X] (k-1) ((Second(x))()))))
-    )
+    cons[X] (head[X](s)) (take[X] (k-1) (tail[X](s)))
   }
 }
 
-def take[X] (s: Forall(n: Nat, Rec(n)(stream => (X, Unit => stream)))) (k: Nat) = { take2[X] k s }
+def mult (x: Nat) (y: Nat) = { x * y }
+def plus (x: Nat) (y: Nat) = { x + y }
 
-def mult (x: Nat) (y: Nat) = {x * y}
-def plus (x: Nat) (y: Nat) = {x + y}
-
-
-def fibonacci{{n}}: Rec(n)(stream => (Nat, Unit => stream)) = {
+def fibonacci{{n: Nat}}: Rec(n)(stream => (Nat, Unit => stream)) = {
+  Decreases(n)
   Fold[Rec(n)(stream => (Nat, Unit => stream))]((
     0,
     fun(u: Unit) => {
-        Fold[Rec(n - 1)(stream => (Nat, Unit => stream))]((
+      Fold[Rec(n - 1)(stream => (Nat, Unit => stream))]((
         1,
         fun (u: Unit) => {
-          UnfoldPositive(fibonacci{{n - 1}}) in (xfib =>
-            Inst(zipWithFix[Nat][Nat][Nat] plus, n - 2) (fibonacci{{n - 1}}) (Second(xfib)())
-          )
+          zipWithN [Nat][Nat][Nat] plus {{n - 2}} (fibonacci{{n - 2}}) (tailN[Nat]{{n-1}}(fibonacci{{n - 1}}))
         }
       ))
     }
   ))
 }
 
-val x = sum 15 (zipWith[Nat][Nat][Nat] mult (constant[Nat] 2) (constant[Nat] 2)) in
-val y = sum 15 (map[Nat][Nat] (fun (x: Nat) => { x + 5 }) (constant[Nat] 3)) in
-
-val s = map[Nat][Nat] (fun (x: Nat) => { x + 1 }) (constant[Nat] 2) in
-val s2 = zipWith[Nat][Nat][Nat] plus fibonacci s in
-
-(sum 5 s2, take[Nat] s2 5, take[Nat] fibonacci 10, take2[Nat] 10 fibonacci)
+take[Nat] 10 fibonacci

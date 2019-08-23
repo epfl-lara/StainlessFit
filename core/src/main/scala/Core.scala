@@ -27,24 +27,39 @@ object Core {
 
   def parseFile(f: File): Either[String, Tree] = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
-    val regex = """Include\("(.*)\.sc"\)""".r
-    val completeString = regex.replaceAllIn(s, m => scala.io.Source.fromFile(new File(m.group(1) + ".sc")).getLines.mkString("\n"))
-    parseString(completeString)
+    val regex = """Include\("(.*)"\)""".r
+    val completeString = regex.replaceAllIn(s, m =>
+      scala.io.Source.fromFile(new File(f.getAbsoluteFile().getParentFile().getCanonicalPath(), m.group(1))).getLines.mkString("\n") + "\n"
+    )
+    val res = parseString(completeString)
+    // println("Parsed string")
+    // println(res)
+    // println("\n\n\n")
+    res
   }
 
   def evalFile(f: File): Either[String, Tree] =
     parseFile(f) flatMap { src =>
-      val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
+      val (t, _) = Tree.setId(src, stainless.lang.Map(), 0)
 
-      Interpreter.evaluate(t.erase(), 100000000) match {
-        case ErrorTree(error, _) => Left(error)
+      // println("Evaluating:")
+      // println(t)
+      // println("\nTerm after erasure:")
+      // println(t.erase())
+
+      Interpreter.evaluate(t.erase(), 1000000000) match {
+        case Error(error, _) => Left(error)
         case v => Right(v)
       }
     }
 
   def typeCheckFile(f: File): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(f) flatMap { src =>
-      val (t, _, max) = Tree.setId(src, stainless.lang.Map(), 0)
+      val (t, max) = Tree.setId(src, stainless.lang.Map(), 0)
+
+      // println("Type-checking:")
+      // println(t)
+
       TypeChecker.infer(t, max) match {
         case None() => Left(s"Could not type check: $f")
         case Some((success, tree)) =>

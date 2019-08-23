@@ -1,4 +1,4 @@
-Include("examples/assert.sc")
+Include("../assert.sc")
 
 val emptyList = Fold(Left(())) in
 
