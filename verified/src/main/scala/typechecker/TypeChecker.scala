@@ -1836,6 +1836,23 @@ object Rule {
       None()
   }
 
+  val InferTypeDefinition = Rule {
+    case g @ InferGoal(c, e @ TypeDefinition(ty, Bind(id, t))) =>
+      TypeChecker.typeCheckDebug(s"${"   " * c.level}Current goal ${g} InferTypeDefinition : ${c.toString.replaceAll("\n", s"\n${"   " * c.level}")}\n")
+      val subgoal = InferGoal(c, t.replace(id, ty))
+      Some((List(_ => subgoal),
+        {
+          case Cons(InferJudgment(_, _, Some(tpe)), _) =>
+            (true, InferJudgment(c, e, Some(tpe)))
+          case _ =>
+            (false, ErrorJudgment(c, s"Could not infer type for ${termOutput(e)} with InferTypeDefinition."))
+        }
+      ))
+    case g =>
+      None()
+  }
+
+
 
   def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
     t match {
@@ -2120,6 +2137,7 @@ object TypeChecker {
     InferFold.t ||
     InferUnfold.t || NewInferUnfoldPositive.t ||
     InferFoldGen.t ||
+    InferTypeDefinition.t ||
     CheckVar.t ||
     CheckIf.t ||
     CheckMatch.t ||

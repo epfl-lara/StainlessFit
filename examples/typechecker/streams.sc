@@ -1,3 +1,5 @@
+type NatStream = Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream))) in
+
 def constant[X](x: X){{n}}: Rec(n)(stream => (X, Unit => stream)) = {
   Fold[Rec(n)(stream => (X, Unit => stream))](
     (
@@ -7,7 +9,7 @@ def constant[X](x: X){{n}}: Rec(n)(stream => (X, Unit => stream)) = {
   )
 }
 
-def sum(k: Nat) (stream: Forall(n: Nat, Rec(n)(stream => (Nat, Unit => stream)))): Nat = {
+def sum(k: Nat) (stream: NatStream): Nat = {
   Decreases(k)
   if(k == 0) 0
   else {
@@ -70,9 +72,7 @@ def fibonacci{{n}}: Rec(n)(stream => (Nat, Unit => stream)) = {
         1,
         fun (u: Unit) => {
           UnfoldPositive(fibonacci{{n - 1}}) in (xfib =>
-            Inst(zipWithFix[Nat][Nat][Nat] plus, n - 2)
-              (fibonacci{{n - 1}})
-              (Second(xfib)())
+            Inst(zipWithFix[Nat][Nat][Nat] plus, n - 2) (fibonacci{{n - 1}}) (Second(xfib)())
           )
         }
       ))

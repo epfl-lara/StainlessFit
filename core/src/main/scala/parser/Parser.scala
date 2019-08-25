@@ -75,7 +75,8 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     word("if") | word("else") | word("case") | word("in") | word("match") |
     word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
     word("def") | word("Error") | word("First") | word("Second") | word("fixdef") | word("Inst") | word("Fold") |
-    word("Unfold") | word("UnfoldPositive") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda")
+    word("Unfold") | word("UnfoldPositive") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda") |
+    word("type")
       |> { (cs, r) => KeyWordToken(cs.mkString, r) },
 
     word("Bool") | word("Unit") | word("Nat") | word("Rec") | word("Top")
@@ -196,6 +197,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   val sigmaK: Syntax[Token] = elem(KeyWordClass("Sigma"))
   val forallK: Syntax[Token] = elem(KeyWordClass("Forall"))
   val lambdaK: Syntax[Token] = elem(KeyWordClass("Lambda"))
+  val typeK: Syntax[Token] = elem(KeyWordClass("type"))
 
   val natType: Syntax[Tree] = accept(TypeClass("Nat")) { case _ => NatType }
   val boolType: Syntax[Tree] = accept(TypeClass("Bool")) { case _ => BoolType }
@@ -470,6 +472,12 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     }
   }
 
+  lazy val typeDefinition: Syntax[Tree] = recursive {
+    (typeK ~ variable ~ assignation ~ typeExpr ~ inK ~ expression).map {
+      case _ ~ Var(x) ~ _ ~ ty ~ _ ~ t => TypeDefinition(ty, Bind(x, t))
+    }
+  }
+
   lazy val parExpr: Syntax[Tree] = {
     (lpar ~ repsep(expression, comma.unit()) ~ rpar).map {
       case _ ~ l ~ _ =>
@@ -577,7 +585,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     error | instantiate | fold | unfold | unfoldPositive | lambdaAbs
 
   lazy val expression: Syntax[Tree] = recursive {
-    condition | eitherMatch | letIn | defFunction | operator
+    condition | eitherMatch | letIn | defFunction | operator | typeDefinition
   }
 
   def apply(it: Iterator[Token]): ParseResult[Tree] = expression(it)

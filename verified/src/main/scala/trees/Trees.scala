@@ -290,6 +290,11 @@ object Tree {
       case PolyForallType(bind) =>
         val (newBind, m1, max1) = setId(bind, m, max)
         (PolyForallType(newBind), m1, max1)
+
+      case TypeDefinition(t1, bind) =>
+        val (newT1, m1, max1) = setId(t1, m, max)
+        val (newBind, m2, max2) = setId(bind, m1, max1)
+        (TypeDefinition(newT1, newBind), m2, max2)
       case _ => (t, m, max)
     }
   }
@@ -353,6 +358,8 @@ object Tree {
       case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(xvar, v, bind))
 
+      case TypeDefinition(ty, bind) => TypeDefinition(replace(xvar, v, ty), replace(xvar, v, bind))
+
       case BottomType => BottomType
       case TopType => TopType
 
@@ -387,6 +394,7 @@ object Tree {
     case Abs(bind) => Abs(erase(bind))
     case TypeApp(abs, _) => TypeApp(erase(abs), None())
     case ErrorTree(s, _) => ErrorTree(s, None())
+    case TypeDefinition(_, Bind(_, t)) => erase(t)
     case _ => throw new java.lang.Exception(s"Function erase is not implemented on $t (${t.getClass}).")
   }
 
@@ -615,6 +623,7 @@ case class Identifier(id: Int, name: String) {
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
+      case TypeDefinition(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
       case _ => false
     }
   }
@@ -954,6 +963,14 @@ case class PolyForallType(t: Tree) extends Tree {
   }
 }
 
+case class TypeDefinition(ty: Tree, bind: Tree) extends Tree {
+  override def toString: String = {
+    bind match {
+      case Bind(id, t) => "type " + id.toString + " = " + ty.toString + " in\n" + t.toString
+      case _ => "<Missing bind in LetIn>"
+    }
+  }
+}
 
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 
