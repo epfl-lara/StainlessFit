@@ -1,7 +1,7 @@
-import trees._
-import interpreter._
-import typechecker._
-import typechecker.Derivation._
+import verified.trees._
+import verified.interpreter._
+import verified.typechecker._
+import verified.typechecker.Derivation._
 
 import parser.ScalaParser
 import parser.ScalaLexer

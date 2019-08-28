@@ -53,4 +53,8 @@ lazy val verified = project
     Compile / unmanagedJars += {
       (ThisBuild / baseDirectory).value / "unmanaged" / s"scalaz3-${OS.name}-${OS.arch}-${scalaBinaryVersion.value}.jar"
     }
+    ,
+    Compile / unmanagedSourceDirectories += {
+      (ThisBuild / baseDirectory).value / "unmanaged"
+    }
   )

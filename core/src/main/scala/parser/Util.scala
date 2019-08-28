@@ -1,6 +1,6 @@
 package parser
 
-import trees._
+import verified.trees._
 
 object Util {
   def mapFirst[A](l: Seq[A], f: A => Option[A]): Option[Seq[A]] = {

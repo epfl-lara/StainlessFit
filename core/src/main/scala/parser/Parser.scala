@@ -4,7 +4,7 @@ import scallion.input._
 import scallion.lexical._
 import scallion.syntactic._
 
-import trees._
+import verified.trees._
 
 import stainless.annotation._
 import stainless.collection._
@@ -50,7 +50,7 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     // Operators
     oneOf("-+/*!<>") | word("&&") |  word("||") |
     word("==") | word("!=") |word("<=") | word(">=")
-    |> { (cs, r) => OperatorToken(Operator.fromString(cs.mkString), r) },
+    |> { (cs, r) => OperatorToken(Operator.fromString(cs.mkString).get, r) },
 
     //Assignation
     oneOf("=")
@@ -593,7 +593,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
       plus | minus | or is LeftAssociative,
       lt | gt | lteq | gteq is LeftAssociative,
       eq is LeftAssociative)({
-      case (x, op, y) => Primitive(Operator.fromString(op), List(x,y))
+      case (x, op, y) => Primitive(Operator.fromString(op).get, List(x,y))
     }, {
       case Primitive(op, Cons(x, Cons(y, Nil()))) => (x, op.toString, y)
     })
