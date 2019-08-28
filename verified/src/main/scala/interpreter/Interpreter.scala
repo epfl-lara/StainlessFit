@@ -1,3 +1,4 @@
+package verified
 package interpreter
 
 import trees._
@@ -9,9 +10,8 @@ import stainless.lang._
 
 
 object Interpreter {
-  var i = 0
 
-  def smallStep(e: Tree): Tree = {
+  @extern def smallStep(e: Tree): Tree = {
     e match {
       case IfThenElse(BooleanLiteral(true), t1, t2) => t1
       case IfThenElse(BooleanLiteral(false), t1, t2) => t2
@@ -74,12 +74,12 @@ object Interpreter {
       case Primitive(p, Cons(x, Nil())) if !x.isValue => Primitive(p, Cons(smallStep(x), Nil()))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !x.isValue => Primitive(p, Cons(smallStep(x), Cons(y, Nil())))
       case Primitive(p, Cons(x, Cons(y, Nil()))) if !y.isValue => Primitive(p, Cons(x, Cons(smallStep(y), Nil())))
-      case Primitive(_, _) => Error(s"Bad Primitive operations $e", None())
+      case Primitive(_, _) => Error("Bad Primitive operations " + e, None())
 
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))
 
-      case _ => Error(s"Evaluation is stuck on (${e.getClass}) $e", Some(e))
+      case _ => Error("Evaluation is stuck on: " + e, Some(e))
     }
   }
 

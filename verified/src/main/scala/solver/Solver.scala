@@ -1,7 +1,11 @@
+package verified
 package solver
 
 import z3.scala._
 
+import stainless.annotation._
+
+@ignore
 class Solver extends inox.utils.Interruptible {
 
   private[this] val reporter = new inox.PlainTextReporter(Set.empty)
@@ -45,7 +49,6 @@ class Solver extends inox.utils.Interruptible {
 }
 
 object Solver {
-  def getFactory(): Solver = new Solver
-  def reclaim(solver: Solver): Unit = solver.free()
+  @extern def getFactory(): Solver = new Solver
+  @extern def reclaim(solver: Solver): Unit = solver.free()
 }
-

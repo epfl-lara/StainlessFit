@@ -1,9 +1,11 @@
+package verified
 package trees
+
+import Util._
 
 import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
-
 
 sealed abstract class Operator {
   def isNatToNatBinOp: Boolean = Operator.isNatToNatBinOp(this)
@@ -26,49 +28,49 @@ sealed abstract class Operator {
 }
 
 case object Not extends Operator {
-  override def toString = "!"
+  @extern override def toString = "!"
 }
 case object And extends Operator {
-  override def toString = "&&"
+  @extern override def toString = "&&"
 }
 case object Or extends Operator {
-  override def toString = "||"
+  @extern override def toString = "||"
 }
 
 case object Plus extends Operator {
-  override def toString = "+"
+  @extern override def toString = "+"
 }
 case object Minus extends Operator {
-  override def toString = "-"
+  @extern override def toString = "-"
 }
 case object Mul extends Operator {
-  override def toString = "*"
+  @extern override def toString = "*"
 }
 case object Div extends Operator {
-  override def toString = "/"
+  @extern override def toString = "/"
 }
 
 case object Eq extends Operator {
-  override def toString = "=="
+  @extern override def toString = "=="
 }
 case object Neq extends Operator {
-  override def toString = "!="
+  @extern override def toString = "!="
 }
 case object Lteq extends Operator {
-  override def toString = "<="
+  @extern override def toString = "<="
 }
 case object Gteq extends Operator {
-  override def toString = ">="
+  @extern override def toString = ">="
 }
 case object Lt extends Operator {
-  override def toString = "<"
+  @extern override def toString = "<"
 }
 case object Gt extends Operator {
-  override def toString = ">"
+  @extern override def toString = ">"
 }
 
 case object Nop extends Operator {
-  override def toString = "Nop"
+  @extern override def toString = "Nop"
 }
 
 
@@ -123,39 +125,40 @@ object Operator {
   }
 
   def returnedType(op: Operator): Tree = {
-    if(isNatToNatBinOp(op)) return NatType
-    else if(isNatToBoolBinOp(op)) return BoolType
-    else if(isBoolToBoolBinOp(op)) return BoolType
-    else if(isBoolToBoolUnOp(op)) return BoolType
-    else return BottomType
+    if (isNatToNatBinOp(op)) NatType
+    else if (isNatToBoolBinOp(op)) BoolType
+    else if (isBoolToBoolBinOp(op)) BoolType
+    else if (isBoolToBoolUnOp(op)) BoolType
+    else BottomType
   }
 
   def operandsType(op: Operator): Tree = {
-    if(isNatBinOp(op)) return NatType
-    else if(isBoolToBoolBinOp(op)) return BoolType
-    else if(isBoolToBoolUnOp(op)) return BoolType
-    else return BottomType
+    if (isNatBinOp(op)) NatType
+    else if (isBoolToBoolBinOp(op)) BoolType
+    else if (isBoolToBoolUnOp(op)) BoolType
+    else BottomType
   }
 
-  def fromString(str: String): Operator = str match {
-    case "!" => Not
-    case "&&" => And
-    case "||" => Or
-    case "+" => Plus
-    case "-" => Minus
-    case "*" => Mul
-    case "/" => Div
-    case "==" => Eq
-    case "!=" => Neq
-    case "<=" => Lteq
-    case ">=" => Gteq
-    case "<" => Lt
-    case ">" => Gt
-    case _ => throw new java.lang.Exception(s"$str is not an operator")
+  def fromString(str: String): Option[Operator] = str match {
+    case "!" => Some(Not)
+    case "&&" => Some(And)
+    case "||" => Some(Or)
+    case "+" => Some(Plus)
+    case "-" => Some(Minus)
+    case "*" => Some(Mul)
+    case "/" => Some(Div)
+    case "==" => Some(Eq)
+    case "!=" => Some(Neq)
+    case "<=" => Some(Lteq)
+    case ">=" => Some(Gteq)
+    case "<" => Some(Lt)
+    case ">" => Some(Gt)
+    case _ => None()
   }
 }
 
 object Tree {
+  @extern
   def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Int) = {
     t match {
       case UnitLiteral => (t, max)
@@ -316,7 +319,7 @@ object Tree {
     }
   }
 
-  def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
+  @extern def replace(xvar: Identifier, v: Tree, body: Tree): Tree = {
     body match {
       case Var(yvar) if yvar == xvar => v
       case Var(_) => body
@@ -376,7 +379,7 @@ object Tree {
     }
   }
 
-  def erase(t: Tree): Tree = t match {
+  @extern def erase(t: Tree): Tree = t match {
     case Var(_) => t
     case UnitLiteral => t
     case NatLiteral(_) => t
@@ -475,7 +478,7 @@ object Tree {
       case (EitherMatch(t1, bind11, bind12), EitherMatch(t2, bind21, bind22)) =>
         areEqual(t1, t2) && areEqual(bind11, bind21) && areEqual(bind12, bind22)
       case (Primitive(op1, args1), Primitive(op2, args2)) =>
-        if(op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => areEqual(t1, t2)}
+        if (op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => areEqual(t1, t2)}
         else false
       case (Inst(t11, t12), Inst(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (Fold(_, t1), Fold(_, t2)) => areEqual(t1, t2)
@@ -496,7 +499,7 @@ object Tree {
 }
 
 case class Identifier(id: Int, name: String) {
-  override def toString: String = name.toString + "#" + id.toString
+  @extern override def toString: String = name + "#" + verified.Util.anyToString(id)
 
   def isFreeIn(e: Tree): Boolean = {
     e match {
@@ -550,7 +553,7 @@ sealed abstract class Tree {
 
   def isObviousSubType(ty: Tree): Boolean = Tree.isObviousSubType(this, ty)
 
-  def areEqual(t: Tree): Boolean = Tree.areEqual(this, t)
+  def isEqual(t: Tree): Boolean = Tree.areEqual(this, t)
 
   def replace(id: Identifier, t: Tree): Tree = Tree.replace(id, t, this)
 
@@ -560,93 +563,93 @@ sealed abstract class Tree {
 }
 
 case class Var(id: Identifier) extends Tree {
-  override def toString: String = id.toString
+  @extern override def toString: String = id.toString
 }
 
 case class NatLiteral(n: BigInt) extends Tree {
   //require(n >= 0)
-  override def toString: String = n.toString
+  @extern override def toString: String = anyToString(n)
 }
 
 case class Succ(t: Tree) extends Tree
 
 case object UnitLiteral extends Tree {
-  override def toString: String = "unit"
+  @extern override def toString: String = "unit"
 }
 
 case class BooleanLiteral(b: Boolean) extends Tree {
-   override def toString: String = b.toString
+   @extern override def toString: String = if (b) "true" else "false"
 }
 
 case class Bind(id: Identifier, body: Tree) extends Tree {
-  private def bodyString(): String = {
-    " => {\n  " + body.toString.replaceAll("\n", "\n  ") + "\n}"
+  @extern private def bodyString(): String = {
+    " => {\n  " + replaceAll(body.toString, "\n", "\n  ") + "\n}"
   }
 
-  override def toString: String = id.toString + bodyString()
+  @extern override def toString: String = id.toString + bodyString()
 
-  def toStringWithType(ty: Tree): String = {
+  @extern def toStringWithType(ty: Tree): String = {
     id.toString + ": " + ty.toString + bodyString()
   }
 }
 
 case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "if (" + cond.toString + ") {\n" +
-    "  " + t1.toString.replaceAll("\n", "\n  ") + "\n" +
+    "  " + replaceAll(t1.toString, "\n", "\n  ") + "\n" +
     "}" + "\n" +
     "else {" + "\n" +
-    "  " + t2.toString.replaceAll("\n", "\n  ") + "\n" +
+    "  " + replaceAll(t2.toString, "\n", "\n  ") + "\n" +
     "}"
   }
 }
 
 case class Lambda(tp: Option[Tree], bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     (tp, bind) match {
-      case (Some(ty), Bind(id, body)) => s"fun ($id: $ty) => {\n  $body\n}"
-      case (None(), Bind(id, body)) => s"fun $id => {\n  $body\n}"
+      case (Some(ty), Bind(id, body)) => s"fun ($id: $ty) => {\n  ${replaceAll(body.toString, "\n", "\n  ")}\n}"
+      case (None(), Bind(id, body)) => s"fun $id => {\n  ${replaceAll(body.toString, "\n", "\n  ")}\n}"
       case _ => "<Missing bind in λ>"
     }
   }
 }
 
 case class ErasableLambda(ty: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     bind match {
       case Bind(id, body) =>
-        s"fun {{$id: $ty}} => {\n  $body\n}"
+        s"fun {{$id: $ty}} => {\n  ${replaceAll(body.toString, "\n", "\n  ")}\n}"
       case _ => "<Missing bind in ErasableLambda>"
     }
   }
 }
 
 case class App(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t1.toString + "(" + t2.toString + ")"
   }
 }
 
 case class Pair(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
      "(" + t1.toString + ", " + t2.toString + ")"
   }
 }
 
 case class First(t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "First(" + t.toString + ")"
   }
 }
 
 case class Second(t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "Second(" + t.toString + ")"
   }
 }
 
 case class Fix(tp: Option[Tree], bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     bind match {
       case Bind(n1, Bind(x, body)) =>
         val tyString = tp match {
@@ -654,7 +657,7 @@ case class Fix(tp: Option[Tree], bind: Tree) extends Tree {
           case _ => ""
         }
         "Fix" + tyString + "(\n" +
-        "  " + n1.toString + ", " + Bind(x, body).toString.replaceAll("\n", "\n  ") +
+        "  " + n1.toString + ", " + replaceAll(Bind(x, body).toString, "\n", "\n  ") +
         "\n)"
       case _ => s"<Missing bind in Fix($tp, $bind)>"
     }
@@ -662,47 +665,47 @@ case class Fix(tp: Option[Tree], bind: Tree) extends Tree {
 }
 
 case class Match(t: Tree, t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t2 match {
       case Bind(n, tn) =>
         t.toString + " match {\n" +
         "  case 0 =>\n" +
-        t1.toString.replaceAll("\n", "\n    ") + "\n"
+        replaceAll(t1.toString, "\n", "\n    ") + "\n"
         "  case " + n.toString + " =>\n" +
-        tn.toString.replaceAll("\n", "\n    ") + "\n}"
+        replaceAll(tn.toString, "\n", "\n    ") + "\n}"
       case _ => "<Missing bind in Match>"
     }
   }
 }
 
 case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     (t1, t2) match {
       case (Bind(x1, t1), Bind(x2, t2)) =>
         t.toString + " match {\n" +
         "  case Left(" + x1.toString + ") =>\n    " +
-        t1.toString.replaceAll("\n", "\n    ") + "\n" +
+        replaceAll(t1.toString, "\n", "\n    ") + "\n" +
         "  case Right(" + x2.toString + ") =>\n    " +
-        t2.toString.replaceAll("\n", "\n    ") + "\n}"
+        replaceAll(t2.toString, "\n", "\n    ") + "\n}"
       case _ => "<Missing bind in EitherMatch>"
     }
   }
 }
 
 case class LeftTree(t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "Left(" + t.toString + ")"
   }
 }
 
 case class RightTree(t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "Right(" + t.toString + ")"
   }
 }
 
 case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     body match {
       case Bind(x, t) =>
         val typeString = tp match {
@@ -717,14 +720,14 @@ case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree {
 }
 
 case class Error(s: String, t: Option[Tree]) extends Tree {
-  override def toString: String = t match {
+  @extern override def toString: String = t match {
     case None() => s"Error($s)"
     case Some(tp) => s"Error[$tp]($s)"
   }
 }
 
 case class Primitive(op: Operator, args: List[Tree]) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     args match {
       case Cons(n1, Nil()) => op.toString + "(" + n1.toString + ")"
       case Cons(n1, Cons(n2, Nil())) =>
@@ -735,19 +738,19 @@ case class Primitive(op: Operator, args: List[Tree]) extends Tree {
 }
 
 case class Inst(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     s"$t1{{$t2}}"
   }
 }
 
 case class Refl(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "Refl(" + t1.toString + ", " + t2.toString + ")"
   }
 }
 
 case class Fold(tp: Option[Tree], t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     val typeString = tp match {
       case Some(ty) => "[" + ty.toString + "]"
       case _ => ""
@@ -757,7 +760,7 @@ case class Fold(tp: Option[Tree], t: Tree) extends Tree {
 }
 
 case class Unfold(t: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     bind match {
       case Bind(_, _) => "Unfold " + t.toString + " in " + bind.toString + ")"
       case _ => "<Missing bind in Unfold>"
@@ -766,7 +769,7 @@ case class Unfold(t: Tree, bind: Tree) extends Tree {
 }
 
 case class UnfoldPositive(t: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     bind match {
       case Bind(_, _) => "UnfoldPositive " + t.toString + " in " + bind.toString + ")"
       case _ => "<Missing bind in UnfoldPositive>"
@@ -775,7 +778,7 @@ case class UnfoldPositive(t: Tree, bind: Tree) extends Tree {
 }
 
 case class Abs(t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t match {
       case Bind(a, t) =>
         "Λ" + a.toString + ". " + t.toString
@@ -785,33 +788,33 @@ case class Abs(t: Tree) extends Tree {
 }
 
 case class TypeApp(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     s"$t1[$t2]"
   }
 }
 
 case object BottomType extends Tree {
-  override def toString: String = "⊥"
+  @extern override def toString: String = "⊥"
 }
 
 case object TopType extends Tree {
-  override def toString: String = "⊤"
+  @extern override def toString: String = "⊤"
 }
 
 case object UnitType extends Tree {
-  override def toString: String = "Unit"
+  @extern override def toString: String = "Unit"
 }
 
 case object BoolType extends Tree {
-  override def toString: String = "Bool"
+  @extern override def toString: String = "Bool"
 }
 
 case object NatType extends Tree {
-  override def toString: String = "Nat"
+  @extern override def toString: String = "Nat"
 }
 
 case class SigmaType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t2 match {
       case Bind(x, t2) =>
         "(Σ" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
@@ -821,13 +824,13 @@ case class SigmaType(t1: Tree, t2: Tree) extends Tree {
 }
 
 case class SumType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     "(" + t1.toString + ") + (" + t2.toString + ")"
   }
 }
 
 case class PiType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t2 match {
       case Bind(x, t2) =>
         "(Π " + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
@@ -837,7 +840,7 @@ case class PiType(t1: Tree, t2: Tree) extends Tree {
 }
 
 case class IntersectionType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t2 match {
       case Bind(x, t2) =>
         "(∀" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
@@ -847,7 +850,7 @@ case class IntersectionType(t1: Tree, t2: Tree) extends Tree {
 }
 
 case class RefinementType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t2 match {
       case Bind(x, t2) =>
         "{" + x.toString + ": " + t1.toString + " | " + t2.toString + "}"
@@ -857,7 +860,7 @@ case class RefinementType(t1: Tree, t2: Tree) extends Tree {
 }
 
 case class RecType(n: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     bind match {
       case Bind(a, ty) =>
         "(Rec(" + n.toString + ")(" + a.toString + " => " + ty.toString + ")"
@@ -867,7 +870,7 @@ case class RecType(n: Tree, bind: Tree) extends Tree {
 }
 
 case class PolyForallType(t: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     t match {
       case Bind(a, t) =>
         "(∀" + a.toString + ": Type. " + t.toString
@@ -877,7 +880,7 @@ case class PolyForallType(t: Tree) extends Tree {
 }
 
 case class TypeDefinition(ty: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
+  @extern override def toString: String = {
     bind match {
       case Bind(id, t) => "type " + id.toString + " = " + ty.toString + " in\n" + t.toString
       case _ => "<Missing bind in LetIn>"

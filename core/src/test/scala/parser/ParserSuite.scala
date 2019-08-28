@@ -2,8 +2,8 @@ import org.scalatest.FunSuite
 import stainless.annotation._
 import stainless.collection._
 import stainless.lang._
-import trees._
-import interpreter.Interpreter._
+import verified.trees._
+import verified.interpreter.Interpreter._
 import parser.ScalaParser._
 import parser._
 
