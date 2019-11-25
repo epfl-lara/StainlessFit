@@ -21,6 +21,7 @@ lazy val cli = project
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
   .settings(
     name := "stainlesscore-cli",
+    assemblyJarName in assembly := "stainlesscore-cli.jar",
     libraryDependencies ++= Seq(
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),
