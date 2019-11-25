@@ -3,7 +3,7 @@ enablePlugins(GitVersioning)
 git.useGitDescribe := true
 
 ThisBuild / organization := "ch.epfl.lara"
-ThisBuild / scalaVersion := "2.12.8"
+ThisBuild / scalaVersion := "2.12.9"
 
 ThisBuild / resolvers ++= Seq(
   Resolver.bintrayRepo("epfl-lara", "maven")
@@ -34,7 +34,6 @@ lazy val core = project
   .settings(
     name := "stainlesscore",
     libraryDependencies ++= Seq(
-      "ch.epfl.lara"  %% "scallion"  % "0.2",
       "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     ),
     Test / fork := true,
@@ -44,16 +43,11 @@ lazy val core = project
 
 lazy val verified = project
   .in(file("verified"))
-  // .enablePlugins(StainlessPlugin)
+  .enablePlugins(StainlessPlugin)
   .settings(
     name := "stainlesscore-verified",
-    libraryDependencies ++= Seq(
-      "ch.epfl.lara" %% "inox"  % "1.1.0-332-ga6cbf8e",
-    ),
-    Compile / unmanagedJars += {
-      (ThisBuild / baseDirectory).value / "unmanaged" / s"scalaz3-${OS.name}-${OS.arch}-${scalaBinaryVersion.value}.jar"
-    }
-    ,
+    stainlessEnabled := false,
+    Compile / unmanagedBase := (ThisBuild / baseDirectory).value / "unmanaged",
     Compile / unmanagedSourceDirectories += {
       (ThisBuild / baseDirectory).value / "unmanaged"
     }

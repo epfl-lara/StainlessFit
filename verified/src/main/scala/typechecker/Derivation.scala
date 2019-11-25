@@ -12,24 +12,13 @@ import stainless.annotation._
 import stainless.lang._
 
 import Util._
+import Formatting._
 
 object Derivation {
-
-  @extern def color(c: String, s: String) = s"<span style='color:$c'>$s</span>"
-  @extern def termColor(s: String) = color("#007c46", s)
-  @extern def typeColor(s: String) = color("#9b2600", s)
-  @extern def headerColor(s: String) = color("#002875", s)
-  @extern def bold(s: String) = s"<b>$s</b>"
 
   sealed abstract class Judgment {
     val c: Context
     val name: String
-  }
-
-  @extern def shortString(s: String, maxWidth: Int = 160): String = {
-    val r = replaceAll(s, "\n", " ")
-    if (length(r) > maxWidth) r.take(maxWidth - 3) + "..."
-    else r
   }
 
   case class CheckJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {

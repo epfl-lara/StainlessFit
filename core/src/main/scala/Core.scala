@@ -14,7 +14,7 @@ import stainless.lang._
 object Core {
 
   def parseString(s: String): Either[String, Tree] = {
-    val it = s.toIterator
+    val it = s.iterator
     ScalaParser.apply(ScalaLexer.apply(it)) match {
       case ScalaParser.Parsed(value, _) =>
         Right(value)

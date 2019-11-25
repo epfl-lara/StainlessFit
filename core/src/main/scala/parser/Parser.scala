@@ -137,6 +137,9 @@ case class TypeClass(value: String) extends TokenClass("<type>")
 
 object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
 
+  import SafeImplicits._
+  import Implicits._
+
   val stainlessNone = stainless.lang.None
   val stainlessSome = stainless.lang.Some
   var id = 0

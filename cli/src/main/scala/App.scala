@@ -2,9 +2,9 @@ import stainless.lang._
 import scala.collection.immutable.{Set => ScalaSet}
 import java.io.File
 
-class App(val config: Config, val reporter: inox.Reporter) {
+import verified.Reporter
 
-  implicit val debugSection = App.debugMode
+class App(val config: Config, val reporter: Reporter) {
 
   def eval(file: File) = watchable(file) {
     Core.evalFile(config.file) match {
@@ -62,15 +62,8 @@ class App(val config: Config, val reporter: inox.Reporter) {
 }
 
 object App {
-  object debugMode extends inox.DebugSection("debug")
-
   def launch(config: Config): Unit = {
-    val debugSections: ScalaSet[inox.DebugSection] =
-      if (config.debug) ScalaSet(debugMode) else ScalaSet.empty
-
-    val reporter =
-      if (config.colors) new inox.DefaultReporter(debugSections)
-      else new inox.PlainTextReporter(debugSections)
+    val reporter = new Reporter(config.colors)
 
     val app = new App(config, reporter)
 
@@ -80,4 +73,3 @@ object App {
     }
   }
 }
-
