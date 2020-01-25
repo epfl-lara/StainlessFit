@@ -1,8 +1,5 @@
-package verified
+package core
 
-import stainless.annotation._
-
-@ignore
 class Reporter(colors: Boolean) {
   def addPrefix(s: String, pre: String): String = {
     pre + s.replaceAll("\n", "\n" + pre)

@@ -1,9 +1,8 @@
-package verified
+package core
 package typechecker
 
 import trees._
 
-import stainless.annotation._
 
 sealed abstract class Goal {
   val c: Context
@@ -14,7 +13,7 @@ sealed abstract class Goal {
 }
 
 case class InferGoal(c: Context, t: Tree) extends Goal {
-  @extern override def toString: String = {
+  override def toString: String = {
     s"Inferring $t"
   }
 
@@ -26,7 +25,7 @@ case class InferGoal(c: Context, t: Tree) extends Goal {
 }
 
 case class CheckGoal(c: Context, t: Tree, tp: Tree) extends Goal {
-  @extern override def toString: String = {
+  override def toString: String = {
     s"Checking ${t}: ${tp}"
   }
 
@@ -46,7 +45,7 @@ case class SynthesisGoal(c: Context, tp: Tree) extends Goal {
 }
 
 case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
-  @extern override def toString: String = {
+  override def toString: String = {
     s"Check equality ${t1} ≡ ${t2}"
   }
 
@@ -62,7 +61,7 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
 case class ErrorGoal(c: Context, s: String) extends Goal {
   val level = 0
 
-  @extern override def toString: String = {
+  override def toString: String = {
     s"Error Goal: ${s}"
   }
 
@@ -75,7 +74,7 @@ case class ErrorGoal(c: Context, s: String) extends Goal {
 
 case class EmptyGoal(c: Context) extends Goal {
 
-  @extern override def toString: String = {
+  override def toString: String = {
     s"No Goal"
   }
 

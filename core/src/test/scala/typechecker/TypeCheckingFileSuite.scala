@@ -1,7 +1,7 @@
-import stainless.lang._
 import Utils._
 import org.scalatest.FunSuite
 
+import core.Core
 
 class TypeCheckingFileSuite extends FunSuite {
   for (f <- files("examples/typechecker", _.endsWith("sc"))) {

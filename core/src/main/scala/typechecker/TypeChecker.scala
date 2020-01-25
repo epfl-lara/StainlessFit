@@ -1,15 +1,9 @@
-package verified
+package core
 package typechecker
 
-import verified.trees._
-
-import stainless.annotation._
-import stainless.collection._
-import stainless.lang._
-import stainless.io.StdOut.println
+import core.trees._
 
 import Derivation._
-import Util._
 
 object Context {
   def empty: Context = Context(List(), Map(), Set(), 0, 0)
@@ -25,7 +19,7 @@ case class Context(
 ) {
 
   def bind(i: Identifier, t: Tree): Context = {
-    if (variables.contains(i)) throwException("Already bound " + i.toString)
+    if (variables.contains(i)) throw new Exception("Already bound " + i.toString)
     copy(
       termVariables = termVariables.updated(i, t),
       variables = i :: variables
@@ -52,7 +46,7 @@ case class Context(
   def getVarOfType(tp: Tree): Option[Identifier] =
     variables.find(v => termVariables.contains(v) && termVariables(v) == tp)
 
-  @extern override def toString: String = {
+  override def toString: String = {
     "Term variables:\n" ++
     variables.foldLeft("") {
       case (acc, id) => acc + s"${id}: ${termVariables(id)}\n"
@@ -99,7 +93,7 @@ case class Tactic[A,B](apply: (A, (A => Option[B])) => Option[B]) {
 
   def repeat(n: Int): Tactic[A,B] = {
     def repeatApply(n: Int, goal: A, subgoalSolver: A => Option[B]): Option[B] = {
-      if (n <= 0) None()
+      if (n <= 0) None
       else apply(goal, sg => repeatApply(n-1, sg, subgoalSolver))
     }
     Tactic[A,B]((goal, subgoalSolver) => repeatApply(n, goal, subgoalSolver))
@@ -113,7 +107,7 @@ object TypeChecker {
   import TypeCheckerSMTRules._
   import TypeCheckerControlRules._
 
-  val tactic = (
+  val tactic: Tactic[Goal, (Boolean, NodeTree[Judgment])] = (
     CheckBool.t ||
     CheckNat.t ||
     CheckUnit.t ||
@@ -181,17 +175,12 @@ object TypeChecker {
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context.empty(max), t)
-    Bench.bench.start()
-    val res = tactic.apply(g, sg => None())
-    Bench.bench.stop()
-    Bench.bench.report()
-    res
+    tactic.apply(g, sg => None)
   }
 
-  @extern
   def debugs(g: Goal, ruleName: String) = {
     TypeChecker.ruleNameDebug(s"${"   " * g.c.level}$ruleName")
-    TypeChecker.typeCheckDebug(s"${"   " * g.c.level}Current goal ${g} $ruleName : ${replaceAll(g.c.toString, "\n", s"\n${"   " * g.c.level}")}\n")
+    TypeChecker.typeCheckDebug(s"${"   " * g.c.level}Current goal ${g} $ruleName : ${g.c.toString.replaceAll("\n", s"\n${"   " * g.c.level}")}\n")
   }
 
   def ruleNameDebug(s: String): Unit = {

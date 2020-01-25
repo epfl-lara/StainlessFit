@@ -1,6 +1,8 @@
 import Utils._
 import org.scalatest.FunSuite
 
+import core.Core
+
 class EvalFileSuite extends FunSuite {
 
   for (f <- files("examples/parser", _.endsWith("sc"))) {

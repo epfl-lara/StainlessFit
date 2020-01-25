@@ -1,12 +1,7 @@
-package verified
+package core
 package typechecker
 
-import verified.trees._
-
-import stainless.annotation._
-import stainless.collection._
-import stainless.lang._
-import stainless.io.StdOut.println
+import core.trees._
 
 import Derivation._
 import Util._
@@ -18,21 +13,21 @@ object TypeCheckerSynthesisRules {
     case g @ SynthesisGoal(c, UnitType) =>
       Some((List(), _ => (true, SynthesisJudgment("SynthesisUnit", c, UnitType, UnitLiteral))))
     case g =>
-      None()
+      None
   })
 
   val SynthesisBool = Rule("SynthesisBool", {
     case g @ SynthesisGoal(c, BoolType) =>
       Some((List(), _ => (true, SynthesisJudgment("SynthesisBool", c, BoolType, BooleanLiteral(true)))))
     case g =>
-      None()
+      None
   })
 
   val SynthesisNat = Rule("SynthesisNat", {
     case g @ SynthesisGoal(c, NatType) =>
       Some((List(), _ => (true, SynthesisJudgment("SynthesisNat", c, NatType, NatLiteral(0)))))
     case g =>
-      None()
+      None
   })
 
   val SynthesisVar = Rule("SynthesisVar", {
@@ -41,7 +36,7 @@ object TypeCheckerSynthesisRules {
         (List(), _ => (true, SynthesisJudgment("SynthesisVar", c, NatType, Var(v))))
       )
     case g =>
-      None()
+      None
   })
 
   val SynthesisPi = Rule("SynthesisPi", {
@@ -51,35 +46,35 @@ object TypeCheckerSynthesisRules {
       Some((
         List(_ => gb),
         {
-          case Cons(SynthesisJudgment(_, _, _, t), _) =>
+          case SynthesisJudgment(_, _, _, t) :: _ =>
             (true, SynthesisJudgment("SynthesisPi", c, tp, Lambda(Some(tyX), Bind(x, t))))
           case _ =>
-            (false, ErrorJudgment("SynthesisPi", c, anyToString(g)))
+            (false, ErrorJudgment("SynthesisPi", c, g.toString))
         }
       ))
-    case _ => None()
+    case _ => None
   })
 
   val SynthesisSigma = Rule("SynthesisSigma", {
     case g @ SynthesisGoal(c, tp @ SigmaType(ty1, Bind(id, ty2))) =>
       val g1 = SynthesisGoal(c.incrementLevel(), ty1)
       val fg2: List[Judgment] => Goal = {
-        case Cons(SynthesisJudgment(_, _, _, t1), _) =>
+        case SynthesisJudgment(_, _, _, t1) :: _ =>
           val c1 = c.incrementLevel.bind(id, t1)
           SynthesisGoal(c1, ty2)
         case _ =>
-          ErrorGoal(c, anyToString(g1))
+          ErrorGoal(c, g1.toString)
       }
       Some((
         List(_ => g1, fg2),
         {
-          case Cons(SynthesisJudgment(_, _, _, t1), Cons(SynthesisJudgment(_, _, _, t2), _)) =>
+          case SynthesisJudgment(_, _, _, t1) :: SynthesisJudgment(_, _, _, t2) :: _ =>
             (true, SynthesisJudgment("SynthesisSigma", c, tp, Pair(t1, t2)))
           case _ =>
-            (false, ErrorJudgment("SynthesisSigma", c,  anyToString(g)))
+            (false, ErrorJudgment("SynthesisSigma", c,  g.toString))
         }
       ))
-    case _ => None()
+    case _ => None
   })
 
   val SynthesisSum = Rule("SynthesisSum", {
@@ -89,14 +84,14 @@ object TypeCheckerSynthesisRules {
       Some((
         List(_ => g1, _ => g2),
         {
-          case Cons(SynthesisJudgment(_, _, _, t1), _) =>
+          case SynthesisJudgment(_, _, _, t1) :: _ =>
             (true, SynthesisJudgment("SynthesisSum", c, tp, LeftTree(t1)))
-          case Cons(_, Cons(SynthesisJudgment(_, _, _, t2), _)) =>
+          case _ :: SynthesisJudgment(_, _, _, t2) :: _ =>
             (true, SynthesisJudgment("SynthesisSum", c, tp, RightTree(t2)))
           case _ =>
-            (false, ErrorJudgment("SynthesisSum", c, anyToString(g)))
+            (false, ErrorJudgment("SynthesisSum", c, g.toString))
         }
       ))
-    case _ => None()
+    case _ => None
   })
 }
