@@ -1,21 +1,18 @@
+package core
 package parser
 
 import scallion.input._
 import scallion.lexical._
 import scallion.syntactic._
 
-import verified.trees._
+import core.trees._
+import core.Bench.bench
 
-import stainless.annotation._
-import stainless.collection._
-
-import Util.mapFirst
-import Util.freshIdentifier
+import Util._
 
 sealed abstract class Token {
   val range: (Int, Int)
 }
-
 
 case class AssignationToken(range: (Int, Int)) extends Token
 
@@ -137,11 +134,8 @@ case class TypeClass(value: String) extends TokenClass("<type>")
 
 object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
 
-  import SafeImplicits._
   import Implicits._
 
-  val stainlessNone = stainless.lang.None
-  val stainlessSome = stainless.lang.Some
   var id = 0
 
   override def getKind(token: Token): TokenClass = token match {
@@ -370,7 +364,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
         arg match {
           case TypeArgument(id)   => (Abs(Bind(id, accTree)), PolyForallType(Bind(id, accType)))
           case ForallArgument(id, ty) => (ErasableLambda(ty, Bind(id, accTree)), IntersectionType(ty, (Bind(id, accType))))
-          case PiArgument(id, ty) => (Lambda(stainlessSome(ty), Bind(id, accTree)), PiType(ty, Bind(id, accType)))
+          case PiArgument(id, ty) => (Lambda(Some(ty), Bind(id, accTree)), PiType(ty, Bind(id, accType)))
         }
     }
     if (retType.isEmpty) (fun, None)
@@ -390,10 +384,10 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
             throw new java.lang.Exception(s"Recursive function $f a needs return type.")
           case (None, None) =>
             val (fun, _) = createFun(args, None, e1, f)
-            LetIn(stainlessNone(), fun, Bind(f, followingExpr))
+            LetIn(None, fun, Bind(f, followingExpr))
           case (None, Some(ty)) =>
             val (fun, funType) = createFun(args, Some(ty), e1, f)
-            LetIn(stainlessSome(funType.get), fun, Bind(f, followingExpr))
+            LetIn(Some(funType.get), fun, Bind(f, followingExpr))
           case (Some(measure), Some(ty)) =>
             val n = freshIdentifier("_n")
             val expr = e1.replace(f,
@@ -412,15 +406,15 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
               throw new java.lang.Exception(s"Recursive function $f must have at least one non-type argument")
             ).reverse
             val (fun, funTy) = createFun(refinedArgs, Some(ty), expr, f)
-            val fix = Fix(stainlessSome(Bind(n, funTy.get)), Bind(n, Bind(f, fun)))
+            val fix = Fix(Some(Bind(n, funTy.get)), Bind(n, Bind(f, fun)))
 
             val instBody = createApp(
               args.map(_.toAppArgument),
               Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1))))
             )
             val (instFun, _) = createFun(args, Some(ty), instBody, f)
-            LetIn(stainlessNone(), fix, Bind(f,
-              LetIn(stainlessNone(), instFun, Bind(f,
+            LetIn(None, fix, Bind(f,
+              LetIn(None, instFun, Bind(f,
                 followingExpr)
               )
             ))
@@ -443,8 +437,8 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   lazy val error: Syntax[Tree] = {
     (errorK ~ opt(lsbra ~ typeExpr ~ rsbra) ~ lpar ~ string ~ rpar).map {
       case _ ~ tpe ~ _ ~ s ~ _ => tpe match {
-        case None => Error(s, stainlessNone())
-        case Some(_ ~ tp ~ _) => Error(s, stainlessSome(tp))
+        case None => Error(s, None)
+        case Some(_ ~ tp ~ _) => Error(s, Some(tp))
       }
     }
   }
@@ -454,7 +448,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     lpar ~ variable ~ arrow ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
         val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
-        Fix(stainlessNone(), Bind(Identifier(0, "_"), Bind(x, body)))
+        Fix(None, Bind(Identifier(0, "_"), Bind(x, body)))
       case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
         val body = Tree.replace(
           x,
@@ -464,7 +458,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
           ),
           e
         )
-        Fix(stainlessSome(Bind(n, tp)), Bind(n, Bind(x, body)))
+        Fix(Some(Bind(n, tp)), Bind(n, Bind(x, body)))
     }
   }
 
@@ -472,9 +466,9 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     (foldK ~ opt(lsbra ~ typeExpr ~ rsbra) ~
     lpar ~ expression ~ rpar).map {
       case _ ~ None ~ _ ~ e ~ _  =>
-        //println(s"WARNING : We won't be able to typechecks the Fold ${e} without type annotation.\n")
-        Fold(stainlessNone(), e)
-      case _ ~ Some(_ ~ tp ~ _) ~ _ ~ e ~ _ => Fold(stainlessSome(tp), e)
+        Fold(None, e)
+      case _ ~ Some(_ ~ tp ~ _) ~ _ ~ e ~ _ =>
+        Fold(Some(tp), e)
     }
   }
 
@@ -493,9 +487,9 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   lazy val letIn: Syntax[Tree] = recursive {
     (valK ~ variable ~ opt(colon ~ typeExpr) ~ assignation ~ expression ~ inK ~ expression).map {
       case _ ~ Var(x) ~ None ~ _ ~ e ~ _ ~ e2 =>
-        LetIn(stainlessNone(), e, Bind(x, e2))
+        LetIn(None, e, Bind(x, e2))
       case _ ~ Var(x) ~ Some(_ ~ tp) ~ _ ~ e ~ _ ~ e2 =>
-        LetIn(stainlessSome(tp), e, Bind(x, e2))
+        LetIn(Some(tp), e, Bind(x, e2))
     }
   }
 
@@ -538,10 +532,12 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   lazy val appArg: Syntax[AppArgument] = parAppArg | bracketAppArg | sBracketAppArg
 
   def createApp(args: Seq[AppArgument], fun: Tree): Tree = {
-    args.foldLeft(fun) {
-      case (acc, TypeAppArg(ty))     => TypeApp(acc, ty)
-      case (acc, TermAppArg(t))      => App(acc, t)
-      case (acc, ErasableAppArg(t))  => Inst(acc, t)
+    bench.time("createApp") {
+      args.foldLeft(fun) {
+        case (acc, TypeAppArg(ty))     => TypeApp(acc, ty)
+        case (acc, TermAppArg(t))      => App(acc, t)
+        case (acc, ErasableAppArg(t))  => Inst(acc, t)
+      }
     }
   }
 
@@ -598,7 +594,7 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
       eq is LeftAssociative)({
       case (x, op, y) => Primitive(Operator.fromString(op).get, List(x,y))
     }, {
-      case Primitive(op, Cons(x, Cons(y, Nil()))) => (x, op.toString, y)
+      case Primitive(op, x ::  y ::  Nil) => (x, op.toString, y)
     })
   }
 
@@ -620,6 +616,8 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   lazy val expression: Syntax[Tree] = recursive {
     condition | eitherMatch | letIn | defFunction | operator | typeDefinition
   }
+
+  assert(expression.isLL1)
 
   def apply(it: Iterator[Token]): ParseResult[Tree] = expression(it)
 }

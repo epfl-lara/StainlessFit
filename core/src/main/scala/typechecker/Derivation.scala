@@ -1,17 +1,12 @@
-package verified
+package core
 package typechecker
 
 import java.io.FileWriter
 import java.io.File
 
-import verified.trees._
-import verified.interpreter._
+import core.trees._
+import core.interpreter._
 
-import stainless.collection._
-import stainless.annotation._
-import stainless.lang._
-
-import Util._
 import Formatting._
 
 object Derivation {
@@ -22,56 +17,56 @@ object Derivation {
   }
 
   case class CheckJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {
-    @extern override def toString =
-      s"(${headerColor(anyToString(c.level))} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇓ ${typeColor(shortString(t.toString))}"
+    override def toString =
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇓ ${typeColor(shortString(t.toString))}"
   }
 
   case class InferJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {
-    @extern override def toString = {
-      s"(${headerColor(anyToString(c.level))} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇑ ${typeColor(shortString(t.toString))}"
+    override def toString = {
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇑ ${typeColor(shortString(t.toString))}"
     }
   }
 
   case class AreEqualJudgment(override val name: String, override val c: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
-    @extern override def toString = {
-      s"(${headerColor(anyToString(c.level))} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t1.toString))} ≡ ${typeColor(shortString(t2.toString))} ${bold(s)}"
+    override def toString = {
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t1.toString))} ≡ ${typeColor(shortString(t2.toString))} ${bold(s)}"
     }
   }
 
   case class ErrorJudgment(override val name: String, override val c: Context, error: String) extends Judgment {
-    @extern override def toString = s"(${headerColor(anyToString(c.level))} - ${headerColor(name)}) ⊢ ${bold("error: " + error)}"
+    override def toString = s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${bold("error: " + error)}"
   }
 
   case class SynthesisJudgment(override val name: String, override val c: Context, tp: Tree, t: Tree) extends Judgment {
-    @extern override def toString = {
-      s"(${headerColor(anyToString(c.level))} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
+    override def toString = {
+      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
     }
   }
 
   case class EmptyJudgment(override val name: String, override val c: Context) extends Judgment {
-    @extern override def toString = ""
+    override def toString = ""
   }
 
   case class FileJudgment(override val name: String, override val c: Context, s: String) extends Judgment {
-    @extern override def toString = s"(${headerColor(anyToString(c.level))} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
+    override def toString = s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
   }
 
   case class NodeTree[T](node: T, children: List[NodeTree[T]])
 
   def mkString(l: List[String], s: String): String = l match {
-    case Nil() => ""
-    case Cons(x, Nil()) => x
-    case Cons(x, xs) => x + s + mkString(xs, s)
+    case Nil => ""
+    case x ::  Nil => x
+    case x ::  xs => x + s + mkString(xs, s)
   }
 
-  @extern def prettyPrint(l: List[NodeTree[Judgment]], depth: Int): String = {
+  def prettyPrint(l: List[NodeTree[Judgment]], depth: Int): String = {
     val indentation = "  " * depth
     indentation + "<ul style='list-style-type: none;'>\n" +
       mkString(l.map(t => prettyPrint(t, depth + 1)), "\n") + "\n" +
     indentation + "</ul>"
   }
 
-  @extern def prettyPrint(t: NodeTree[Judgment], depth: Int): String = {
+  def prettyPrint(t: NodeTree[Judgment], depth: Int): String = {
     val indentation = "  " * depth
     val childrenString = prettyPrint(t.children, depth + 1)
     indentation + s"<li> <span class='node' title='${t.node.c.toString()}'> ${t.node.toString} </span>\n" +
@@ -79,7 +74,7 @@ object Derivation {
     indentation + "</li>"
   }
 
-  @extern def makeHTMLFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean): Unit = {
+  def makeHTMLFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean): Unit = {
     val htmlFile = new File(file.getAbsolutePath() + ".html")
     val fw = new FileWriter(htmlFile)
     val status = if (success) "Success" else "Failed"

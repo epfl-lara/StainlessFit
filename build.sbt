@@ -3,7 +3,7 @@ enablePlugins(GitVersioning)
 git.useGitDescribe := true
 
 ThisBuild / organization := "ch.epfl.lara"
-ThisBuild / scalaVersion := "2.12.9"
+ThisBuild / scalaVersion := "2.13.1"
 
 ThisBuild / resolvers ++= Seq(
   Resolver.bintrayRepo("epfl-lara", "maven")
@@ -16,6 +16,8 @@ ThisBuild / scalacOptions ++= Seq(
   "-feature"
 )
 
+ThisBuild / maxErrors := 3
+
 lazy val cli = project
   .in(file("cli"))
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
@@ -26,7 +28,10 @@ lazy val cli = project
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),
     Compile / run / fork := true,
-    Compile / run / baseDirectory := (ThisBuild / baseDirectory).value
+    Compile / run / baseDirectory := (ThisBuild / baseDirectory).value,
+    unmanagedBase := {
+      (ThisBuild / baseDirectory).value / "lib"
+    }
   )
   .dependsOn(core)
 
@@ -38,18 +43,8 @@ lazy val core = project
       "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     ),
     Test / fork := true,
-    Test / baseDirectory := (ThisBuild / baseDirectory).value
-  )
-  .dependsOn(verified)
-
-lazy val verified = project
-  .in(file("verified"))
-  .enablePlugins(StainlessPlugin)
-  .settings(
-    name := "stainlesscore-verified",
-    stainlessEnabled := false,
-    Compile / unmanagedBase := (ThisBuild / baseDirectory).value / "unmanaged",
-    Compile / unmanagedSourceDirectories += {
-      (ThisBuild / baseDirectory).value / "unmanaged"
+    Test / baseDirectory := (ThisBuild / baseDirectory).value,
+    unmanagedBase := {
+      (ThisBuild / baseDirectory).value / "lib"
     }
   )

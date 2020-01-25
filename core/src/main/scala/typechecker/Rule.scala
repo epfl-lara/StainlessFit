@@ -1,10 +1,8 @@
-package verified
+package core
 package typechecker
 
 import Derivation._
 
-import stainless.lang._
-import stainless.collection._
 
 case class Rule(
   name: String,
@@ -13,7 +11,8 @@ case class Rule(
     List[Judgment] => (Boolean, Judgment))
   ]) {
   def t: Tactic[Goal, (Boolean, NodeTree[Judgment])] = Tactic { (g, subgoalSolver) =>
-    Bench.bench.time("Rule " + name) { apply(g) }.flatMap {
+    // Bench.bench.time("Rule " + name) 
+    { apply(g) }.flatMap {
       case (sgs, merge) =>
         val subTrees: Option[(Boolean, List[NodeTree[Judgment]])] =
           sgs.foldLeft[Option[(Boolean, List[NodeTree[Judgment]])]](Some(true, List())) {

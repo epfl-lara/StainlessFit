@@ -1,9 +1,8 @@
-package verified
+package core
 package typechecker
 
 import trees._
 
-import stainless.lang._
 
 object TypeOperators {
   private def unify(t1: Tree, t2: Tree, f: (Tree, Tree) => Tree): Option[Tree] = {
@@ -59,7 +58,7 @@ object TypeOperators {
       case (EqualityType(t11, t12), EqualityType(t21, t22)) =>
         Some(EqualityType(f(t11, t21), f(t12, t22)))
       case (t1, t2) if t1 == t2 => Some(t1)
-      case (_, _) => None()
+      case (_, _) => None
     }
   }
 

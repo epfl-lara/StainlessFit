@@ -1,10 +1,10 @@
-package verified
+package core
 package typechecker
 
 object TypeCheckerSMTRules {
-  // @extern
+  // 
   // val Z3ArithmeticSolver: Rule = Rule("Z3ArithmeticSolver", {
-  //   case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, Cons(t1, Cons(t2, Nil())))) =>
+  //   case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, t1 ::  t2 ::  Nil)) =>
   //     TypeChecker.debugs(g, "Z3ArithmeticSolver")
   //     TypeChecker.z3Debug("Current goal:\n" + g)
   //     TypeChecker.z3Debug("Current context:\n" + c)
@@ -22,13 +22,13 @@ object TypeCheckerSMTRules {
 
   //     c.variables.map { v =>
   //       c.termVariables(v) match {
-  //         case EqualityType(h1, h2) if isNatPredicate(c.termVariables, Primitive(Eq, Cons(h1, Cons(h2, Nil())))) =>
-  //           solver.assertCnstr(z3Encode(z3, solver, z3Variables, Primitive(Eq, Cons(h1, Cons(h2, Nil())))))
+  //         case EqualityType(h1, h2) if isNatPredicate(c.termVariables, Primitive(Eq, h1 ::  h2 ::  Nil)) =>
+  //           solver.assertCnstr(z3Encode(z3, solver, z3Variables, Primitive(Eq, h1 ::  h2 ::  Nil)))
   //         case _ => ()
   //       }
   //     }
 
-  //     val b = z3Encode(z3, solver, z3Variables, Primitive(Eq, Cons(t1, Cons(t2, Nil()))))
+  //     val b = z3Encode(z3, solver, z3Variables, Primitive(Eq, t1 ::  t2 ::  Nil))
   //     solver.assertCnstr(z3.mkNot(b))
 
   //     c.variables.filter(c.termVariables(_) == NatType).map { id =>
@@ -52,17 +52,17 @@ object TypeCheckerSMTRules {
 
   //     solverResponse match {
   //       case scala.None =>
-  //         None()
+  //         None
 
   //       case scala.Some(true) =>
-  //         None()
+  //         None
 
   //       case scala.Some(false) => Some((List(), _ =>
   //         (true, AreEqualJudgment("Z3ArithmeticSolver", c, t1, t2, "Validated by Z3"))))
   //     }
 
   //   case g =>
-  //     None()
+  //     None
   // }
 
 }

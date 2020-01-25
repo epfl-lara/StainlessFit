@@ -1,12 +1,13 @@
 /* Copyright 2009-2018 EPFL, Lausanne */
 
+package cli
 package util
 
 import java.io.{ File, PrintWriter }
 import java.nio.file.{ FileSystems, Path, StandardWatchEventKinds }
 import java.util.concurrent.TimeUnit
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable.{ Map => MutableMap }
 
 /**

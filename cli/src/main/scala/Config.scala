@@ -1,3 +1,5 @@
+package cli
+
 import buildinfo.BuildInfo
 import scopt.OParser
 import java.io.File

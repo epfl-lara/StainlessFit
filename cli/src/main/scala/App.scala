@@ -1,8 +1,9 @@
-import stainless.lang._
-import scala.collection.immutable.{Set => ScalaSet}
+package cli
+
 import java.io.File
 
-import verified.Reporter
+import core.Reporter
+import core.Core
 
 class App(val config: Config, val reporter: Reporter) {
 
@@ -46,7 +47,7 @@ class App(val config: Config, val reporter: Reporter) {
 
   def watchFile(file: File)(action: => Unit): Unit = {
     val watcher = new util.FileWatcher(
-      ScalaSet(file.getAbsoluteFile),
+      Set(file.getAbsoluteFile),
       () =>
         try {
           action

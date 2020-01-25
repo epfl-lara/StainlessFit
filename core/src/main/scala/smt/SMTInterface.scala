@@ -1,4 +1,4 @@
-// package verified
+// package core
 
 // import smtlib.trees.Terms. {
 //   Identifier => TermIdentifier,
