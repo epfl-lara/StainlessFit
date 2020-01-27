@@ -28,3 +28,7 @@ class Reporter(colors: Boolean) {
     println(addPrefix(s, color("[INFO] ", Console.BLUE)))
   }
 }
+
+object Reporter {
+  val defaultReporter = new Reporter(true)
+}
