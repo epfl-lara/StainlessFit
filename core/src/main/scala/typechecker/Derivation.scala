@@ -18,30 +18,30 @@ object Derivation {
 
   case class CheckJudgment(override val name: String, override val context: Context, e: Tree, t: Tree) extends Judgment {
     override def toString =
-      "<div class='check'>" +
+      "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termColor(shortString(e.toString)) + " ⇓ " +
         typeColor(shortString(t.toString)) +
-      "</div>"
+      "</span>"
   }
 
   case class InferJudgment(override val name: String, override val context: Context, e: Tree, t: Tree) extends Judgment {
     override def toString = {
-      "<div class='infer'>" +
+      "<span class='infer'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termColor(shortString(e.toString)) + " ⇑ " +
         typeColor(shortString(t.toString)) +
-      "</div>"
+      "</span>"
     }
   }
 
   case class AreEqualJudgment(override val name: String, override val context: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
     override def toString = {
-      "<div class='equal'>" +
+      "<span class='equal'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termColor(shortString(t1.toString)) + " ≡ " +
         termColor(shortString(t2.toString)) +
-      "</div>"
+      "</span>"
     }
   }
 
@@ -103,34 +103,34 @@ object Derivation {
                 |}
                 |
                 |.infer {
-                | background-color: #F0F0FF
+                |  background-color: #f0f0ff
                 |}
                 |
                 |.infer:hover {
-                | background-color: #E0E0EE
+                |  background-color: #e0e0ee
                 |}
                 |
                 |.check {
-                | background-color: #F0FFF0
+                |  background-color: #f0fff0
                 |}
                 |
                 |.check:hover {
-                | background-color: #E0EEE0
+                |  background-color: #e0eee0
                 |}
                 |
                 |.equal {
-                | background-color: #FEFFC2
+                |  background-color: #feffc2
                 |}
                 |
                 |.equal:hover {
-                | background-color: #DADBA7
+                |  background-color: #dadba7
                 |}
                 |
                 |ul {
                 |  list-style-type: none;
                 |  padding-left: 10px;
                 |}
-                |</style>\n""".stripMargin)
+                |</style>""".stripMargin)
     fw.write("</head>\n\n")
     fw.write("<body>\n")
     fw.write("""<script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>""")
