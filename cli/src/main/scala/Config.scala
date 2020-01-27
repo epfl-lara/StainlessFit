@@ -31,7 +31,7 @@ object Config {
 
     OParser.sequence(
       programName("stainless-core"),
-      head("StainlessCore", BuildInfo.version),
+      head("StainlessFit", BuildInfo.version),
       help("help").text("Prints help information"),
       opt[Unit]("verbose")
         .action((_, c) => c.copy(verbose = true))
