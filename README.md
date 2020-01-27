@@ -1,4 +1,4 @@
-## StainlessCore
+## StainlessFit
 
 ### Foundational Stainless
 
@@ -14,7 +14,7 @@ Then, after making a symbolic link or referring to the binary directly, you can
 type-check an example using:
 
 ```
-stainlesscore-cli typecheck examples/streams.sc
+stainlesscore-cli typecheck --html examples/streams.sc
 ```
 
 This will create an HTML file of the type-checking derivation in `examples/streams.sc.html`.
