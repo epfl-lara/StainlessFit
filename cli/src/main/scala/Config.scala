@@ -14,7 +14,8 @@ case class Config(
   mode: Mode       = null,
   file: File       = null,
   watch: Boolean   = false,
-  debug: Boolean   = false,
+  html: Boolean    = false,
+  bench: Boolean   = false,
   colors: Boolean  = true,
   verbose: Boolean = false,
 )
@@ -35,9 +36,12 @@ object Config {
       opt[Unit]("verbose")
         .action((_, c) => c.copy(verbose = true))
         .text("Enable verbose output"),
-      opt[Unit]("debug")
-        .action((_, c) => c.copy(debug = true))
-        .text("Enable debug output"),
+      opt[Unit]("html")
+        .action((_, c) => c.copy(html = true))
+        .text("Enable HTML output with typing derivation"),
+      opt[Unit]("bench")
+        .action((_, c) => c.copy(bench = true))
+        .text("Display benchmarked times"),
       opt[Unit]("watch")
         .action((_, c) => c.copy(watch = true))
         .text("Re-run on file modification"),
@@ -62,7 +66,7 @@ object Config {
         ),
       checkConfig {
         case c if c.mode == null => failure("Please specify a command: eval, typecheck")
-        case c if !c.file.exists => failure(s"File not found: ${c.file}")
+        case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
         case _ => success
       }
     )

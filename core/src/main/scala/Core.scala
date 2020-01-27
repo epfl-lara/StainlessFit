@@ -48,20 +48,17 @@ object Core {
       }
     }
 
-  def typeCheckFile(f: File): Either[String, (Boolean, NodeTree[Judgment])] = {
+  def typeCheckFile(reporter: Reporter, f: File, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(f) flatMap { src =>
       val (t, max) = Tree.setId(src, Map(), 0)
 
       TypeChecker.infer(t, max) match {
         case None => Left(s"Could not type check: $f")
         case Some((success, tree)) =>
-          bench.time("makeHTMLFile") {
-            Derivation.makeHTMLFile(
-              f,
-              List(tree),
-              success
-            )
-          }
+          if (html)
+            bench.time("makeHTMLFile") {
+              Derivation.makeHTMLFile(reporter, f, List(tree), success)
+            }
 
           Right((success, tree))
       }
@@ -71,7 +68,7 @@ object Core {
   def evalFile(s: String): Either[String, Tree] =
     evalFile(new File(s))
 
-  def typeCheckFile(s: String): Either[String, (Boolean, NodeTree[Judgment])] =
-    typeCheckFile(new File(s))
+  def typeCheckFile(reporter: Reporter, s: String, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] =
+    typeCheckFile(reporter, new File(s), html)
 
 }

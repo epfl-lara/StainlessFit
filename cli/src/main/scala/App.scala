@@ -4,6 +4,7 @@ import java.io.File
 
 import core.Reporter
 import core.Core
+import core.Bench.bench
 
 class App(val config: Config, val reporter: Reporter) {
 
@@ -18,9 +19,9 @@ class App(val config: Config, val reporter: Reporter) {
     }
   }
 
-  def typeCheck(file: File) = watchable(file) {
+  def typeCheck(file: File, html: Boolean) = watchable(file) {
     val file = config.file
-    Core.typeCheckFile(file) match {
+    Core.typeCheckFile(reporter, file, html) match {
       case Left(error) =>
         reporter.error(s"$error")
         false
@@ -64,13 +65,21 @@ class App(val config: Config, val reporter: Reporter) {
 
 object App {
   def launch(config: Config): Unit = {
+    if (config.bench)
+      bench.start()
+
     val reporter = new Reporter(config.colors)
 
     val app = new App(config, reporter)
 
     config.mode match {
       case Mode.Eval      => app.eval(config.file)
-      case Mode.TypeCheck => app.typeCheck(config.file)
+      case Mode.TypeCheck => app.typeCheck(config.file, config.html)
     }
+
+    if (config.bench)
+      bench.stop()
+    if (config.bench)
+      bench.report()
   }
 }

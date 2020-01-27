@@ -1,7 +1,5 @@
 package core
 
-
-
 class Bench() {
 
   var startTime = 0L
@@ -64,7 +62,8 @@ class Bench() {
   }
 
   def report() = {
-    val maxSize = times.map(_._1.size).max
+    val sizes = times.map(_._1.size)
+    val maxSize = if (sizes.isEmpty) 80 else sizes.max
     val t = Table(
       Row(
         "Name",
