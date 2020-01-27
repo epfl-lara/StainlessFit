@@ -91,12 +91,11 @@ case class Tactic[A,B](apply: (A, (A => Option[B])) => Option[B]) {
         apply(g, sg => other.apply(sg, subgoalSolver))
     }
 
-  def repeat(n: Int): Tactic[A,B] = {
-    def repeatApply(n: Int, goal: A, subgoalSolver: A => Option[B]): Option[B] = {
-      if (n <= 0) None
-      else apply(goal, sg => repeatApply(n-1, sg, subgoalSolver))
+  def repeat: Tactic[A,B] = {
+    def repeatApply(goal: A, subgoalSolver: A => Option[B]): Option[B] = {
+      apply(goal, sg => repeatApply(sg, subgoalSolver))
     }
-    Tactic[A,B]((goal, subgoalSolver) => repeatApply(n, goal, subgoalSolver))
+    Tactic[A,B](repeatApply)
   }
 }
 
@@ -107,71 +106,52 @@ object TypeChecker {
   import TypeCheckerSMTRules._
   import TypeCheckerControlRules._
 
-  val tactic: Tactic[Goal, (Boolean, NodeTree[Judgment])] = (
-    CheckBool.t ||
-    CheckNat.t ||
-    CheckUnit.t ||
-    CheckVar.t ||
-    CheckIf.t ||
-    CheckMatch.t ||
-    CheckEitherMatch.t ||
-    CheckLet.t ||
+  val deterministicTypeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
+    CheckBool.t || CheckNat.t || CheckUnit.t || CheckVar.t || CheckIf.t ||
+    CheckMatch.t || CheckEitherMatch.t || CheckLet.t ||
     CheckLeft.t || CheckRight.t ||
     CheckIntersection.t ||
     CheckLambda.t || CheckPi.t ||
     CheckPair.t || CheckSigma.t ||
-    CheckRefinement.t ||
-    CheckTypeAbs.t ||
+    CheckRefinement.t || CheckTypeAbs.t ||
     CheckRecursive.t ||
-    CheckTop1.t ||
-    CheckTop2.t ||
+    CheckTop1.t || CheckTop2.t ||
     CheckReflexive.t ||
-    InferBool.t ||
-    InferNat.t ||
-    InferUnit.t ||
-    InferVar.t ||
-    InferLeft.t ||
-    InferRight.t ||
+    InferBool.t || InferNat.t || InferUnit.t || InferVar.t ||
+    InferLeft.t || InferRight.t ||
     InferError.t ||
     InferLet.t ||
-    InferPair.t ||
-    InferFirst.t ||
-    InferSecond.t ||
-    InferApp.t ||
-    InferLambda.t ||
-    InferErasableLambda.t ||
-    InferIf.t ||
-    InferBinaryPrimitive.t ||
-    InferUnaryPrimitive.t ||
-    InferMatch.t ||
-    InferEitherMatch.t ||
+    InferPair.t || InferFirst.t || InferSecond.t ||
+    InferApp.t || InferLambda.t || InferErasableLambda.t || InferForallInstantiation.t ||
+    InferTypeAbs.t || InferTypeApp.t ||
+    InferBinaryPrimitive.t || InferUnaryPrimitive.t ||
+    InferIf.t || InferMatch.t || InferEitherMatch.t ||
     InferFix.t ||
-    InferTypeAbs.t ||
-    InferTypeApp.t ||
-    InferForallInstantiation.t ||
-    InferFold.t ||
-    InferUnfold.t || InferUnfoldPositive.t ||
-    InferFoldGen.t ||
-    InferTypeDefinition.t ||
-    // Z3ArithmeticSolver.t ||
-    ExpandVars.t ||
-    TopIf.t ||
-    TopMatch.t ||
+    InferFold.t || InferUnfold.t || InferUnfoldPositive.t || InferFoldGen.t
+
+  val solveEquality: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     Reflexivity.t ||
     EqualityInContext.t ||
-    NatEqualToEqual.t ||
-    UnfoldRefinementInContext.t ||
-    InlineApplications.t ||
-    UnsoundIgnoreEquality.t ||
+    UnsoundIgnoreEquality.t
+    // Z3ArithmeticSolver.t ||
+    // ExpandVars.t ||
+    // TopIf.t ||
+    // TopMatch.t ||
+    // NatEqualToEqual.t ||
+    // UnfoldRefinementInContext.t ||
+    // InlineApplications.t ||
+
+  val control: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CatchErrorGoal.t ||
     CatchEmptyGoal.t ||
     FailRule.t
-  ).repeat(1000000000)
 
   val tdebug = false
   val edebug = false
   val zdebug = false
   val ndebug = false
+
+  val tactic = (deterministicTypeChecking || solveEquality || control).repeat
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context.empty(max), t)

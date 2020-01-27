@@ -373,23 +373,6 @@ object TypeCheckerUnprovenRules {
       None
   })
 
-  val InferTypeDefinition = Rule("InferTypeDefinition", {
-    case g @ InferGoal(c, e @ TypeDefinition(ty, Bind(id, t))) =>
-      TypeChecker.debugs(g, "InferTypeDefinition")
-      // TypeChecker.debugs(g, "InferTypeDefinition")
-      val subgoal = InferGoal(c, t.replace(id, ty))
-      Some((List(_ => subgoal),
-        {
-          case InferJudgment(_, _, _, tpe) :: _ =>
-            (true, InferJudgment("InferTypeDefinition", c, e, tpe))
-          case _ =>
-            (false, ErrorJudgment("InferTypeDefinition", c, g.toString))
-        }
-      ))
-    case g =>
-      None
-  })
-
   def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
     t match {
       case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType

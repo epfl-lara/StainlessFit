@@ -297,10 +297,6 @@ object Tree {
       case PolyForallType(bind) =>
         val (newBind, max1) = setId(bind, m, max)
         (PolyForallType(newBind), max1)
-      case TypeDefinition(t1, bind) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (TypeDefinition(newT1, newBind), max2)
 
       case _ => throw new java.lang.Exception(s"Function `setId` is not defined on tree: $t")
     }
@@ -365,8 +361,6 @@ object Tree {
       case RecType(n, bind) => RecType(replace(xvar, v, n), replace(xvar, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(xvar, v, bind))
 
-      case TypeDefinition(ty, bind) => TypeDefinition(replace(xvar, v, ty), replace(xvar, v, bind))
-
       case BottomType => BottomType
       case TopType => TopType
 
@@ -403,7 +397,6 @@ object Tree {
     case Abs(Bind(id, body)) => erase(body)
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)
-    case TypeDefinition(_, Bind(_, t)) => erase(t)
     case _ => throw new java.lang.Exception(s"Function erase is not implemented on $t (${t.getClass}).")
   }
 
@@ -492,7 +485,8 @@ object Tree {
 }
 
 case class Identifier(id: Int, name: String) {
-  override def toString: String = name + "#" + id
+  // override def toString: String = name + "#" + id
+  override def toString: String = name
 
   def isFreeIn(e: Tree): Boolean = {
     e match {
@@ -531,7 +525,6 @@ case class Identifier(id: Int, name: String) {
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
-      case TypeDefinition(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
       case _ => false
     }
   }
@@ -872,24 +865,10 @@ case class PolyForallType(t: Tree) extends Tree {
   }
 }
 
-case class TypeDefinition(ty: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
-    bind match {
-      case Bind(id, t) => "type " + id.toString + " = " + ty.toString + " in\n" + t.toString
-      case _ => "<Missing bind in LetIn>"
-    }
-  }
-}
-
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
 
 case class SingletonType(t: Tree) extends Tree
 
-
-
 case class Because(t1: Tree, t2: Tree) extends Tree
-
-
-//case class RefinementByType(t: Tree, cond: Tree) extends Tree
