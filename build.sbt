@@ -22,8 +22,8 @@ lazy val cli = project
   .in(file("cli"))
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
   .settings(
-    name := "stainlesscore-cli",
-    assemblyJarName in assembly := "stainlesscore-cli.jar",
+    name := "stainlessfit-cli",
+    assemblyJarName in assembly := "stainlessfit-cli.jar",
     test in assembly := {},
     libraryDependencies ++= Seq(
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
@@ -39,7 +39,7 @@ lazy val cli = project
 lazy val core = project
   .in(file("core"))
   .settings(
-    name := "stainlesscore",
+    name := "stainlessfit",
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     ),
