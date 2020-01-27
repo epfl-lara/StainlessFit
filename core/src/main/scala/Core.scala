@@ -21,8 +21,11 @@ object Core {
         Right(value)
       case ScalaParser.UnexpectedEnd(_) =>
         Left("Error during parsing: unexpected end.")
-      case ScalaParser.UnexpectedToken(t, _) =>
-        Left("Error during parsing: unexpected token." + t)
+      case ScalaParser.UnexpectedToken(t, rest) =>
+        Left(
+          "Error during parsing: unexpected token:" + t + "\n" +
+          "Expected instead one of:" + rest.first.mkString("   ")
+        )
     }
   }
 

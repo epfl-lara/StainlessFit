@@ -12,43 +12,55 @@ import Formatting._
 object Derivation {
 
   sealed abstract class Judgment {
-    val c: Context
+    val context: Context
     val name: String
   }
 
-  case class CheckJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {
+  case class CheckJudgment(override val name: String, override val context: Context, e: Tree, t: Tree) extends Judgment {
     override def toString =
-      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇓ ${typeColor(shortString(t.toString))}"
+      "<div class='check'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        termColor(shortString(e.toString)) + " ⇓ " +
+        typeColor(shortString(t.toString)) +
+      "</div>"
   }
 
-  case class InferJudgment(override val name: String, override val c: Context, e: Tree, t: Tree) extends Judgment {
+  case class InferJudgment(override val name: String, override val context: Context, e: Tree, t: Tree) extends Judgment {
     override def toString = {
-      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${termColor(shortString(e.toString))} ⇑ ${typeColor(shortString(t.toString))}"
+      "<div class='infer'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        termColor(shortString(e.toString)) + " ⇑ " +
+        typeColor(shortString(t.toString)) +
+      "</div>"
     }
   }
 
-  case class AreEqualJudgment(override val name: String, override val c: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
+  case class AreEqualJudgment(override val name: String, override val context: Context, t1: Tree, t2: Tree, s: String) extends Judgment {
     override def toString = {
-      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t1.toString))} ≡ ${typeColor(shortString(t2.toString))} ${bold(s)}"
+      "<div class='equal'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        termColor(shortString(t1.toString)) + " ≡ " +
+        termColor(shortString(t2.toString)) +
+      "</div>"
     }
   }
 
-  case class ErrorJudgment(override val name: String, override val c: Context, error: String) extends Judgment {
-    override def toString = s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${bold("error: " + error)}"
+  case class ErrorJudgment(override val name: String, override val context: Context, error: String) extends Judgment {
+    override def toString = s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ ${bold("error: " + error)}"
   }
 
-  case class SynthesisJudgment(override val name: String, override val c: Context, tp: Tree, t: Tree) extends Judgment {
+  case class SynthesisJudgment(override val name: String, override val context: Context, tp: Tree, t: Tree) extends Judgment {
     override def toString = {
-      s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
+      s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
     }
   }
 
-  case class EmptyJudgment(override val name: String, override val c: Context) extends Judgment {
+  case class EmptyJudgment(override val name: String, override val context: Context) extends Judgment {
     override def toString = ""
   }
 
-  case class FileJudgment(override val name: String, override val c: Context, s: String) extends Judgment {
-    override def toString = s"(${headerColor(c.level.toString)} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
+  case class FileJudgment(override val name: String, override val context: Context, s: String) extends Judgment {
+    override def toString = s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
   }
 
   case class NodeTree[T](node: T, children: List[NodeTree[T]])
@@ -61,15 +73,15 @@ object Derivation {
 
   def prettyPrint(l: List[NodeTree[Judgment]], depth: Int): String = {
     val indentation = "  " * depth
-    indentation + "<ul style='list-style-type: none;'>\n" +
-      mkString(l.map(t => prettyPrint(t, depth + 1)), "\n") + "\n" +
+    indentation + "<ul>\n" +
+      l.map(t => prettyPrint(t, depth + 1)).mkString("\n") + "\n" +
     indentation + "</ul>"
   }
 
   def prettyPrint(t: NodeTree[Judgment], depth: Int): String = {
     val indentation = "  " * depth
     val childrenString = prettyPrint(t.children, depth + 1)
-    indentation + s"<li> <span class='node' title='${t.node.c.toString()}'> ${t.node.toString} </span>\n" +
+    indentation + s"<li> <span class='node' title='${t.node.context.toString}'> ${t.node.toString} </span>\n" +
       childrenString + "\n" +
     indentation + "</li>"
   }
@@ -85,19 +97,54 @@ object Derivation {
     fw.write("<meta charset=\"UTF-8\">\n")
     // fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
-    fw.write("<style>body { font-family: \"Fira Code\", Menlo, Monaco, monospace }</style>\n")
+    fw.write("""|<style>
+                |body {
+                |  font-family: "Fira Code", Menlo, Monaco, monospace
+                |}
+                |
+                |.infer {
+                | background-color: #F0F0FF
+                |}
+                |
+                |.infer:hover {
+                | background-color: #E0E0EE
+                |}
+                |
+                |.check {
+                | background-color: #F0FFF0
+                |}
+                |
+                |.check:hover {
+                | background-color: #E0EEE0
+                |}
+                |
+                |.equal {
+                | background-color: #FEFFC2
+                |}
+                |
+                |.equal:hover {
+                | background-color: #DADBA7
+                |}
+                |
+                |ul {
+                |  list-style-type: none;
+                |  padding-left: 10px;
+                |}
+                |</style>\n""".stripMargin)
     fw.write("</head>\n\n")
     fw.write("<body>\n")
-    fw.write("""<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>""")
+    fw.write("""<script type="text/javascript" src="https://code.jquery.com/jquery-3.4.1.min.js"></script>""")
     fw.write("<script>\n")
     fw.write("""|$(document).ready(function () {
                 |  $('.node').click(function(e) {
-                |    text = $(this).html()
-                |    if (text.startsWith("(Folded) "))
-                |      $(this).html(text.substring(9));
-                |    else
-                |      $(this).html("(Folded) " + text);
-                |    $(this).parent().find("ul").slideToggle(100);
+                |    if (!getSelection().toString()) {
+                |      text = $(this).html()
+                |      if (text.startsWith("(Folded) "))
+                |        $(this).html(text.substring(9));
+                |      else
+                |        $(this).html("(Folded) " + text);
+                |      $(this).parent().find("ul").toggle();
+                |    }
                 |  });
                 |});
                 |""".stripMargin)

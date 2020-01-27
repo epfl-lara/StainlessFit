@@ -12,7 +12,7 @@ object TypeCheckerControlRules {
 
   val FailRule = Rule("FailRule", {
     g => Some((List(), _ =>
-      (false, ErrorJudgment("FailRule", g.c, "No more fuel or goal is not handled:\n" + g.toString))
+      (false, ErrorJudgment("FailRule", g.c, "Goal is not handled:\n" + g.toString))
     ))
   })
 

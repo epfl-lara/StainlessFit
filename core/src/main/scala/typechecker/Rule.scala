@@ -11,7 +11,7 @@ case class Rule(
     List[Judgment] => (Boolean, Judgment))
   ]) {
   def t: Tactic[Goal, (Boolean, NodeTree[Judgment])] = Tactic { (g, subgoalSolver) =>
-    // Bench.bench.time("Rule " + name) 
+    Bench.bench.time("Rule " + name) 
     { apply(g) }.flatMap {
       case (sgs, merge) =>
         val subTrees: Option[(Boolean, List[NodeTree[Judgment]])] =
