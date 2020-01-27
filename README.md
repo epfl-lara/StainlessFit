@@ -1,4 +1,4 @@
-## StainlessFit
+## StainlessFit [![Build Status][larabot-img]][larabot-ref]
 
 ### Foundational Stainless
 
@@ -18,3 +18,6 @@ stainlessfit-cli typecheck --html examples/streams.sc
 ```
 
 This will create an HTML file of the type-checking derivation in `examples/streams.sc.html`.
+
+[larabot-img]: http://laraquad4.epfl.ch:9000/epfl-lara/StainlessFit/status/master
+[larabot-ref]: http://laraquad4.epfl.ch:9000/epfl-lara/StainlessFit/builds
