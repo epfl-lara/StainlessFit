@@ -546,6 +546,19 @@ sealed abstract class Tree {
   def replace(id: Identifier, id2: Identifier): Tree = replace(id, Var(id2))
 
   def erase(): Tree = Tree.erase(this)
+
+  def toStringPar: String = {
+    val s = toString
+    this match {
+      case Var(_) => s
+      case UnitLiteral => s
+      case BooleanLiteral(_) => s
+      case NatLiteral(_) => s
+      case _ =>
+        if (s(0) == '(') s
+        else "(" + s + ")"
+    }
+  }
 }
 
 case class Var(id: Identifier) extends Tree {
@@ -612,7 +625,7 @@ case class ErasableLambda(ty: Tree, bind: Tree) extends Tree {
 
 case class App(t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
-    t1.toString + "(" + t2.toString + ")"
+    t1.toString + " " + t2.toStringPar
   }
 }
 
@@ -717,7 +730,7 @@ case class Primitive(op: Operator, args: List[Tree]) extends Tree {
     args match {
       case n1 ::  Nil => op.toString + "(" + n1.toString + ")"
       case n1 ::  n2 ::  Nil =>
-        "(" + n1.toString + ")" + op.toString + "(" + n2.toString + ")"
+        n1.toStringPar + op.toString + n2.toStringPar
       case _ => throw new java.lang.Exception("Primitive operations have one or two arguments.")
     }
   }
