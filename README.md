@@ -1,6 +1,6 @@
 ## StainlessFit [![Build Status][larabot-img]][larabot-ref]
 
-### Foundational Stainless
+### Stainless Built Following System FR Type System
 
 This project works to formalize the proof obligation checking of [Stainless](https://stainless.epfl.ch/).
 It is a natural follow-up to the System FR from https://arxiv.org/abs/1904.03482.
