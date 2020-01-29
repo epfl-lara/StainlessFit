@@ -11,36 +11,6 @@ import TypeOperators._
 
 object TypeCheckerUnprovenRules {
 
-  def unfoldRefinementInContext(c: Context): Context = {
-    c.variables.foldLeft(c) { case (acc, x) =>
-      c.getTypeOf(x) match {
-        case Some(RefinementType(ty, Bind(y, t2))) =>
-          val t2p = t2.replace(y, Var(x))
-          c.copy(
-            termVariables = c.termVariables.updated(x, ty)
-          ).addEquality(t2p, BooleanLiteral(true))
-        case _ => acc
-      }
-    }
-  }
-
-  val UnfoldRefinementInContext = Rule("UnfoldRefinementInContext", {
-    case g @ EqualityGoal(c, t1, t2) if c.hasRefinementBound =>
-      TypeChecker.debugs(g, "UnfoldRefinementInContext")
-      val c1 = unfoldRefinementInContext(c)
-      val subgoal = EqualityGoal(c1.incrementLevel(), t1, t2)
-      Some((List(_ => subgoal),
-        {
-          case AreEqualJudgment(_, _, _, _, _) :: _ =>
-            (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, ""))
-          case _ =>
-            (false, ErrorJudgment("UnfoldRefinementInContext", c, g.toString))
-        }
-      ))
-    case g =>
-      None
-  })
-
   val NatEqualToEqual = Rule("NatEqualToEqual", {
     case g @ EqualityGoal(c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true)) =>
       TypeChecker.debugs(g, "NatEqualToEqual")
@@ -58,46 +28,6 @@ object TypeCheckerUnprovenRules {
             (true, AreEqualJudgment("NatEqualToEqual", c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true), ""))
           case _ =>
             (false, ErrorJudgment("NatEqualToEqual", c, g.toString))
-        }
-      ))
-    case g =>
-      None
-  })
-
-
-  val InferFoldGen = Rule("InferFoldGen", {
-    case g @ InferGoal(c, e @ Fold(Some(tpe @ IntersectionType(NatType, Bind(n, RecType(m, Bind(a, ty))))), t)) =>
-      /* Fail if n != m */
-      TypeChecker.debugs(g, "InferFoldGen")
-      val nTy = IntersectionType(NatType, Bind(n, RecType(Var(n), Bind(a, ty))))
-      val check = CheckGoal(c.incrementLevel(), t, Tree.replace(a, nTy, ty))
-      Some((
-        List(_ => check),
-        {
-          case CheckJudgment(_, _, _, _) :: _ if TypeOperators.spos(a, ty) =>
-            (true, InferJudgment("InferFoldGen", c, e, tpe))
-          case _ =>
-            (false, ErrorJudgment("InferFoldGen", c, g.toString))
-        }
-      ))
-    case g =>
-      None
-  })
-
-
-  val EqualityInContext = Rule("EqualityInContext", {
-    case g @ EqualityGoal(c, t1, t2) if
-      c.variables.exists(v =>
-        c.termVariables.contains(v) && (
-          c.termVariables(v) == EqualityType(t1,t2) ||
-          c.termVariables(v) == EqualityType(t2,t1)
-        )
-      )
-      =>
-      TypeChecker.debugs(g, "EqualityInContext")
-      Some((List(),
-        {
-          case _ => (true, AreEqualJudgment("EqualityInContext", c, t1, t2, "By Assumption"))
         }
       ))
     case g =>
@@ -372,28 +302,4 @@ object TypeCheckerUnprovenRules {
     case g =>
       None
   })
-
-  def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
-    t match {
-      case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType
-      case NatLiteral(_) => true
-      case Primitive(op, n1 ::  n2 ::  Nil) =>
-        op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
-      case _ => false
-    }
-  }
-
-  def isNatPredicate(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
-    t match {
-      case BooleanLiteral(_) => true
-      case Primitive(Eq, n1 ::  n2 ::  Nil) =>
-        (isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
-        (isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
-      case Primitive(op, n1 ::  n2 ::  Nil) =>
-        (op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
-        (op.isBoolToBoolBinOp && isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
-      case Primitive(op, b ::  Nil) => op.isBoolToBoolUnOp && isNatPredicate(termVariables, b)
-      case _ => false
-    }
-  }
 }

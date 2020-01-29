@@ -2,6 +2,31 @@ package core
 package typechecker
 
 object TypeCheckerSMTRules {
+
+
+  // def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
+  //   t match {
+  //     case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType
+  //     case NatLiteral(_) => true
+  //     case Primitive(op, n1 ::  n2 ::  Nil) =>
+  //       op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
+  //     case _ => false
+  //   }
+  // }
+
+  // def isNatPredicate(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
+  //   t match {
+  //     case BooleanLiteral(_) => true
+  //     case Primitive(Eq, n1 ::  n2 ::  Nil) =>
+  //       (isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
+  //       (isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
+  //     case Primitive(op, n1 ::  n2 ::  Nil) =>
+  //       (op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
+  //       (op.isBoolToBoolBinOp && isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
+  //     case Primitive(op, b ::  Nil) => op.isBoolToBoolUnOp && isNatPredicate(termVariables, b)
+  //     case _ => false
+  //   }
+  // }
   // 
   // val Z3ArithmeticSolver: Rule = Rule("Z3ArithmeticSolver", {
   //   case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, t1 ::  t2 ::  Nil)) =>
