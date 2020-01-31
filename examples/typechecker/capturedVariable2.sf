@@ -1,5 +1,5 @@
-Include("../assert.sc")
-Include("../assert.sc")
+Include("../assert.sf")
+Include("../assert.sf")
 
 val x = (
   val x = 5;

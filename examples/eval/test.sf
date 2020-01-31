@@ -1,4 +1,4 @@
-Include("../assert.sc")
+Include("../assert.sf")
 
 fun f(x [Nat])  [returns Nat] = {
   if (x > 2) { x - 2} else { x + 2 }

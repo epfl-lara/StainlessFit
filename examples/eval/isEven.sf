@@ -1,4 +1,4 @@
-Include("../assert.sc")
+Include("../assert.sf")
 
 val oddEven = fix[n => (Nat => Nat => Bool)](oddEven =>
   fun of (p [Nat]) = {

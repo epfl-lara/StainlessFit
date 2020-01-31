@@ -1,4 +1,4 @@
-Include("../assert.sc")
+Include("../assert.sf")
 
 val emptyList = left ();
 

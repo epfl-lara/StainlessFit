@@ -5,7 +5,7 @@ import core.Core
 
 class EvalFileSuite extends FunSuite {
 
-  for (f <- files("examples/parser", _.endsWith("sc"))) {
+  for (f <- files("examples/eval", _.endsWith("sf"))) {
     test(s"Running file $f") {
       assert(Core.evalFile(f).isRight)
     }
