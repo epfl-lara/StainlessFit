@@ -1,7 +1,7 @@
-val id = fun[X] (x: X) => { x } in
-val add = fun (x: Nat) (y: Nat) => { x + y } in
+val id = fun of [X] (x [X]) = { x };
+val add = fun of (x [Nat]) (y [Nat]) = { x + y };
 
-def f[X][Y] (g: Forall(A, A => A)) (n: X) (b: Y) = {
+fun f[X][Y] (g [PolyForall(A, A => A)]) (n [X]) (b [Y]) = {
   (g[X] n, g[Y] b)
 }
 

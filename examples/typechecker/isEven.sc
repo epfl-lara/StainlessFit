@@ -1,22 +1,22 @@
-def parity(n: Nat) (b: Bool): Bool = {
-  Decreases(n)
-  if(b) {
-    if(n == 0) true else parity (n - 1) false
+fun parity(n [Nat]) (b [Bool])  [returns Bool] = {
+  [decreases n]
+  if (b) {
+    if (n == 0) true else parity (n - 1) false
   }
   else {
-    if(n == 0) false else if (n == 1) true else parity (n - 1) true
+    if (n == 0) false else if (n == 1) true else parity (n - 1) true
   }
 }
 
-def parity1(n: Nat): (Bool, Bool) = {
-  Decreases(n)
-  if(n == 0) (true, false)
-  else { val x = parity1 (n - 1) in (Second(x), First(x)) }
+fun parity1(n [Nat]) [returns (Bool, Bool)] = {
+  [decreases n]
+  if (n == 0) (true, false)
+  else { val x = parity1 (n - 1); (second x, first x) }
 }
 
-def isEven(n: Nat) = { parity n true }
-def isOdd(n: Nat) = { parity n false }
-def isEven1(n: Nat) = { First(parity1 n) }
-def isOdd1(n: Nat) = { Second(parity1 n) }
+fun isEven(n [Nat]) = { parity n true }
+fun isOdd(n [Nat]) = { parity n false }
+fun isEven1(n [Nat]) = { first (parity1 n) }
+fun isOdd1(n [Nat]) = { second (parity1 n) }
 
 isEven1 2

@@ -10,80 +10,100 @@ import core.Bench.bench
 
 import Util._
 
-sealed abstract class Token {
-  val range: (Int, Int)
-}
+sealed abstract class Token extends Positioned
 
-case class AssignationToken(range: (Int, Int)) extends Token
+case object AssignationToken extends Token
 
-case class KeyWordToken(value: String, range: (Int, Int)) extends Token
-case class SeparatorToken(value: String, range: (Int, Int)) extends Token
-case class BooleanToken(value: Boolean, range: (Int, Int)) extends Token
-case class NumberToken(value: BigInt, range: (Int, Int)) extends Token
-case class StringToken(value: String, range: (Int, Int)) extends Token
-case class NullToken(range: (Int, Int)) extends Token
-case class SpaceToken(range: (Int, Int)) extends Token
-case class UnknownToken(content: String, range: (Int, Int)) extends Token
+case class KeyWordToken(value: String) extends Token
+case class SeparatorToken(value: String) extends Token
+case class BooleanToken(value: Boolean) extends Token
+case class NumberToken(value: BigInt) extends Token
+case class StringToken(value: String) extends Token
+case object NullToken extends Token
+case object SpaceToken extends Token
+case class UnknownToken(content: String) extends Token
 
-case class UnitToken(range: (Int, Int)) extends Token
+case object UnitToken extends Token
 
-case class VarToken(content: String, range: (Int, Int)) extends Token
+case class TermIdentifierToken(content: String) extends Token
+case class TypeIdentifierToken(content: String) extends Token
 
-case class OperatorToken(op: Operator, range: (Int, Int)) extends Token
-case class TypeToken(content: String, range: (Int, Int)) extends Token
+case class OperatorToken(op: Operator) extends Token
+case class TypeToken(content: String) extends Token
 
 /*sealed abstract class Value {
   val range: (Int, Int)
 }
 
-case class BooleanValue(value: Boolean, range: (Int, Int)) extends Value
-case class NumberValue(value: BigInt, range: (Int, Int)) extends Value
-case class StringValue(value: String, range: (Int, Int)) extends Value
-case class NullValue(range: (Int, Int)) extends Value
+case class BooleanValue(value: Boolean) extends Value
+case class NumberValue(value: BigInt) extends Value
+case class StringValue(value: String) extends Value
+case class NullValue extends Value
 */
-object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
+object ScalaLexer extends Lexers with CharRegExps {
+  type Token = parser.Token
+  type Position = (Int, Int)
+
+  val blank = many { elem(c => c == '\n' || c == ' ') }
 
   val lexer = Lexer(
     // Operators
     oneOf("-+/*!<>") | word("&&") |  word("||") |
     word("==") | word("!=") | word("<=") | word(">=")
-    |> { (cs, r) => OperatorToken(Operator.fromString(cs.mkString).get, r) },
+    |> { (cs, r) => OperatorToken(Operator.fromString(cs.mkString).get).setPos(r) },
 
     //Assignation
     oneOf("=")
-      |> { (cs, r) => AssignationToken(r) },
+      |> { (cs, r) => AssignationToken.setPos(r) },
+
+    // Keywords
+    (elem('{') ~ blank ~ word("case")) |
+    (elem('[') ~ blank ~ word("returns")) |
+    (elem('[') ~ blank ~ word("fold")) |
+    (elem('[') ~ blank ~ word("decreases")) |
+    (elem('[') ~ blank ~ word("unfold") ~ blank ~ elem(']')) |
+    (elem('[') ~ blank ~ word("unfold") ~ blank ~ word("positive") ~ elem(']')) |
+    word("as") | word("fun of") |
+    word("if") | word("else") | word("case") | word("match") |
+    word("fix") | word("fun") | word("val") |
+    word("Error") |
+    word("left") | word("right") |
+    word("Rec") | word("Pi") | word("Sigma") |
+    word("Forall") | word("PolyForall") |
+    word("Lambda") |
+    word("type")
+      |> { (cs, r) => KeyWordToken(cs.mkString.replaceAll("""[ \n]""", "")).setPos(r) },
+
+    // Compound separator
+    word("[|") | word("|]")
+      |> { (cs, r) => SeparatorToken(cs.mkString).setPos(r) },
 
     // Separator
-    oneOf("{},|().:[]") | word("=>")
-      |> { (cs, r) => SeparatorToken(cs.mkString, r) },
+    oneOf("{},|().:;[]") | word("=>")
+      |> { (cs, r) => SeparatorToken(cs.mkString).setPos(r) },
 
     // Space
     many1(whiteSpace)
-      |> { (_, r) => SpaceToken(r) },
+      |> { (_, r) => SpaceToken.setPos(r) },
 
     // Booleans
     word("true")
-      |> { (_, r) => BooleanToken(true, r) },
+      |> { (_, r) => BooleanToken(true).setPos(r) },
     word("false")
-      |> { (_, r) => BooleanToken(false, r) },
+      |> { (_, r) => BooleanToken(false).setPos(r) },
 
-      // Keywords
-    (elem('{') ~ many { elem(c => c == '\n' || c == ' ') } ~ word("case")) |
-    word("if") | word("else") | word("case") | word("in") | word("match") |
-    word("with") | word("end") |
-    word("fix") | word("fun") | word("Right") | word("Left") | word("val") |
-    word("def") | word("Error") | word("First") | word("Second") | word("Fold") |
-    word("Unfold") | word("UnfoldPositive") | word("Decreases") | word("Pi") | word("Sigma") | word("Forall") | word("Lambda") |
-    word("type")
-      |> { (cs, r) => KeyWordToken(cs.mkString.replaceAll("""[ \n]""", ""), r) },
+    word("Bool") | word("Unit") | word("Nat") | word("Top")
+      |>  { (cs, r) => TypeToken(cs.mkString).setPos(r) },
 
-    word("Bool") | word("Unit") | word("Nat") | word("Rec") | word("Top")
-      |>  { (cs, r) => TypeToken(cs.mkString, r) },
-
-    // Var
-    elem(c => c.isLetter) ~
+    // Term identifiers start with a lower case letter
+    elem(c => c.isLetter && c.isLower) ~
     many { elem(c => c.isLetterOrDigit || c == '_' || c == '$') }
-      |> { (cs, r) => VarToken(cs.mkString, r) },
+      |> { (cs, r) => TermIdentifierToken(cs.mkString).setPos(r) },
+
+    // Type identifiers start with an upper case letter
+    elem(c => c.isLetter && c.isUpper) ~
+    many { elem(c => c.isLetterOrDigit || c == '_' || c == '$') }
+      |> { (cs, r) => TypeIdentifierToken(cs.mkString).setPos(r) },
 
     elem('"') ~
     many {
@@ -93,60 +113,71 @@ object ScalaLexer extends Lexers[Token, Char, Int] with CharRegExps {
     elem('"')
       |> { (cs, r) => {
         val string = cs.mkString
-        StringToken(string.slice(1, string.length - 1), r)
-}},
+        StringToken(string.slice(1, string.length - 1)).setPos(r)
+      }},
 
     // Numbers
     elem('0') | (nonZero ~ many(digit))
-      |> { (cs, r) => NumberToken(cs.mkString.toInt, r) },
+      |> { (cs, r) => NumberToken(cs.mkString.toInt).setPos(r) },
 
     elem('/') ~ elem('/') ~ many { elem(c => c != '\n' )}
-      |> { (_, r) => SpaceToken(r) },
+      |> { (_, r) => SpaceToken.setPos(r) },
 
   ) onError {
-    (cs, r) => UnknownToken(cs.mkString, r)
+    (cs, r) => UnknownToken(cs.mkString).setPos(r)
   }
 
   def apply(it: Iterator[Char]): Iterator[Token] = {
-    val source = Source.fromIterator(it, IndexPositioner)
-    val tokens = lexer.spawn(source)
-    tokens.filter(!_.isInstanceOf[SpaceToken])
+    object LineColumnPositioner extends Positioner[Char, (Int, Int)] {
+      val start: (Int, Int) = (1, 1)
+      def increment(lineColumn: (Int, Int), character: Char) = {
+        val (line, column) = lineColumn
+        if (character == '\n') (line + 1, 1)
+        else (line, column + 1)
+      }
+    }
+    val source = Source.fromIterator(it, LineColumnPositioner)
+    val (tokens, tokens2) = lexer.spawn(source).duplicate
+    // println(tokens2.mkString("\n"))
+    tokens.filterNot(_ == SpaceToken)
   }
 }
 
-sealed abstract class TokenClass(repr: String) {
-  override def toString = repr
-}
+sealed abstract class TokenClass
+case object TypeIdentifierClass extends TokenClass
+case object TermIdentifierClass extends TokenClass
+case class OperatorClass(op: Operator) extends TokenClass
+case class SeparatorClass(value: String) extends TokenClass
+case object BooleanClass extends TokenClass
+case object NumberClass extends TokenClass
+case object StringClass extends TokenClass
+case object NoClass extends TokenClass
+case object UnitClass extends TokenClass
+case object AssignationClass extends TokenClass
+case class KeyWordClass(value: String) extends TokenClass
+case class TypeClass(value: String) extends TokenClass
 
-case object VarClass extends TokenClass("<var>")
-case class OperatorClass(op: Operator) extends TokenClass(s"<operator>")
-case class SeparatorClass(value: String) extends TokenClass(value)
-case object BooleanClass extends TokenClass("<boolean>")
-case object NumberClass extends TokenClass("<number>")
-case object StringClass extends TokenClass("<string>")
-case object NoClass extends TokenClass("<error>")
-case object UnitClass extends TokenClass("<unit>")
-case object AssignationClass extends TokenClass("<assignation>")
-case class KeyWordClass(value: String) extends TokenClass(value)
-case class TypeClass(value: String) extends TokenClass("<type>")
+object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Debug {
 
-object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
+  type Token = parser.Token
+  type Kind = parser.TokenClass
 
   import Implicits._
 
   var id = 0
 
   override def getKind(token: Token): TokenClass = token match {
-    case SeparatorToken(value, range) => SeparatorClass(value)
-    case BooleanToken(value, range) => BooleanClass
-    case NumberToken(value, range) => NumberClass
-    case VarToken(content, range) => VarClass
-    case OperatorToken(op, range) => OperatorClass(op)
-    case AssignationToken(range) => AssignationClass
-    case KeyWordToken(value, range) => KeyWordClass(value)
-    case UnitToken(range) => UnitClass
-    case TypeToken(content, range) => TypeClass(content)
-    case StringToken(content, range) => StringClass
+    case SeparatorToken(value) => SeparatorClass(value)
+    case BooleanToken(value) => BooleanClass
+    case NumberToken(value) => NumberClass
+    case TypeIdentifierToken(content) => TypeIdentifierClass
+    case TermIdentifierToken(content) => TermIdentifierClass
+    case OperatorToken(op) => OperatorClass(op)
+    case AssignationToken => AssignationClass
+    case KeyWordToken(value) => KeyWordClass(value)
+    case UnitToken => UnitClass
+    case TypeToken(content) => TypeClass(content)
+    case StringToken(content) => StringClass
     case _ => NoClass
   }
 
@@ -156,6 +187,8 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   }
 
   val assignation: Syntax[Token] = elem(AssignationClass)
+  val dlbra: Syntax[Token] = elem(SeparatorClass("[|"))
+  val drbra: Syntax[Token] = elem(SeparatorClass("|]"))
   val lpar: Syntax[Token] = elem(SeparatorClass("("))
   val rpar: Syntax[Token] = elem(SeparatorClass(")"))
   val lbra: Syntax[Token] = elem(SeparatorClass("{"))
@@ -165,33 +198,34 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   val comma: Syntax[Token] = elem(SeparatorClass(","))
   val pipe: Syntax[Token] = elem(SeparatorClass("|"))
   val colon: Syntax[Token] = elem(SeparatorClass(":"))
+  val semicolon: Syntax[Token] = elem(SeparatorClass(";"))
   val appK: Syntax[Token] = elem(SeparatorClass("\\"))
   val tupleK: Syntax[Token] = elem(SeparatorClass("\\("))
   val dot: Syntax[Token] = elem(SeparatorClass("."))
   val arrow: Syntax[Token] = elem(SeparatorClass("=>"))
-  val inK: Syntax[Token] = elem(KeyWordClass("in"))
   val ifK: Syntax[Token] = elem(KeyWordClass("if"))
   val elseK: Syntax[Token] = elem(KeyWordClass("else"))
   val fixK: Syntax[Token] = elem(KeyWordClass("fix"))
   val funK: Syntax[Token] = elem(KeyWordClass("fun"))
-  val rightK: Syntax[Token] = elem(KeyWordClass("Right"))
-  val leftK: Syntax[Token] = elem(KeyWordClass("Left"))
-  val firstK: Syntax[Token] = elem(KeyWordClass("First"))
-  val secondK: Syntax[Token] = elem(KeyWordClass("Second"))
+  val funOfK: Syntax[Token] = elem(KeyWordClass("funof"))
+  val rightK: Syntax[Token] = elem(KeyWordClass("right"))
+  val leftK: Syntax[Token] = elem(KeyWordClass("left"))
   val matchK: Syntax[Token] = elem(KeyWordClass("match"))
+  val returnsK: Syntax[Token] = elem(KeyWordClass("[returns"))
   val caseK: Syntax[Token] = elem(KeyWordClass("case"))
   val lbracase: Syntax[Token] = elem(KeyWordClass("{case"))
   val valK: Syntax[Token] = elem(KeyWordClass("val"))
-  val defK: Syntax[Token] = elem(KeyWordClass("def"))
-  val recK: Syntax[Token] = elem(TypeClass("Rec"))
   val errorK: Syntax[Token] = elem(KeyWordClass("Error"))
-  val foldK: Syntax[Token] = elem(KeyWordClass("Fold"))
-  val unfoldK: Syntax[Token] = elem(KeyWordClass("Unfold"))
-  val unfoldPositiveK: Syntax[Token] = elem(KeyWordClass("UnfoldPositive"))
-  val decreasesK: Syntax[Token] = elem(KeyWordClass("Decreases"))
+  val foldK: Syntax[Token] = elem(KeyWordClass("[fold"))
+  val asK: Syntax[Token] = elem(KeyWordClass("as"))
+  val unfoldK: Syntax[Token] = elem(KeyWordClass("[unfold]"))
+  val unfoldPositiveK: Syntax[Token] = elem(KeyWordClass("[unfoldpositive]"))
+  val decreasesK: Syntax[Token] = elem(KeyWordClass("[decreases"))
   val piK: Syntax[Token] = elem(KeyWordClass("Pi"))
   val sigmaK: Syntax[Token] = elem(KeyWordClass("Sigma"))
   val forallK: Syntax[Token] = elem(KeyWordClass("Forall"))
+  val polyForallK: Syntax[Token] = elem(KeyWordClass("PolyForall"))
+  val recK: Syntax[Token] = elem(KeyWordClass("Rec"))
   val lambdaK: Syntax[Token] = elem(KeyWordClass("Lambda"))
   val typeK: Syntax[Token] = elem(KeyWordClass("type"))
 
@@ -202,94 +236,102 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
 
   val literalType: Syntax[Tree] = natType | boolType | unitType | topType
 
+  def opParser(op: Operator): Syntax[Token] = elem(OperatorClass(op))
+
   lazy val parTypeExpr: Syntax[Tree] = {
     (lpar ~ rep1sep(typeExpr, comma.unit()) ~ rpar).map {
       case _ ~ l ~ _ =>
-        if(l.size == 1) l.head
+        if (l.size == 1) l.head
         else {
           val h = l.reverse.head
           val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) => SigmaType(e, Bind(Identifier(newId, "_S"), acc)) }
+          r.foldRight(h) { case (e, acc) =>
+            SigmaType(e, Bind(Identifier(newId, "_S"), acc)).setPos(e, acc)
+          }
         }
     }
   }
 
-  lazy val piType: Syntax[String] = accept(SeparatorClass("=>"))({
-      case SeparatorToken("=>", _) => "=>"
-    }, {
-      case "=>" => Seq(SeparatorToken("=>", (0,0)))
-      case _ => Seq()
-    })
-
   lazy val bPiType: Syntax[Tree] = {
-    (piK ~ lpar ~ variable ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ Var(id) ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => PiType(ty1, Bind(id, ty2))
+    (piK ~ lpar ~ termIdentifier ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ id ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => PiType(ty1, Bind(id, ty2))
     }
   }
 
   lazy val bSigmaType: Syntax[Tree] = {
-    (sigmaK ~ lpar ~ variable ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ Var(id) ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => SigmaType(ty1, Bind(id, ty2))
+    (sigmaK ~ lpar ~ termIdentifier ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
+      case _ ~ _ ~ id ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => SigmaType(ty1, Bind(id, ty2))
     }
   }
 
   lazy val bForallType: Syntax[Tree] = {
-    (forallK ~ lpar ~ variable ~ opt(colon ~ typeExpr) ~ comma ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ Var(id) ~ Some(_ ~ ty1)~  _ ~ ty2 ~ _ => IntersectionType(ty1, Bind(id, ty2))
-      case _ ~ _ ~ Var(id) ~ None ~ _ ~ ty2 ~ _ => PolyForallType(Bind(id, ty2))
+    (forallK.skip ~ lpar.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rpar.skip).map {
+      case id ~ ty1 ~ ty2 => IntersectionType(ty1, Bind(id, ty2))
     }
   }
 
+  lazy val polyForallType: Syntax[Tree] = {
+    (polyForallK.skip ~ lpar.skip ~ typeIdentifier ~ comma.skip ~ typeExpr ~ rpar.skip).map {
+      case id ~ ty2 => PolyForallType(Bind(id, ty2))
+    }
+  }
 
   lazy val recType: Syntax[Tree] = {
-    (recK ~ lpar ~ expression ~ rpar ~ lpar ~ variable ~ arrow ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ n ~ _ ~ _ ~ Var(alpha) ~  _ ~ t ~ _ => RecType(n, Bind(alpha, t))
+    (recK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ lpar.skip ~ typeIdentifier ~ arrow.skip ~ typeExpr ~ rpar.skip).map {
+      case y ~ alpha ~ ty => RecType(y, Bind(alpha, ty))
     }
   }
 
   lazy val refinementType: Syntax[Tree] = {
-    (lbra ~ variable ~ colon ~ typeExpr ~ pipe ~ expression ~ rbra).map {
-      case _ ~ Var(x) ~ _ ~ ty ~ _ ~ p ~ _ => RefinementType(ty, Bind(x, p))
+    (lbra ~ termIdentifier ~ colon ~ typeExpr ~ pipe ~ expr ~ rbra).map {
+      case _ ~ x ~ _ ~ ty ~ _ ~ p ~ _ => RefinementType(ty, Bind(x, p))
     }
   }
 
   lazy val operatorType: Syntax[Tree] = {
     operators(simpleTypeExpr)(
       plus is LeftAssociative,
-      piType is RightAssociative,
+      arrow is RightAssociative,
       eq is LeftAssociative
     )({
-      case (ty1, "=>", ty2) => PiType(ty1, Bind(Identifier(newId, "_X"), ty2))
-      case (ty1, "+", ty2) => SumType(ty1, ty2)
-      case (ty1, "==", ty2) => EqualityType(ty1, ty2)
+      case (ty1, t @ SeparatorToken("=>"), ty2) => PiType(ty1, Bind(Identifier(newId, "_X"), ty2))
+      case (ty1, t @ OperatorToken(Plus), ty2) => SumType(ty1, ty2)
+      case (ty1, t @ OperatorToken(Eq), ty2) => EqualityType(ty1, ty2)
     }, {
-      case PiType(ty1, Bind(_, ty2)) => (ty1, "=>", ty2)
-      case SumType(ty1, ty2) => (ty1, "+", ty2)
-      case EqualityType(ty1, ty2) => (ty1, "==", ty2)
+      case PiType(ty1, Bind(_, ty2)) => (ty1, SeparatorToken("=>"), ty2)
+      case SumType(ty1, ty2) => (ty1, OperatorToken(Plus), ty2)
+      case EqualityType(ty1, ty2) => (ty1, OperatorToken(Eq), ty2)
     })
   }
 
-  lazy val simpleTypeExpr: Syntax[Tree] = literalType | parTypeExpr | recType | refinementType | variable | bPiType | bSigmaType | bForallType
+  lazy val simpleTypeExpr: Syntax[Tree] =
+    literalType | parTypeExpr | recType | refinementType |
+    macroTypeInst |
+    bPiType | bSigmaType | bForallType | polyForallType
 
   lazy val typeExpr: Syntax[Tree] = recursive {
     operatorType
   }
 
-  val boolean: Syntax[Tree] = accept(BooleanClass) { case BooleanToken(value, _) => BooleanLiteral(value) }
-  val number: Syntax[Tree] = accept(NumberClass) { case NumberToken(value, _) => NatLiteral(value) }
-  val variable: Syntax[Tree] = accept(VarClass) { case VarToken(content, _) => Var(Identifier(0, content)) }
+  val boolean: Syntax[Tree] = accept(BooleanClass) { case BooleanToken(value) => BooleanLiteral(value) }
+  val number: Syntax[Tree] = accept(NumberClass) { case NumberToken(value) => NatLiteral(value) }
+
+  val termIdentifier: Syntax[Identifier] = accept(TermIdentifierClass) {
+    case t@TermIdentifierToken(content) => Identifier(0, content).setPos(t)
+  } |
+    rightK.map { case t => Identifier(0, "right").setPos(t) } |
+    leftK.map { case t => Identifier(0, "left").setPos(t) }
+
+
+  val typeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass) {
+    case t@TypeIdentifierToken(content) => Identifier(0, content).setPos(t)
+  }
+  val termVariable: Syntax[Tree] = termIdentifier.map(Var(_))
+  val typeVariable: Syntax[Tree] = typeIdentifier.map(Var(_))
+
   val unit: Syntax[Tree] = accept(UnitClass) { case _ => UnitLiteral }
 
-  val literal: Syntax[Tree] = variable | number | boolean | unit
-
-  def opParser(op: Operator): Syntax[String] = {
-    accept(OperatorClass(op))({
-      case OperatorToken(op, _) => op.toString
-    }, {
-      case s if (op.toString == s) => Seq(OperatorToken(op, (0,0)))
-      case _ => Seq()
-    })
-  }
+  val literal: Syntax[Tree] = termVariable | number | boolean | unit
 
   val plus = opParser(Plus)
   val minus = opParser(Minus)
@@ -308,8 +350,8 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   val gteq = opParser(Gteq)
 
   lazy val lambdaAbs: Syntax[Tree] = {
-    (lambdaK ~ variable ~ arrow ~ bracketExpr).map {
-      case _ ~ Var(x) ~ _ ~ e => Abs(Bind(x, e))
+    (lambdaK ~ termIdentifier ~ arrow ~ bracketExpr).map {
+      case _ ~ x ~ _ ~ e => Abs(Bind(x, e))
     }
   }
 
@@ -329,23 +371,22 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     def toAppArgument(): AppArgument = TermAppArg(Var(id))
   }
 
-  lazy val sBracketArg: Syntax[DefArgument] = {
-    (lsbra ~ variable ~ rsbra).map { case _ ~ Var(v) ~ _ => TypeArgument(v) }
-  }
-
-  lazy val bracketArg: Syntax[DefArgument] = {
-    (lbra ~ variable ~ colon ~ typeExpr ~ rbra).map {
-      case _ ~ Var(v) ~ _ ~ ty ~ _ => ForallArgument(v, ty)
+  lazy val normalArgument: Syntax[DefArgument] = {
+    (lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ rpar.skip).map {
+      case id ~ ty => PiArgument(id, ty)
     }
   }
 
-  lazy val parArg: Syntax[DefArgument] = {
-    (lpar ~ variable ~ colon ~ typeExpr ~ rpar).map {
-      case _ ~ Var(v) ~ _ ~ ty ~ _ => PiArgument(v, ty)
+  lazy val typeArgument: Syntax[DefArgument] =
+    (lsbra.skip ~ typeIdentifier ~ rsbra.skip).map { case id => TypeArgument(id): DefArgument }
+
+  lazy val ghostArgument: Syntax[DefArgument] = {
+    (dlbra.skip ~ termIdentifier ~ colon ~ typeExpr ~ drbra.skip).map {
+      case id ~ _ ~ ty => ForallArgument(id, ty): DefArgument
     }
   }
 
-  lazy val argument: Syntax[DefArgument] = sBracketArg | bracketArg | parArg
+  lazy val argument: Syntax[DefArgument] = normalArgument | typeArgument | ghostArgument
 
   def createFun(args: Seq[DefArgument], retType: Option[Tree], body: Tree, f: Identifier): (Tree, Option[Tree]) = {
     val (fun, funType) = args.foldRight((body, retType.getOrElse(UnitType))) {
@@ -361,9 +402,9 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   }
 
   lazy val defFunction: Syntax[Tree] =
-    (defK ~ variable ~ many1(argument) ~ opt(retTypeP) ~ assignation ~ lbra ~ opt(measureP) ~
-    expression ~ rbra ~ opt(expression)).map {
-      case _ ~ Var(f) ~ args ~ retType ~ _ ~ _ ~ measure ~ e1 ~ _ ~ e2 =>
+    (funK.skip ~ termIdentifier ~ many1(argument) ~ opt(retTypeP) ~ assignation.skip ~ lbra.skip ~ opt(measureP) ~
+    expr ~ rbra.skip ~ opt(expr)).map {
+      case f ~ args ~ retType ~ measure ~ e1 ~ e2 =>
         val followingExpr = e2.getOrElse(Var(f))
         if (f.isFreeIn(e1) && measure.isEmpty) {
           throw new java.lang.Exception(s"Recursive function $f needs a Decreases clause.")
@@ -410,34 +451,35 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
         }
     }
 
-  lazy val retTypeP: Syntax[Tree] = { (colon ~ typeExpr).map { case _ ~ t => t } }
-  lazy val measureP: Syntax[Tree] = { (decreasesK ~ lpar ~ expression ~rpar).map { case _ ~ _ ~ e ~ _ => e } }
+  lazy val retTypeP: Syntax[Tree] = {
+    returnsK ~>~ typeExpr ~<~ rsbra
+  }
 
+  lazy val measureP: Syntax[Tree] = {
+    decreasesK ~>~ expr ~<~ rsbra
+  }
 
   lazy val function: Syntax[Tree] = {
-    (funK ~ many(argument) ~ arrow ~ bracketExpr).map {
-      case _ ~ args ~ _ ~ e => createFun(args, None, e, Identifier(0, "__"))._1
+    (funOfK.skip ~ many(argument) ~ assignation.skip ~ bracketExpr).map {
+      case args ~ e => createFun(args, None, e, Identifier(0, "__"))._1
     }
   }
 
-  lazy val string: Syntax[String] = accept(StringClass) { case StringToken(content, _) => content }
+  lazy val string: Syntax[String] = accept(StringClass) { case StringToken(content) => content }
 
   lazy val error: Syntax[Tree] = {
-    (errorK ~ opt(lsbra ~ typeExpr ~ rsbra) ~ lpar ~ string ~ rpar).map {
-      case _ ~ tpe ~ _ ~ s ~ _ => tpe match {
-        case None => Error(s, None)
-        case Some(_ ~ tp ~ _) => Error(s, Some(tp))
-      }
+    (errorK.skip ~ opt(lsbra.skip ~ typeExpr ~ rsbra.skip) ~ lpar.skip ~ string ~ rpar.skip).map {
+      case optTy ~ s => Error(s, optTy)
     }
   }
 
   lazy val fixpoint: Syntax[Tree] =
-    (fixK ~ opt(lsbra ~ variable ~ arrow ~ typeExpr ~ rsbra) ~
-    lpar ~ variable ~ arrow ~ expression ~ rpar).map {
-      case _ ~ None ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
+    (fixK.skip ~ opt(lsbra ~ termVariable ~ arrow ~ typeExpr ~ rsbra) ~
+    lpar.skip ~ termIdentifier ~ arrow ~ expr ~ rpar).map {
+      case None ~ x ~ _ ~ e ~ _ =>
         val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
         Fix(None, Bind(Identifier(0, "_"), Bind(x, body)))
-      case _ ~ Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ _ ~ Var(x) ~ _ ~ e ~ _ =>
+      case Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ x ~ _ ~ e ~ _ =>
         val body = Tree.replace(
           x,
           Inst(
@@ -450,34 +492,32 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     }
 
   lazy val fold: Syntax[Tree] =
-    (foldK ~ opt(lsbra ~ typeExpr ~ rsbra) ~
-    lpar ~ expression ~ rpar).map {
-      case _ ~ None ~ _ ~ e ~ _  =>
-        Fold(None, e)
-      case _ ~ Some(_ ~ tp ~ _) ~ _ ~ e ~ _ =>
-        Fold(Some(tp), e)
+    (foldK.skip ~ opt(asK.skip ~ typeExpr) ~ rsbra.skip ~
+    lpar.skip ~ expr ~ rpar.skip).map {
+      case optTy ~ e  => Fold(optTy, e)
     }
 
-  lazy val unfold: Syntax[Tree] =
-    (unfoldK ~ lpar ~ expression ~ rpar ~ inK ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
-      case _ ~ _ ~ e ~ _ ~ _ ~ _ ~ Var(x) ~ _ ~ f ~ _ => Unfold(e, Bind(x, f))
+  lazy val unfoldIn: Syntax[Tree] =
+    (unfoldK.skip ~ valK.skip ~ termIdentifier ~ assignation.skip ~ expr ~ semicolon.skip ~
+     expr).map {
+      case x ~ e1 ~ e2 => Unfold(e1, Bind(x, e2))
     }
 
-  lazy val unfoldPositive: Syntax[Tree] =
-    (unfoldPositiveK ~ lpar ~ expression ~ rpar ~ inK ~ lpar ~ variable ~ arrow ~ expression ~ rpar).map {
-      case _ ~ _ ~ e ~ _ ~ _ ~ _ ~ Var(x) ~ _ ~ f ~ _ => UnfoldPositive(e, Bind(x, f))
+  lazy val unfoldPositiveIn: Syntax[Tree] =
+    (unfoldPositiveK.skip ~ valK.skip ~ termIdentifier ~ assignation.skip ~ expr ~ semicolon.skip ~
+     expr).map {
+      case x ~ e1 ~ e2 => UnfoldPositive(e1, Bind(x, e2))
     }
 
   lazy val letIn: Syntax[Tree] =
-    (valK ~ variable ~ opt(colon ~ typeExpr) ~ assignation ~ expression ~ inK ~ expression).map {
-      case _ ~ Var(x) ~ None ~ _ ~ e ~ _ ~ e2 =>
-        LetIn(None, e, Bind(x, e2))
-      case _ ~ Var(x) ~ Some(_ ~ tp) ~ _ ~ e ~ _ ~ e2 =>
-        LetIn(Some(tp), e, Bind(x, e2))
+     (valK.skip ~ termIdentifier ~ opt(colon.skip ~ typeExpr) ~ assignation.skip ~
+      expr ~ semicolon.skip ~ expr).map {
+      case x ~ optTy ~ e ~ e2 =>
+        LetIn(optTy, e, Bind(x, e2))
     }
 
   lazy val parExpr: Syntax[Tree] = {
-    (lpar ~ repsep(expression, comma.unit()) ~ rpar).map {
+    (lpar ~ repsep(expr, comma.unit()) ~ rpar).map {
       case _ ~ l ~ _ =>
         if(l.isEmpty) UnitLiteral
         else if(l.size == 1) l.head
@@ -495,11 +535,11 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
   case class ErasableAppArg(t: Tree) extends AppArgument
 
   lazy val sBracketAppArg: Syntax[AppArgument] = {
-    (lsbra ~ typeExpr ~ rsbra).map { case _ ~ e ~ _ => TypeAppArg(e) }
+    (lsbra.skip ~ typeExpr ~ rsbra.skip).map { case e => TypeAppArg(e) }
   }
 
   lazy val bracketAppArg: Syntax[AppArgument] = {
-    (lbra ~ expression ~ rbra).map { case _ ~ ty ~ _ => ErasableAppArg(ty) }
+    (dlbra.skip ~ expr ~ drbra.skip).map { case ty => ErasableAppArg(ty) }
   }
 
   lazy val parAppArg: Syntax[AppArgument] = {
@@ -522,40 +562,33 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
     (simpleExpr ~ many(appArg)).map { case f ~ args => createApp(args, f) }
   }
 
+  lazy val macroTermArg: Syntax[(Boolean, Tree)] =
+    simpleExpr.map((true, _))
+
+  lazy val macroTypeArg: Syntax[(Boolean, Tree)] =
+    (lsbra.skip ~ typeExpr ~ rsbra.skip).map((false, _))
+
+  lazy val macroTypeInst: Syntax[Tree] = {
+    (typeIdentifier ~ many(macroTermArg | macroTypeArg)).map {
+      case id ~ Nil => Var(id)
+      case id ~ args => MacroTypeInst(Var(id), args)
+    }
+  }
+
   lazy val eitherMatch: Syntax[Tree] =
-    (matchK ~ expression ~ lbracase ~
-            leftK ~ lpar ~ variable ~ rpar ~ arrow ~ optBracketExpr ~
-    caseK ~ rightK ~ lpar ~ variable ~ rpar ~ arrow ~ optBracketExpr ~
-    rbra).map {
-      case (_ ~ e ~ _ ~ _ ~ _ ~ Var(v1) ~ _ ~ _ ~ e1 ~
-      _ ~ _ ~ _ ~ Var(v2) ~ _ ~ _ ~ e2 ~ _) =>
-      EitherMatch(e, Bind(v1, e1), Bind(v2, e2))
-    }
-
-  lazy val left: Syntax[Tree] =
-    (leftK ~ lpar ~ expression ~ rpar).map {
-      case _ ~ _ ~ e ~ _ => LeftTree(e)
-    }
-
-  lazy val right: Syntax[Tree] =
-    (rightK ~ lpar ~ expression ~ rpar).map {
-      case  _ ~ _ ~ e ~ _ => RightTree(e)
-    }
-
-  lazy val first: Syntax[Tree] =
-    (firstK ~ lpar ~ expression ~ rpar).map {
-      case _ ~ _ ~ e ~ _ => First(e)
-    }
-
-  lazy val second: Syntax[Tree] =
-    (secondK ~ lpar ~ expression ~ rpar).map {
-      case  _ ~ _ ~ e ~ _ => Second(e)
+    (matchK.skip ~ expr ~ lbracase.skip ~
+                   leftK.skip ~ lpar.skip ~ termVariable ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ rightK.skip ~ lpar.skip ~ termVariable ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
+    rbra.skip
+    ).map {
+      case (e ~ Var(v1) ~ e1 ~ Var(v2) ~ e2) =>
+        EitherMatch(e, Bind(v1, e1), Bind(v2, e2))
     }
 
   val prefixedApplication: Syntax[Tree] = prefixes(not, application)({
-      case _ => throw new java.lang.Exception("55")
+      case _ => throw new java.lang.Exception("Not implemented")
     }, {
-      case _ => throw new java.lang.Exception("6")
+      case _ => throw new java.lang.Exception("Not implemented")
     })
 
   val operator: Syntax[Tree] = {
@@ -564,30 +597,43 @@ object ScalaParser extends Syntaxes[Token, TokenClass] with Operators {
       plus | minus | or is LeftAssociative,
       lt | gt | lteq | gteq is LeftAssociative,
       eq is LeftAssociative)({
-      case (x, op, y) => Primitive(Operator.fromString(op).get, List(x,y))
+      case (x, OperatorToken(op), y) => Primitive(op, List(x,y))
     }, {
-      case Primitive(op, x ::  y ::  Nil) => (x, op.toString, y)
+      case Primitive(op, x ::  y ::  Nil) => (x, OperatorToken(op), y)
     })
   }
 
   lazy val condition: Syntax[Tree] = {
-    (ifK ~ lpar ~ expression ~ rpar ~ optBracketExpr ~ elseK ~ optBracketExpr).map {
+    (ifK ~ lpar ~ expr ~ rpar ~ optBracketExpr ~ elseK ~ optBracketExpr).map {
       case _ ~ _ ~ cond ~ _ ~ vTrue ~ _ ~ vFalse => IfThenElse(cond, vTrue, vFalse)
     }
   }
 
-  lazy val optBracketExpr: Syntax[Tree] = expression | bracketExpr
+  lazy val optBracketExpr: Syntax[Tree] = expr | bracketExpr
 
   lazy val bracketExpr: Syntax[Tree] = {
-    (lbra ~ expression ~ rbra).map { case _ ~ e ~ _ => e }
+    (lbra ~ expr ~ rbra).map { case _ ~ e ~ _ => e }
   }
 
-  lazy val simpleExpr: Syntax[Tree] = literal | parExpr | fixpoint | function | left | right | first | second |
-    error | fold | unfold | unfoldPositive | lambdaAbs
+  lazy val simpleExpr: Syntax[Tree] = literal | parExpr | fixpoint | function |
+    error | fold | lambdaAbs
 
-  lazy val expression: Syntax[Tree] = recursive {
-    condition | eitherMatch | letIn | defFunction | operator
+  lazy val macroTypeDeclaration: Syntax[Tree] = {
+    (lsbra.skip ~ typeK.skip ~ typeIdentifier ~
+      many((lpar.skip ~ termIdentifier ~ rpar.skip) |
+           (lsbra.skip ~ typeIdentifier ~ rsbra.skip)) ~
+      assignation.skip ~ typeExpr ~ rsbra.skip ~ expr).map {
+      case id ~ args ~ ty ~ rest =>
+        MacroTypeDecl(args.foldRight(ty)((arg, acc) => Bind(arg, acc)), Bind(id, rest))
+    }
   }
 
-  def apply(it: Iterator[Token]): ParseResult[Tree] = expression(it)
+  lazy val expr: Syntax[Tree] = recursive {
+    condition | eitherMatch | letIn | unfoldIn | unfoldPositiveIn |
+    defFunction | operator | macroTypeDeclaration
+  }
+
+  val exprParser = LL1(expr)
+
+  def apply(it: Iterator[Token]): LL1.ParseResult[Tree] = exprParser(it)
 }

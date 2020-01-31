@@ -1,9 +1,9 @@
 Include("../assert.sc")
 
-val emptyList = Fold(Left(())) in
+val emptyList = left ();
 
-def cons(n: Nat) (l: Rec(n)(list => (Unit + (Nat, list)))) = {
-  Fold(Right((n, l)))
+fun cons(n [Nat]) (l [Rec(n)(List => (Unit + (Nat, List)))]) = {
+  right (n, l)
 }
 
 cons 3 (cons 2 (emptyList))

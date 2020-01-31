@@ -1,25 +1,25 @@
-def f(x: {x: Nat | x < 5}) = { x }
+fun f(x: {x: Nat | x < 5}) = { x }
 
-def g(x: Nat) = {
+fun g(x: Nat) = {
   if (true) {
-    val y: {x: Nat | x < 5} = 0 in
+    val y: {x: Nat | x < 5} = 0;
     y
   }
   else {
-    val y: {x: Nat | x > 5} = 10 in
+    val y: {x: Nat | x > 5} = 10;
     y
   }
 }
 
 f (g 2)
 
-// def h(x: Nat) = {
+// fun h(x: Nat) = {
 //   match Left(2) {
 //     case Left(x) =>
-//       val y: {x: Nat | x < 5} = 0 in
+//       val y: {x: Nat | x < 5} = 0;
 //       y
 //     case Right(x) =>
-//       val y: {x: Nat | x > 5} = 10 in
+//       val y: {x: Nat | x > 5} = 10;
 //       y
 //   }
 // }

@@ -1,6 +1,6 @@
-def fac(m: Nat): Nat = {
-  Decreases(m)
-  if(m == 0) 1
+fun fac(m [Nat]) [returns Nat] = {
+  [decreases m]
+  if (m == 0) 1
   else m * fac(m - 1)
 }
 

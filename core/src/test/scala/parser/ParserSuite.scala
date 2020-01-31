@@ -4,6 +4,6 @@ import core.parser._
 
 class ParserSuite extends FunSuite {
   test("parser is LL1") {
-    assert(expression.isLL1)
+    assert(expr.isLL1)
   }
 }
