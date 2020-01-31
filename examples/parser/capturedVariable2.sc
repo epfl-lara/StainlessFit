@@ -1,9 +1,9 @@
 Include("../assert.sc")
 
 val x = (
-  val x = 5 in
-  def f(x: Nat): Nat = { 2 * x }
-  val x = f(x) in
+  val x = 5;
+  fun f(x [Nat])  [returns Nat] = { 2 * x }
+  val x = f(x);
   x - x
-) in
+);
 assert((x == 0))

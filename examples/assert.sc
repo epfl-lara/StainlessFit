@@ -1,1 +1,4 @@
-def assert(b: {b: Bool | b}): Unit = { if(b) () else Error[Unit]("Assertion failed") }
+fun assert(b [{b: Bool | b}])  [returns Unit] = {
+  if (b) ()
+  else Error[Unit]("Assertion failed")
+}

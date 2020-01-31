@@ -1,7 +1,7 @@
-def assert(b: { b: Bool | b }): Unit = { () }
+fun assert(b [{ b: Bool | b }])  [returns Unit] = { () }
 
-def identity(x: Nat): Nat = { x }
+fun identity(x [Nat])  [returns Nat] = { x }
 
-def test(f: Nat => Nat)(x: Nat) = {
+fun test(f [Nat => Nat])(x [Nat]) = {
   assert(identity (f x) == f x)
 }

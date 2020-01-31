@@ -3,7 +3,6 @@ package typechecker
 
 import core.trees._
 
-
 import Derivation._
 import Util._
 import Formatting._

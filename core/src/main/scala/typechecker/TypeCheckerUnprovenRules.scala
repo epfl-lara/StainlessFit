@@ -11,6 +11,38 @@ import TypeOperators._
 
 object TypeCheckerUnprovenRules {
 
+  val InferLeft = Rule("InferLeft", {
+    case g @ InferGoal(c, e @ LeftTree(t)) =>
+      TypeChecker.debugs(g, "InferLeft")
+      val subgoal = InferGoal(c.incrementLevel(), t)
+      Some((List(_ => subgoal),
+        {
+          case InferJudgment(_, _, _, tpe) :: _ =>
+            (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType)))
+          case _ =>
+            (false, ErrorJudgment("InferLeft", c, g.toString))
+        }
+      ))
+    case g =>
+      None
+  })
+
+  val InferRight = Rule("InferRight", {
+    case g @ InferGoal(c, e @ RightTree(t)) =>
+      TypeChecker.debugs(g, "InferRight")
+      val subgoal = InferGoal(c.incrementLevel(), t)
+      Some((List(_ => subgoal),
+        {
+          case InferJudgment(_, _, _, tpe) :: _ =>
+            (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe)))
+          case _ =>
+            (false, ErrorJudgment("InferRight", c, g.toString))
+        }
+      ))
+    case g =>
+      None
+  })
+
   val NatEqualToEqual = Rule("NatEqualToEqual", {
     case g @ EqualityGoal(c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true)) =>
       TypeChecker.debugs(g, "NatEqualToEqual")

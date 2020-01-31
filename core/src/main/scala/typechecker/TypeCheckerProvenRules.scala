@@ -538,38 +538,6 @@ object TypeCheckerProvenRules {
       None
   })
 
-  val InferLeft = Rule("InferLeft", {
-    case g @ InferGoal(c, e @ LeftTree(t)) =>
-      TypeChecker.debugs(g, "InferLeft")
-      val subgoal = InferGoal(c.incrementLevel(), t)
-      Some((List(_ => subgoal),
-        {
-          case InferJudgment(_, _, _, tpe) :: _ =>
-            (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType)))
-          case _ =>
-            (false, ErrorJudgment("InferLeft", c, g.toString))
-        }
-      ))
-    case g =>
-      None
-  })
-
-  val InferRight = Rule("InferRight", {
-    case g @ InferGoal(c, e @ RightTree(t)) =>
-      TypeChecker.debugs(g, "InferRight")
-      val subgoal = InferGoal(c.incrementLevel(), t)
-      Some((List(_ => subgoal),
-        {
-          case InferJudgment(_, _, _, tpe) :: _ =>
-            (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe)))
-          case _ =>
-            (false, ErrorJudgment("InferRight", c, g.toString))
-        }
-      ))
-    case g =>
-      None
-  })
-
   val CheckLeft = Rule("CheckLeft", {
     case g @ CheckGoal(c, e @ LeftTree(t), tpe @ SumType(ty, _)) =>
       TypeChecker.debugs(g, "CheckLeft")

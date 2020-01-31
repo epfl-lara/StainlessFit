@@ -105,6 +105,7 @@ object TypeChecker {
   import TypeCheckerUnsoundRules._
   import TypeCheckerSMTRules._
   import TypeCheckerControlRules._
+  import TypeCheckerMetaRules._
 
   val deterministicTypeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CheckBool.t || CheckNat.t || CheckUnit.t || CheckVar.t || CheckIf.t ||
@@ -117,6 +118,7 @@ object TypeChecker {
     CheckRecursive.t ||
     CheckTop1.t || CheckTop2.t ||
     CheckReflexive.t ||
+    InferMacroTypeDecl.t ||
     InferBool.t || InferNat.t || InferUnit.t || InferVar.t ||
     InferLeft.t || InferRight.t ||
     InferError.t ||
@@ -154,6 +156,8 @@ object TypeChecker {
   val tactic = (deterministicTypeChecking || solveEquality || control).repeat
 
   def infer(t: Tree, max: Int) = {
+    // println("Type-Checking")
+    // println(t)
     val g = InferGoal(Context.empty(max), t)
     tactic.apply(g, sg => None)
   }

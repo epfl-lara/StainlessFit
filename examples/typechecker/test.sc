@@ -1,33 +1,35 @@
-def f(x: Nat): Nat = {
+fun f(x [Nat])  [returns Nat] = {
   if (x > 2) { x - 2} else { x + 2 }
 }
 
-def g(x: Nat + Nat): Nat = {
+fun g(x [Nat + Nat])  [returns Nat] = {
   match x {
-    case Left(x) => x
-    case Right(x) => x
+    case left(x) => x
+    case right(x) => x
   }
 }
 
-def h(x: Unit) = {
+fun h(x [Unit]) = {
   2
 }
 
-def badDef( x: {x: Nat | x < Second((fix[n => Nat](div => div), 2)) } ): Nat = {
+fun badDef( x [{x: Nat | x < second (fix[n => Nat](div => div), 2) }] )
+  [returns Nat] = {
   2
 }
 
 
-def F (x: {x: Nat | false}) = { x }
+fun ff (x [{x: Nat | false}]) = { x }
 
-def G (x: {x: Nat | false}) = { F x }
+fun gg (x [{x: Nat | false}]) = { ff x }
 
-def H (x: {x: Nat | true || false}) = { 2 }
+fun hh (x [{x: Nat | true || false}]) = { 2 }
 
-val two = H 2 in
+val two = hh 2;
 
-val q: Nat = h() in
-val x: Nat = 2 in
-val y: Nat  = 4 in
-val z: Sigma(x: Nat, Nat) = (1, 2) in
-f(x + y + First(z) + f(f(2))) + g(Left(22)) / g(Right(22))
+val q: Nat = h();
+val x: Nat = 2;
+val y: Nat  = 4;
+val z: Sigma(x: Nat, Nat) = (1, 2);
+
+f(x + y + first z + f (f 2)) + g(left 22) / g(right 22)
