@@ -17,13 +17,13 @@ fun h(x [Unit]) = {
 
 val fact = fix[n => Nat => Nat](fac =>
   fun of (m [Nat]) = {
-      if(m == 0) 1
-      else m * (fac (m - 1))
+      if (m == 0) { 1 }
+      else { m * (fac (m - 1)) }
   }
 );
-val q: Nat = h();
-val x: Nat = 2;
-val y: Nat = 4;
-val z: (Nat, Nat) = (1, 2);
-val p: Nat = f(x + y + first z + f(f(2))) + g(left 22) / g(right 22);
+val q [Nat] = h();
+val x [Nat] = 2;
+val y [Nat] = 4;
+val z [(Nat, Nat)] = (1, 2);
+val p [Nat] = f(x + y + first z + f(f(2))) + g(left 22) / g(right 22);
 assert(p == 8)

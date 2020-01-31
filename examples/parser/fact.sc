@@ -2,8 +2,8 @@ Include("../assert.sc")
 
 val fact = fix[n => Nat => Nat](fac =>
   fun of (m [Nat]) = {
-    if (m == 0) 1
-    else m * (fac (m - 1))
+    if (m == 0) { 1 }
+    else { m * (fac (m - 1)) }
   }
 );
 

@@ -16,7 +16,7 @@ fun headN[X] [|n: Nat|] (s [StreamN(n)[X]])  [returns X] = {
   first x
 }
 
-fun tailN[X][|n: {n: Nat | n > 0} |] (s [StreamN(n)[X]])  [returns StreamN(n-1)[X]] = {
+fun tailN[X][|n: {n [Nat] | n > 0} |] (s [StreamN(n)[X]])  [returns StreamN(n-1)[X]] = {
   [unfold positive] val x = s;
   second x ()
 }
@@ -35,13 +35,13 @@ fun constant[X](x [X]) [|n: Nat|]  [returns StreamN(n)[X]] = {
   [decreases n]
   [fold as StreamN(n)[X]]((
     x,
-    fun of (y [Unit]) = { constant[X](x)[|n-1|] }
+    keep { constant[X](x)[|n-1|] }
   ))
 }
 
 fun sum(k [Nat]) (stream [Stream[Nat]])  [returns Nat] = {
   [decreases k]
-  if (k == 0) 0
+  if (k == 0) { 0 }
   else {
     [unfold] val x = stream;
     first x + sum(k - 1) (second x ())
@@ -52,7 +52,7 @@ fun mapN[X][Y](f [X => Y])[|n: Nat|](s [StreamN(n)[X]])  [returns StreamN(n)[Y]]
   [decreases n]
   [fold as StreamN(n)[Y]]((
     f (headN[X][|n|](s)),
-    fun of (u [Unit]) = { mapN[X][Y] (f) [|n-1|] (tailN[X][|n|](s)) }
+    keep { mapN[X][Y] (f) [|n-1|] (tailN[X][|n|](s)) }
   ))
 }
 
@@ -66,7 +66,7 @@ fun zipWithN[X][Y][Z] (f [X => Y => Z]) [|n: Nat|] (s1 [StreamN(n)[X]]) (s2 [Str
 
   [fold as StreamN(n)[Z]]((
     f (headN[X][|n|](s1)) (headN[Y][|n|](s2)),
-    fun of (u [Unit]) = {
+    keep {
       zipWithN[X][Y][Z] (f) [|n-1|] (tailN[X][|n|](s1)) (tailN[Y][|n|](s2))
     }
   ))
@@ -95,10 +95,10 @@ fun fibonacci[|n: Nat|] [returns StreamN(n)[Nat]] = {
   [decreases n]
   [fold as StreamN(n)[Nat]]((
     0,
-    fun of (u [Unit]) = {
+    keep {
       [fold as StreamN(n-1)[Nat]]((
         1,
-        fun of (u [Unit]) = {
+        keep {
           zipWithN [Nat][Nat][Nat] plus [|n-2|] (fibonacci[|n-2|]) (tailN[Nat][|n-1|](fibonacci[|n-1|]))
         }
       ))

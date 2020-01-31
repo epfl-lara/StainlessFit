@@ -63,7 +63,7 @@ object ScalaLexer extends Lexers with CharRegExps {
     (elem('[') ~ blank ~ word("decreases")) |
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ elem(']')) |
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ word("positive") ~ elem(']')) |
-    word("as") | word("fun of") |
+    word("as") | word("fun of") | word("keep") |
     word("if") | word("else") | word("case") | word("match") |
     word("fix") | word("fun") | word("val") |
     word("Error") |
@@ -215,6 +215,7 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val caseK: Syntax[Token] = elem(KeyWordClass("case"))
   val lbracase: Syntax[Token] = elem(KeyWordClass("{case"))
   val valK: Syntax[Token] = elem(KeyWordClass("val"))
+  val keepK: Syntax[Token] = elem(KeyWordClass("keep"))
   val errorK: Syntax[Token] = elem(KeyWordClass("Error"))
   val foldK: Syntax[Token] = elem(KeyWordClass("[fold"))
   val asK: Syntax[Token] = elem(KeyWordClass("as"))
@@ -283,8 +284,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   }
 
   lazy val refinementType: Syntax[Tree] = {
-    (lbra ~ termIdentifier ~ colon ~ typeExpr ~ pipe ~ expr ~ rbra).map {
-      case _ ~ x ~ _ ~ ty ~ _ ~ p ~ _ => RefinementType(ty, Bind(x, p))
+    (lbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ expr ~ rbra.skip).map {
+      case x ~ ty ~ p => RefinementType(ty, Bind(x, p))
     }
   }
 
@@ -465,6 +466,13 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
     }
   }
 
+  lazy val keep: Syntax[Tree] = {
+    (keepK.skip ~ bracketExpr).map {
+      case e =>
+        Lambda(Some(UnitType), Bind(Identifier(0, "__"), e))
+    }
+  }
+
   lazy val string: Syntax[String] = accept(StringClass) { case StringToken(content) => content }
 
   lazy val error: Syntax[Tree] = {
@@ -510,7 +518,7 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
     }
 
   lazy val letIn: Syntax[Tree] =
-     (valK.skip ~ termIdentifier ~ opt(colon.skip ~ typeExpr) ~ assignation.skip ~
+     (valK.skip ~ termIdentifier ~ opt(lsbra.skip ~ typeExpr ~ rsbra.skip) ~ assignation.skip ~
       expr ~ semicolon.skip ~ expr).map {
       case x ~ optTy ~ e ~ e2 =>
         LetIn(optTy, e, Bind(x, e2))
@@ -604,8 +612,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   }
 
   lazy val condition: Syntax[Tree] = {
-    (ifK ~ lpar ~ expr ~ rpar ~ optBracketExpr ~ elseK ~ optBracketExpr).map {
-      case _ ~ _ ~ cond ~ _ ~ vTrue ~ _ ~ vFalse => IfThenElse(cond, vTrue, vFalse)
+    (ifK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ bracketExpr ~ elseK.skip ~ bracketExpr).map {
+      case cond ~ vTrue ~ vFalse => IfThenElse(cond, vTrue, vFalse)
     }
   }
 
@@ -615,7 +623,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
     (lbra ~ expr ~ rbra).map { case _ ~ e ~ _ => e }
   }
 
-  lazy val simpleExpr: Syntax[Tree] = literal | parExpr | fixpoint | function |
+  lazy val simpleExpr: Syntax[Tree] = literal | parExpr | fixpoint |
+    function | keep |
     error | fold | lambdaAbs
 
   lazy val macroTypeDeclaration: Syntax[Tree] = {
