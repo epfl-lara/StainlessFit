@@ -19,5 +19,12 @@ stainlessfit-cli typecheck --html examples/streams.sc
 
 This will create an HTML file of the type-checking derivation in `examples/streams.sc.html`.
 
+### Syntax coloring
+
+Syntax coloring mode is not yet available.
+If you are using [emacs](https://www.gnu.org/software/emacs/), 
+you can try to use [tuareg-mode](https://github.com/ocaml/tuareg) for
+approximate syntax coloring.
+
 [larabot-img]: http://laraquad4.epfl.ch:9000/epfl-lara/StainlessFit/status/master
 [larabot-ref]: http://laraquad4.epfl.ch:9000/epfl-lara/StainlessFit/builds
