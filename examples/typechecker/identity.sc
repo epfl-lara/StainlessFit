@@ -1,4 +1,4 @@
-fun assert(b [{ b: Bool | b }])  [returns Unit] = { () }
+fun assert(b [{ b [Bool] | b }])  [returns Unit] = { () }
 
 fun identity(x [Nat])  [returns Nat] = { x }
 
