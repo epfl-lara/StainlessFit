@@ -8,7 +8,7 @@ import scallion.syntactic._
 import core.trees._
 import core.Bench.bench
 
-import Util._
+import util.Utils._
 
 sealed abstract class Token extends Positioned
 

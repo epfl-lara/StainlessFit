@@ -79,7 +79,7 @@ object Core {
         case Some((success, tree)) =>
           if (html)
             bench.time("makeHTMLFile") {
-              Derivation.makeHTMLFile(reporter, f, List(tree), success)
+              util.HTMLOutput.makeHTMLFile(reporter, f, List(tree), success)
             }
 
           Right((success, tree))

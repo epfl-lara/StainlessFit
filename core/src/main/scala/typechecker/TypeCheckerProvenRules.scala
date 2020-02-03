@@ -3,10 +3,10 @@ package typechecker
 
 import core.trees._
 
+import util.Utils._
+import util.HTMLOutput._
 
 import Derivation._
-import Util._
-import Formatting._
 import TypeOperators._
 
 object TypeCheckerProvenRules {

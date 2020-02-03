@@ -1,8 +1,9 @@
 package core
+package util
 
-import core.trees._
+import trees._
 
-object Util {
+object Utils {
   def mapFirst[A](l: Seq[A], f: A => Option[A]): Option[Seq[A]] = {
     if (l.isEmpty) None
     else

@@ -5,8 +5,7 @@ import core.trees._
 
 
 import Derivation._
-import Util._
-import Formatting._
+import util.Utils._
 import TypeOperators._
 
 object TypeCheckerUnprovenRules {
