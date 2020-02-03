@@ -31,15 +31,6 @@ case class TypeIdentifierToken(content: String) extends Token
 case class OperatorToken(op: Operator) extends Token
 case class TypeToken(content: String) extends Token
 
-/*sealed abstract class Value {
-  val range: (Int, Int)
-}
-
-case class BooleanValue(value: Boolean) extends Value
-case class NumberValue(value: BigInt) extends Value
-case class StringValue(value: String) extends Value
-case class NullValue extends Value
-*/
 object ScalaLexer extends Lexers with CharRegExps {
   type Token = parser.Token
   type Position = (Int, Int)
@@ -137,8 +128,7 @@ object ScalaLexer extends Lexers with CharRegExps {
       }
     }
     val source = Source.fromIterator(it, LineColumnPositioner)
-    val (tokens, tokens2) = lexer.spawn(source).duplicate
-    // println(tokens2.mkString("\n"))
+    val tokens = lexer.spawn(source)
     tokens.filterNot(_ == SpaceToken)
   }
 }
