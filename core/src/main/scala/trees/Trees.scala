@@ -261,13 +261,10 @@ object Tree {
         val (newT1, max1) = setId(t1, m, max)
         val (newT2, max2) = setId(t2, m, max1)
         (Inst(newT1, newT2), max2)
-      case Fold(Some(tp), t) =>
+      case Fold(tp, t) =>
         val (newTp, max1) = setId(tp, m, max)
         val (newT, max2) = setId(t, m, max1)
-        (Fold(Some(newTp), newT), max2)
-      case Fold(None, t) =>
-        val (newT,max1) = setId(t, m, max)
-        (Fold(None, newT), max1)
+        (Fold(newTp, newT), max2)
       case Unfold(t, bind) =>
         val (newT,max1) = setId(t, m, max)
         val (newBind, max2) = setId(bind, m, max1)
@@ -361,8 +358,7 @@ object Tree {
       case EitherMatch(t, bind1, bind2) => EitherMatch(replace(id, v, t), replace(id, v, bind1), replace(id, v, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replace(id, v, _)))
       case Inst(t1, t2) => Inst(replace(id, v, t1), replace(id, v, t2))
-      case Fold(None, t) => Fold(None, replace(id, v, t))
-      case Fold(Some(tp), t) => Fold(Some(replace(id, v, tp)), replace(id, v, t))
+      case Fold(tp, t) => Fold(replace(id, v, tp), replace(id, v, t))
       case Unfold(t, bind) => Unfold(replace(id, v, t), replace(id, v, bind))
       case UnfoldPositive(t, bind) => UnfoldPositive(replace(id, v, t), replace(id, v, bind))
       case Abs(bind) => Abs(replace(id, v, bind))
@@ -387,61 +383,204 @@ object Tree {
     }
   }
 
-  def replace(p: Tree => Option[Tree], body: Tree): Tree = {
+  def replace(p: Tree => Option[Either[String,Tree]], body: Tree): Either[String, Tree] = {
     p(body).getOrElse(body match {
-      case Var(_) => body
-      case UnitLiteral => body
-      case NatLiteral(_) => body
-      case BooleanLiteral(_) => body
+      case Var(_) => Right(body)
+      case UnitLiteral => Right(body)
+      case NatLiteral(_) => Right(body)
+      case BooleanLiteral(_) => Right(body)
       case IfThenElse(cond, t1, t2) =>
-        IfThenElse(replace(p, cond), replace(p, t1), replace(p, t2))
+        for (
+          rcond <- replace(p,cond);
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+        IfThenElse(rcond, rt1, rt2)
+
       case App(t1, t2) =>
-        App(replace(p, t1), replace(p, t2))
-      case Pair(t1, t2) => Pair(replace(p, t1), replace(p, t2))
-      case First(t) => First(replace(p, t))
-      case Second(t) => Second(replace(p, t))
-      case LeftTree(t) => LeftTree(replace(p, t))
-      case RightTree(t) => RightTree(replace(p, t))
-      case Because(t1, t2) => Because(replace(p, t1), replace(p, t2))
-      case Bind(id2, e) => Bind(id2, replace(p, e))
-      case Lambda(None, bind) => Lambda(None, replace(p, bind))
-      case Lambda(Some(tp), bind) => Lambda(Some(replace(p, tp)), replace(p, bind))
-      case ErasableLambda(tp, bind) => ErasableLambda(replace(p, tp), replace(p, bind))
-      case Fix(None, bind) => Fix(None, replace(p, bind))
-      case Fix(Some(tp), bind) => Fix(Some(replace(p, tp)), replace(p, bind))
-      case LetIn(None, v1, bind) => LetIn(None, replace(p, v1), replace(p, bind))
-      case LetIn(Some(tp), v1, bind) => LetIn(Some(replace(p, tp)), replace(p, v1), replace(p, bind))
-      case MacroTypeDecl(tpe, bind) => MacroTypeDecl(replace(p, tpe), replace(p, bind))
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          App(rt1, rt2)
+
+      case Pair(t1, t2) =>
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          Pair(rt1, rt2)
+
+      case First(t) => replace(p, t).map(First(_))
+      case Second(t) => replace(p, t).map(Second(_))
+      case LeftTree(t) => replace(p, t).map(LeftTree(_))
+      case RightTree(t) => replace(p, t).map(RightTree(_))
+      case Because(t1, t2) =>
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          Because(rt1, rt2)
+
+      case Bind(id, t) => replace(p, t).map(Bind(id, _))
+      case Lambda(None, bind) => replace(p, bind).map(Lambda(None, _))
+      case Lambda(Some(tp), bind) =>
+        for (
+          rtp <- replace(p, tp);
+          rbind <- replace(p, bind)
+        ) yield
+          Lambda(Some(rtp), rbind)
+
+      case ErasableLambda(tp, bind) =>
+        for (
+          rtp <- replace(p, tp);
+          rbind <- replace(p, bind)
+        ) yield
+          ErasableLambda(rtp, rbind)
+
+      case Fix(None, bind) => replace(p, bind).map(Fix(None, _))
+      case Fix(Some(tp), bind) =>
+        for (
+          rtp <- replace(p, tp);
+          rbind <- replace(p, bind)
+        ) yield
+          Fix(Some(rtp), rbind)
+
+      case LetIn(None, v1, bind) =>
+        for (
+          rv1 <- replace(p, v1);
+          rbind <- replace(p, bind)
+        ) yield
+          LetIn(None, rv1, rbind)
+      case LetIn(Some(tp), v1, bind) =>
+        for (
+          rtp <- replace(p, tp);
+          rv1 <- replace(p, v1);
+          rbind <- replace(p, bind)
+        ) yield
+          LetIn(Some(rtp), rv1, rbind)
+      case MacroTypeDecl(tp, bind) =>
+        for (
+          rtp <- replace(p, tp);
+          rbind <- replace(p, bind)
+        ) yield
+          MacroTypeDecl(rtp, rbind)
       case MacroTypeInst(v1, args) =>
-        MacroTypeInst(
-          replace(p, v1),
-          args.map(a => (a._1, replace(p, a._2)))
-        )
-      case Match(t, t0, bind) => Match(replace(p, t), replace(p, t0), replace(p, bind))
-      case EitherMatch(t, bind1, bind2) => EitherMatch(replace(p, t), replace(p, bind1), replace(p, bind2))
-      case Primitive(op, args) => Primitive(op, args.map(replace(p, _)))
-      case Inst(t1, t2) => Inst(replace(p, t1), replace(p, t2))
-      case Fold(None, t) => Fold(None, replace(p, t))
-      case Fold(Some(tp), t) => Fold(Some(replace(p, tp)), replace(p, t))
-      case Unfold(t, bind) => Unfold(replace(p, t), replace(p, bind))
-      case UnfoldPositive(t, bind) => UnfoldPositive(replace(p, t), replace(p, bind))
-      case Abs(bind) => Abs(replace(p, bind))
-      case TypeApp(abs, t) => TypeApp(replace(p, abs), replace(p, t))
-      case Error(_, _) => body
+        for(
+          rv1 <- replace(p, v1);
+          eithers = args.map(arg => replace(p, arg._2));
+          rargs <- eithers.foldLeft(Right(Seq()): Either[String, Seq[Tree]]) {
+            case (acc @ Left(_), _) => acc
+            case (_, Left(error)) => Left(error)
+            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
+          }
+        ) yield
+          MacroTypeInst(rv1, args.map(_._1).zip(rargs))
 
-      case NatType => body
-      case BoolType => body
-      case UnitType => body
-      case SumType(t1, t2) => SumType(replace(p, t1), replace(p, t2))
-      case PiType(t1, bind) => PiType(replace(p, t1), replace(p, bind))
-      case SigmaType(t1, bind) => SigmaType(replace(p, t1), replace(p, bind))
-      case IntersectionType(t1, bind) => IntersectionType(replace(p, t1), replace(p, bind))
-      case RefinementType(t1, bind) => RefinementType(replace(p, t1), replace(p, bind))
-      case RecType(n, bind) => RecType(replace(p, n), replace(p, bind))
-      case PolyForallType(bind) => PolyForallType(replace(p, bind))
+      case Match(t, t0, bind) =>
+        for (
+          rt <- replace(p, t);
+          rt0 <- replace(p, t0);
+          rbind <- replace(p, bind)
+        ) yield
+          Match(rt, rt0, rbind)
+      case EitherMatch(t, bind1, bind2) =>
+        for (
+          rt <- replace(p, t);
+          rbind1 <- replace(p, bind1);
+          rbind2 <- replace(p, bind2)
+        ) yield
+          EitherMatch(rt, rbind1, rbind2)
+      case Primitive(op, args) =>
+        val eithers = args.map(arg => replace(p, arg));
+        for(
+          rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
+            case (acc @ Left(_), _) => acc
+            case (_, Left(error)) => Left(error)
+            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
+          }
+        ) yield
+          Primitive(op, rargs)
+      case Inst(t1, t2) =>
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          Inst(rt1, rt2)
 
-      case BottomType => BottomType
-      case TopType => TopType
+      case Fold(tp, t) =>
+        for (
+          rtp <- replace(p, tp);
+          rt <- replace(p, t)
+        ) yield
+          Fold(rtp, rt)
+      case Unfold(t, bind) =>
+        for (
+          rt <- replace(p,t);
+          rbind <- replace(p,bind)
+        ) yield
+          Unfold(rt, rbind)
+      case UnfoldPositive(t, bind) =>
+        for (
+          rt <- replace(p,t);
+          rbind <- replace(p,bind)
+        ) yield
+          UnfoldPositive(rt, rbind)
+
+      case Abs(bind) => replace(p, bind).map(Abs(_))
+      case TypeApp(abs, t) =>
+        for (
+          rabs <- replace(p,abs);
+          rt <- replace(p,t)
+        ) yield
+          TypeApp(rabs, rt)
+
+      case Error(_, _) => Right(body)
+
+      case NatType => Right(body)
+      case BoolType => Right(body)
+      case UnitType => Right(body)
+      case SumType(t1, t2) =>
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          SumType(rt1, rt2)
+      case PiType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          PiType(rt1, rbind)
+      case SigmaType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          SigmaType(rt1, rbind)
+      case IntersectionType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          IntersectionType(rt1, rbind)
+      case RefinementType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          RefinementType(rt1, rbind)
+      case RecType(n, bind) =>
+        for (
+          rn <- replace(p,n);
+          rbind <- replace(p,bind)
+        ) yield
+          RecType(rn, rbind)
+      case PolyForallType(bind) =>
+        replace(p, bind).map(PolyForallType(_))
+
+      case BottomType => Right(body)
+      case TopType => Right(body)
 
       case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
     })
@@ -482,8 +621,7 @@ object Tree {
       case EitherMatch(t, bind1, bind2) => EitherMatch(replaceMany(p, t), replaceMany(p, bind1), replaceMany(p, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replaceMany(p, _)))
       case Inst(t1, t2) => Inst(replaceMany(p, t1), replaceMany(p, t2))
-      case Fold(None, t) => Fold(None, replaceMany(p, t))
-      case Fold(Some(tp), t) => Fold(Some(replaceMany(p, tp)), replaceMany(p, t))
+      case Fold(tp, t) => Fold(replaceMany(p, tp), replaceMany(p, t))
       case Unfold(t, bind) => Unfold(replaceMany(p, t), replaceMany(p, bind))
       case UnfoldPositive(t, bind) => UnfoldPositive(replaceMany(p, t), replaceMany(p, bind))
       case Abs(bind) => Abs(replaceMany(p, bind))
@@ -553,12 +691,10 @@ object Tree {
       case UnitLiteral => true
       case NatLiteral(_) => true
       case BooleanLiteral(_) => true
-      case Var(_) => true
       case Lambda(_, _) => true
       case Pair(t1, t2) => isValue(t1) && isValue(t2)
       case RightTree(t) => isValue(t)
       case LeftTree(t) => isValue(t)
-      case Fold(_, t) => isValue(t)
       case Abs(_) => true
       case _ => false
     }
@@ -597,8 +733,9 @@ object Tree {
       case (RightTree(t1), RightTree(t2)) => areEqual(t1, t2)
       case (Because(t11, t12), Because(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (Bind(x1, t1), Bind(x2, t2)) => areEqual(t1, t2.replace(x2, Var(x1)))
-      case (Lambda(_, bind1), Lambda(_, bind2)) => areEqual(bind1, bind2)
-      case (ErasableLambda(_, bind1), ErasableLambda(_, bind2)) => areEqual(bind1, bind2)
+      case (Lambda(None, bind1), Lambda(None, bind2)) => areEqual(bind1, bind2)
+      case (Lambda(Some(tp1), bind1), Lambda(Some(tp2), bind2)) => areEqual(tp1, tp2) && areEqual(bind1, bind2)
+      case (ErasableLambda(tp1, bind1), ErasableLambda(tp2, bind2)) => areEqual(tp1, tp2) && areEqual(bind1, bind2)
       case (Fix(_, bind1), Fix(_, bind2)) => areEqual(bind1, bind2)
       case (LetIn(_, v1, bind1), LetIn(_, v2, bind2)) => areEqual(v1, v2) && areEqual(bind1, bind2)
       case (MacroTypeDecl(tpe1, bind1), MacroTypeDecl(tpe2, bind2)) => areEqual(tpe1, tpe2) && areEqual(bind1, bind2)
@@ -617,7 +754,7 @@ object Tree {
         if (op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => areEqual(t1, t2)}
         else false
       case (Inst(t11, t12), Inst(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
-      case (Fold(_, t1), Fold(_, t2)) => areEqual(t1, t2)
+      case (Fold(tp1, t1), Fold(tp2, t2)) => areEqual(tp1, tp2) && areEqual(t1, t2)
       case (Unfold(t1, bind1), Unfold(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (UnfoldPositive(t1, bind1), UnfoldPositive(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (Abs(bind1), Abs(bind2)) => areEqual(bind1, bind2)
@@ -672,7 +809,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
         isFreeIn(t)
       case Primitive(op, args) =>
         args.exists(isFreeIn(_))
-      case Fold(tp, t) => isFreeIn(t) || tp.exists(isFreeIn)
+      case Fold(tp, t) => isFreeIn(t) || isFreeIn(tp)
       case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case UnfoldPositive(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case Abs(bind) => isFreeIn(bind)
@@ -703,7 +840,7 @@ sealed abstract class Tree extends Positioned {
 
   def replace(id: Identifier, t: Tree): Tree = Tree.replace(id, t, this)
 
-  def replace(p: Tree => Option[Tree]): Tree = Tree.replace(p, this)
+  def replace(p: Tree => Option[Either[String,Tree]]): Either[String,Tree] = Tree.replace(p, this)
 
   def replaceMany(p: Tree => Option[Tree]): Tree = Tree.replaceMany(p, this)
 
@@ -938,13 +1075,9 @@ case class Refl(t1: Tree, t2: Tree) extends Tree {
   }
 }
 
-case class Fold(tp: Option[Tree], t: Tree) extends Tree {
+case class Fold(tp: Tree, t: Tree) extends Tree {
   override def toString: String = {
-    val typeString = tp match {
-      case Some(ty) => "[" + ty.toString + "]"
-      case _ => ""
-    }
-    s"[fold as $typeString]($t)"
+    s"[fold as $tp]($t)"
   }
 }
 

@@ -10,7 +10,7 @@ import parser.ScalaLexer
 
 import java.io.File
 
-import core.Bench.bench
+import core.util.RunContext
 
 object Core {
 
@@ -32,13 +32,13 @@ object Core {
     }
   }
 
-  def parseFile(f: File): Either[String, Tree] = {
+  def parseFile(rc: RunContext, f: File): Either[String, Tree] = {
     val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
     val regex = """Include\("(.*)"\)""".r
     val completeString = regex.replaceAllIn(s, m =>
       scala.io.Source.fromFile(new File(f.getAbsoluteFile().getParentFile().getCanonicalPath(), m.group(1))).getLines.mkString("\n") + "\n"
     )
-    bench.time("Scallion parsing") { parseString(completeString) }
+    rc.bench.time("Scallion parsing") { parseString(completeString) }
   }
 
   val primitives = Map(
@@ -58,8 +58,8 @@ object Core {
     })
   }
 
-  def evalFile(f: File): Either[String, Tree] =
-    parseFile(f) flatMap { src =>
+  def evalFile(rc: RunContext, f: File): Either[String, Tree] =
+    parseFile(rc, f) flatMap { src =>
       val (t1, _) = Tree.setId(src, primitives, 0)
       val t2 = replacePrimitives(t1)
 
@@ -69,17 +69,17 @@ object Core {
       }
     }
 
-  def typeCheckFile(reporter: Reporter, f: File, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] = {
-    parseFile(f) flatMap { src =>
+  def typeCheckFile(rc: RunContext, f: File, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] = {
+    parseFile(rc, f) flatMap { src =>
       val (t1, max) = Tree.setId(src, primitives, 0)
       val t2 = replacePrimitives(t1)
 
-      TypeChecker.infer(t2, max) match {
+      new TypeChecker(rc).infer(t2, max) match {
         case None => Left(s"Could not type check: $f")
         case Some((success, tree)) =>
           if (html)
-            bench.time("makeHTMLFile") {
-              util.HTMLOutput.makeHTMLFile(reporter, f, List(tree), success)
+            rc.bench.time("makeHTMLFile") {
+              util.HTMLOutput.makeHTMLFile(rc, f, List(tree), success)
             }
 
           Right((success, tree))
@@ -87,10 +87,10 @@ object Core {
     }
   }
 
-  def evalFile(s: String): Either[String, Tree] =
-    evalFile(new File(s))
+  def evalFile(rc: RunContext, s: String): Either[String, Tree] =
+    evalFile(rc, new File(s))
 
-  def typeCheckFile(reporter: Reporter, s: String, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] =
-    typeCheckFile(reporter, new File(s), html)
+  def typeCheckFile(rc: RunContext, s: String, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] =
+    typeCheckFile(rc, new File(s), html)
 
 }

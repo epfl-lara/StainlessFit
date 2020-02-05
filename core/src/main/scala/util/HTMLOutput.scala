@@ -76,7 +76,7 @@ object HTMLOutput {
     indentation + "</li>"
   }
 
-  def makeHTMLFile(reporter: Reporter, file: File, trees: List[NodeTree[Judgment]], success: Boolean): Unit = {
+  def makeHTMLFile(rc: RunContext, file: File, trees: List[NodeTree[Judgment]], success: Boolean): Unit = {
     val htmlFile = new File(file.getAbsolutePath() + ".html")
     val fw = new FileWriter(htmlFile)
     val status = if (success) "Success" else "Failed"
@@ -144,6 +144,6 @@ object HTMLOutput {
     fw.write("</body>\n")
     fw.write("</html>")
     fw.close()
-    reporter.info(s"Created HTML file with derivations in: $htmlFile")
+    rc.reporter.info(s"Created HTML file with derivations in: $htmlFile")
   }
 }

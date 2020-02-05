@@ -3,16 +3,19 @@ package typechecker
 
 import core.trees._
 
+import util.RunContext
+import util.Utils._
 
 import Derivation._
-import util.Utils._
 import TypeOperators._
 
-object TypeCheckerUnprovenRules {
+trait TypeCheckerUnprovenRules {
+
+  val rc: RunContext
 
   val InferLeft = Rule("InferLeft", {
     case g @ InferGoal(c, e @ LeftTree(t)) =>
-      TypeChecker.debugs(g, "InferLeft")
+      TypeChecker.debugs(rc, g, "InferLeft")
       val subgoal = InferGoal(c.incrementLevel(), t)
       Some((List(_ => subgoal),
         {
@@ -28,7 +31,7 @@ object TypeCheckerUnprovenRules {
 
   val InferRight = Rule("InferRight", {
     case g @ InferGoal(c, e @ RightTree(t)) =>
-      TypeChecker.debugs(g, "InferRight")
+      TypeChecker.debugs(rc, g, "InferRight")
       val subgoal = InferGoal(c.incrementLevel(), t)
       Some((List(_ => subgoal),
         {
@@ -44,7 +47,7 @@ object TypeCheckerUnprovenRules {
 
   val NatEqualToEqual = Rule("NatEqualToEqual", {
     case g @ EqualityGoal(c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true)) =>
-      TypeChecker.debugs(g, "NatEqualToEqual")
+      TypeChecker.debugs(rc, g, "NatEqualToEqual")
 
       Some((List(
         _ => EqualityGoal(c.incrementLevel(), t1, t2),
@@ -178,7 +181,7 @@ object TypeCheckerUnprovenRules {
   val ExpandVars = Rule("ExpandVars", {
     case g @ EqualityGoal(c, t1, t2) =>
       expandVars(g).map { sg =>
-        TypeChecker.debugs(g, "ExpandVars")
+        TypeChecker.debugs(rc, g, "ExpandVars")
         (List(_ => sg), {
           case AreEqualJudgment(_, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("ExpandVars", c, t1, t2, ""))
@@ -257,10 +260,10 @@ object TypeCheckerUnprovenRules {
 
   val TopIf = Rule("TopIf", {
     case g @ EqualityGoal(c, t1 @ IfThenElse(tc, tt, tf), t2) =>
-      TypeChecker.debugs(g, "TopIf")
+      TypeChecker.debugs(rc, g, "TopIf")
       topIf(c, t1, t2)
     case g @ EqualityGoal(c, t1, t2 @ IfThenElse(tc, tt, tf)) =>
-      TypeChecker.debugs(g, "TopIf")
+      TypeChecker.debugs(rc, g, "TopIf")
       topIf(c, t2, t1)
     case g =>
       None
@@ -291,10 +294,10 @@ object TypeCheckerUnprovenRules {
 
   val TopMatch = Rule("TopMath", {
     case g @ EqualityGoal(c, t1 @ Match(tc, tt, tf), t2) =>
-      TypeChecker.debugs(g, "TopMath")
+      TypeChecker.debugs(rc, g, "TopMath")
       topEitherMatch(c, t1, t2)
     case g @ EqualityGoal(c, t1, t2 @ Match(tc, tt, tf)) =>
-      TypeChecker.debugs(g, "TopMatch")
+      TypeChecker.debugs(rc, g, "TopMatch")
       topEitherMatch(c, t2, t1)
     case g =>
       None
@@ -325,10 +328,10 @@ object TypeCheckerUnprovenRules {
 
   val TopEitherMatch = Rule("TopEitherMath", {
     case g @ EqualityGoal(c, t1 @ EitherMatch(tc, tt, tf), t2) =>
-      TypeChecker.debugs(g, "TopEitherMath")
+      TypeChecker.debugs(rc, g, "TopEitherMath")
       topEitherMatch(c, t1, t2)
     case g @ EqualityGoal(c, t1, t2 @ EitherMatch(tc, tt, tf)) =>
-      TypeChecker.debugs(g, "TopEitherMatch")
+      TypeChecker.debugs(rc, g, "TopEitherMatch")
       topEitherMatch(c, t2, t1)
     case g =>
       None

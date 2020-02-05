@@ -2,8 +2,10 @@ package core
 package typechecker
 
 import core.trees._
+import core.util.RunContext
 
 import Derivation._
+
 
 object Context {
   def empty: Context = Context(List(), Map(), Set(), 0, 0)
@@ -99,87 +101,86 @@ case class Tactic[A,B](apply: (A, (A => Option[B])) => Option[B]) {
   }
 }
 
-object TypeChecker {
-  import TypeCheckerProvenRules._
-  import TypeCheckerUnprovenRules._
-  import TypeCheckerUnsoundRules._
-  import TypeCheckerSMTRules._
-  import TypeCheckerControlRules._
-  import TypeCheckerMetaRules._
+class TypeChecker(val rc: RunContext)
+  extends TypeCheckerProvenRules
+  with TypeCheckerUnprovenRules
+  with TypeCheckerUnsoundRules
+  with TypeCheckerSMTRules
+  with TypeCheckerControlRules
+  with TypeCheckerMetaRules {
 
   val deterministicTypeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
-    CheckBool.t || CheckNat.t || CheckUnit.t || CheckVar.t || CheckIf.t ||
-    CheckMatch.t || CheckEitherMatch.t || CheckLet.t ||
-    CheckLeft.t || CheckRight.t ||
-    CheckIntersection.t ||
-    CheckLambda.t || CheckPi.t ||
-    CheckPair.t || CheckSigma.t ||
-    CheckRefinement.t || CheckTypeAbs.t ||
-    CheckRecursive.t ||
-    CheckTop1.t || CheckTop2.t ||
-    CheckReflexive.t ||
-    InferMacroTypeDecl.t ||
-    InferBool.t || InferNat.t || InferUnit.t || InferVar.t ||
-    InferLeft.t || InferRight.t ||
-    InferError.t ||
-    InferLet.t ||
-    InferPair.t || InferFirst.t || InferSecond.t ||
-    InferApp.t || InferLambda.t || InferErasableLambda.t || InferForallInstantiation.t ||
-    InferTypeAbs.t || InferTypeApp.t ||
-    InferBinaryPrimitive.t || InferUnaryPrimitive.t ||
-    InferIf.t || InferMatch.t || InferEitherMatch.t ||
-    InferFix.t ||
-    InferFold.t || InferUnfold.t || InferUnfoldPositive.t || InferFoldGen.t
+    CheckBool.t(rc) || CheckNat.t(rc) || CheckUnit.t(rc) || CheckVar.t(rc) ||
+    CheckIf.t(rc) || CheckMatch.t(rc) || CheckEitherMatch.t(rc) || CheckLet.t(rc) ||
+    CheckLeft.t(rc) || CheckRight.t(rc) ||
+    CheckIntersection.t(rc) ||
+    CheckLambda.t(rc) || CheckPi.t(rc) ||
+    CheckPair.t(rc) || CheckSigma.t(rc) ||
+    CheckRefinement.t(rc) || CheckTypeAbs.t(rc) ||
+    CheckRecursive.t(rc) ||
+    CheckTop1.t(rc) || CheckTop2.t(rc) ||
+    CheckReflexive.t(rc) ||
+    InferMacroTypeDecl.t(rc) ||
+    InferBool.t(rc) || InferNat.t(rc) || InferUnit.t(rc) || InferVar.t(rc) ||
+    InferLeft.t(rc) || InferRight.t(rc) ||
+    InferError.t(rc) ||
+    InferLet.t(rc) ||
+    InferPair.t(rc) || InferFirst.t(rc) || InferSecond.t(rc) ||
+    InferApp.t(rc) || InferLambda.t(rc) || InferErasableLambda.t(rc) || InferForallInstantiation.t(rc) ||
+    InferTypeAbs.t(rc) || InferTypeApp.t(rc) ||
+    InferBinaryPrimitive.t(rc) || InferUnaryPrimitive.t(rc) ||
+    InferIf.t(rc) || InferMatch.t(rc) || InferEitherMatch.t(rc) ||
+    InferFix.t(rc) ||
+    InferFold.t(rc) || InferUnfold.t(rc) || InferUnfoldPositive.t(rc) || InferFoldGen.t(rc)
 
   val solveEquality: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
-    Reflexivity.t ||
-    EqualityInContext.t ||
-    UnsoundIgnoreEquality.t
-    // Z3ArithmeticSolver.t ||
-    // ExpandVars.t ||
-    // TopIf.t ||
-    // TopMatch.t ||
-    // NatEqualToEqual.t ||
-    // UnfoldRefinementInContext.t ||
-    // InlineApplications.t ||
+    Reflexivity.t(rc) ||
+    EqualityInContext.t(rc) ||
+    UnsoundIgnoreEquality.t(rc)
+    // Z3ArithmeticSolver.t(rc) ||
+    // ExpandVars.t(rc) ||
+    // TopIf.t(rc) ||
+    // TopMatch.t(rc) ||
+    // NatEqualToEqual.t(rc) ||
+    // UnfoldRefinementInContext.t(rc) ||
+    // InlineApplications.t(rc) ||
 
   val control: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
-    CatchErrorGoal.t ||
-    CatchEmptyGoal.t ||
-    FailRule.t
+    CatchErrorGoal.t(rc) ||
+    CatchEmptyGoal.t(rc) ||
+    FailRule.t(rc)
 
+  val tactic = (deterministicTypeChecking || solveEquality || control).repeat
+
+  def infer(t: Tree, max: Int) = {
+    val g = InferGoal(Context.empty(max), t)
+    tactic.apply(g, sg => None)
+  }
+}
+
+object TypeChecker {
   val tdebug = false
   val edebug = false
   val zdebug = false
   val ndebug = false
 
-  val tactic = (deterministicTypeChecking || solveEquality || control).repeat
-
-  def infer(t: Tree, max: Int) = {
-    // println("Type-Checking")
-    // println(t)
-    val g = InferGoal(Context.empty(max), t)
-    tactic.apply(g, sg => None)
+  def debugs(rc: RunContext, g: Goal, ruleName: String) = {
+    ruleNameDebug(rc, s"${"   " * g.c.level}$ruleName")
+    typeCheckDebug(rc, s"${"   " * g.c.level}Current goal ${g} $ruleName : ${g.c.toString.replaceAll("\n", s"\n${"   " * g.c.level}")}\n")
   }
 
-  def debugs(g: Goal, ruleName: String) = {
-    TypeChecker.ruleNameDebug(s"${"   " * g.c.level}$ruleName")
-    TypeChecker.typeCheckDebug(s"${"   " * g.c.level}Current goal ${g} $ruleName : ${g.c.toString.replaceAll("\n", s"\n${"   " * g.c.level}")}\n")
+  def ruleNameDebug(rc: RunContext, s: String): Unit = {
+    if (ndebug)
+      rc.reporter.info(s)
   }
 
-  def ruleNameDebug(s: String): Unit = {
-    if (ndebug) println(s)
+  def typeCheckDebug(rc: RunContext, s: String): Unit = {
+    if (tdebug)
+      rc.reporter.info(s)
   }
 
-  def typeCheckDebug(s: String): Unit = {
-    if (tdebug) println(s)
-  }
-
-  def equalityDebug(s: String): Unit = {
-    if (edebug) println(s)
-  }
-
-  def z3Debug(s: String): Unit = {
-    if (zdebug) println(s)
+  def equalityDebug(rc: RunContext, s: String): Unit = {
+    if (edebug)
+      rc.reporter.info(s)
   }
 }

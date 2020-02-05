@@ -1,4 +1,5 @@
 package core
+package util
 
 class Bench() {
 
@@ -61,7 +62,7 @@ class Bench() {
     }
   }
 
-  def report() = {
+  def report(reporter: Reporter) = {
     val sizes = times.map(_._1.size)
     val maxSize = if (sizes.isEmpty) 80 else sizes.max
     val t = Table(
@@ -86,12 +87,8 @@ class Bench() {
              .map(l => Row(l.updated(1, seconds(l(1).asInstanceOf[Double]))
                             .map(_.toString)))
     )
-    println(t.toString("TIMES"))
-    println("Sum times:  " + seconds(times.values.sum))
-    println("Total time: " + seconds(stopTime - startTime))
+    reporter.info(t.toString("TIMES"))
+    reporter.info("Sum times:  " + seconds(times.values.sum))
+    reporter.info("Total time: " + seconds(stopTime - startTime))
   }
-}
-
-object Bench {
-  val bench = new Bench()
 }

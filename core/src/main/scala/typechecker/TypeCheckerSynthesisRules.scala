@@ -3,10 +3,14 @@ package typechecker
 
 import core.trees._
 
-import Derivation._
+import util.RunContext
 import util.Utils._
 
-object TypeCheckerSynthesisRules {
+import Derivation._
+
+trait TypeCheckerSynthesisRules {
+
+  val rc: RunContext
 
   val SynthesisUnit = Rule("SynthesisUnit", {
     case g @ SynthesisGoal(c, UnitType) =>

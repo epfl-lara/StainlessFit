@@ -1,6 +1,6 @@
 /* Copyright 2009-2018 EPFL, Lausanne */
 
-package cli
+package core
 package util
 
 import java.io.{ File, PrintWriter }
@@ -17,7 +17,7 @@ import scala.collection.mutable.{ Map => MutableMap }
  *
  * Code taken from: https://github.com/epfl-lara/stainless/blob/0b10d1725319f4d2295f2b0bbfb59f6739191e99/core/src/main/scala/stainless/utils/FileWatcher.scala
  */
-class FileWatcher(files: Set[File], action: () => Unit) {
+class FileWatcher(reporter: Reporter, files: Set[File], action: () => Unit) {
 
   def run(): Unit = {
     action()
@@ -31,7 +31,7 @@ class FileWatcher(files: Set[File], action: () => Unit) {
     val dirs: Set[Path] = files map { _.getParentFile.toPath }
     dirs foreach { _.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY) }
 
-    println(s"\n\nWaiting for source changes...\n\n")
+    reporter.info(s"\n\nWaiting for source changes...\n\n")
 
     while (true) {
       // Wait for further changes, filtering out everything that is not of interest
@@ -59,17 +59,47 @@ class FileWatcher(files: Set[File], action: () => Unit) {
         }
 
         if (proceed) {
-          println(s"Detecting some file modifications...: ${modified mkString ", "}")
+          reporter.info(s"Detecting some file modifications...: ${modified mkString ", "}")
           action()
-          println(s"\n\nWaiting for source changes...\n\n")
+          reporter.info(s"\n\nWaiting for source changes...\n\n")
         }
 
         val valid = key.reset()
-        if (!valid) println(s"Watcher is no longer valid for $relativeDir!")
+        if (!valid)
+          reporter.info(s"Watcher is no longer valid for $relativeDir!")
       }
     }
 
     watcher.close()
   }
 
+}
+
+object FileWatcher {
+  def watchFile(rc: RunContext, file: File)(action: => Unit): Unit = {
+    val watcher = new util.FileWatcher(
+      rc.reporter,
+      Set(file.getAbsoluteFile),
+      () =>
+        try {
+          action
+        } catch {
+          case e: Throwable =>
+            rc.reporter.error("An exception was thrown:")
+            rc.reporter.error(e)
+        }
+    )
+
+    watcher.run()
+  }
+
+  def watchable(rc: RunContext, file: File)(action: => Boolean): Unit = {
+    if (rc.config.watch) {
+      watchFile(rc, file)(action)
+    }
+    else {
+      val result = action
+      if (!result) System.exit(1)
+    }
+  }
 }

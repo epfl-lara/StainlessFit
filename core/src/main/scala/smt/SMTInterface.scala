@@ -98,10 +98,10 @@
 //       throw new Exception(s"Error (code $code) in Z3:\n$output")
 //     else if (output.contains("unsat")) true
 //     else {
-//       println("Z3 returned a satisfying model:")
-//       println("===============================")
-//       print(output)
-//       println("===============================")
+//       reporter.error("Z3 returned a satisfying model:")
+//       reporter.error("===============================")
+//       reporter.error(output)
+//       reporter.error("===============================")
 //       false
 //     }
 //   }

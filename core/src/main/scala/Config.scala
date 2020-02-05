@@ -1,4 +1,4 @@
-package cli
+package core
 
 import buildinfo.BuildInfo
 import scopt.OParser
@@ -15,12 +15,15 @@ case class Config(
   file: File       = null,
   watch: Boolean   = false,
   html: Boolean    = false,
+  refresh: Boolean = false,
   bench: Boolean   = false,
   colors: Boolean  = true,
   verbose: Boolean = false,
 )
 
 object Config {
+
+  def default = Config()
 
   def parse(args: Array[String]): Option[Config] =
     OParser.parse(options, args, Config())
@@ -39,6 +42,9 @@ object Config {
       opt[Unit]("html")
         .action((_, c) => c.copy(html = true))
         .text("Enable HTML output with typing derivation"),
+      opt[Unit]("refresh")
+        .action((_, c) => c.copy(refresh = true))
+        .text("Have the HTML file automatically refresh every second"),
       opt[Unit]("bench")
         .action((_, c) => c.copy(bench = true))
         .text("Display benchmarked times"),

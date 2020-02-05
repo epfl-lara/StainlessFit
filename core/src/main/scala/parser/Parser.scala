@@ -6,7 +6,6 @@ import scallion.lexical._
 import scallion.syntactic._
 
 import core.trees._
-import core.Bench.bench
 
 import util.Utils._
 
@@ -490,9 +489,9 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
     }
 
   lazy val fold: Syntax[Tree] =
-    (foldK.skip ~ opt(asK.skip ~ typeExpr) ~ rsbra.skip ~
+    (foldK.skip ~ asK.skip ~ typeExpr ~ rsbra.skip ~
     lpar.skip ~ expr ~ rpar.skip).map {
-      case optTy ~ e  => Fold(optTy, e)
+      case ty ~ e  => Fold(ty, e)
     }
 
   lazy val unfoldIn: Syntax[Tree] =
@@ -547,12 +546,10 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   lazy val appArg: Syntax[AppArgument] = parAppArg | bracketAppArg | sBracketAppArg
 
   def createApp(args: Seq[AppArgument], fun: Tree): Tree = {
-    bench.time("createApp") {
-      args.foldLeft(fun) {
-        case (acc, TypeAppArg(ty))     => TypeApp(acc, ty)
-        case (acc, TermAppArg(t))      => App(acc, t)
-        case (acc, ErasableAppArg(t))  => Inst(acc, t)
-      }
+    args.foldLeft(fun) {
+      case (acc, TypeAppArg(ty))     => TypeApp(acc, ty)
+      case (acc, TermAppArg(t))      => App(acc, t)
+      case (acc, ErasableAppArg(t))  => Inst(acc, t)
     }
   }
 

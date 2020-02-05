@@ -3,10 +3,14 @@ package typechecker
 
 import core.trees._
 
-import Derivation._
+import util.RunContext
 import util.Utils._
 
-object TypeCheckerControlRules {
+import Derivation._
+
+trait TypeCheckerControlRules {
+
+  val rc: RunContext
 
   val FailRule = Rule("FailRule", {
     g => Some((List(), _ =>

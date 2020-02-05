@@ -1,8 +1,11 @@
 package core
 package typechecker
 
-object TypeCheckerSMTRules {
+import util.RunContext
 
+trait TypeCheckerSMTRules {
+
+  val rc: RunContext
 
   // def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
   //   t match {
@@ -30,7 +33,7 @@ object TypeCheckerSMTRules {
   // 
   // val Z3ArithmeticSolver: Rule = Rule("Z3ArithmeticSolver", {
   //   case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, t1 ::  t2 ::  Nil)) =>
-  //     TypeChecker.debugs(g, "Z3ArithmeticSolver")
+  //     TypeChecker.debugs(rc, g, "Z3ArithmeticSolver")
   //     TypeChecker.z3Debug("Current goal:\n" + g)
   //     TypeChecker.z3Debug("Current context:\n" + c)
   //     TypeChecker.z3Debug("\nInvoking Z3\n")

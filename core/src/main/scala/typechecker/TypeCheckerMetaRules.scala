@@ -1,14 +1,23 @@
 package core
 package typechecker
 
+
 import core.trees._
 
-import Derivation._
+import util.RunContext
 import util.Utils._
 
-object TypeCheckerMetaRules {
+import Derivation._
 
-  def macroTypeInst(id: Identifier, tp: Tree, inst: Tree): Option[Tree] = inst match {
+trait TypeCheckerMetaRules {
+
+  val rc: RunContext
+
+  // This functions returns:
+  // * `None` when `inst` is not a macro instantiation corresponding to `id`
+  // * `Some(Left(error))` when it is, but there is an error
+  // * `Some(Right(res))` when the macro instantiation is correct (and `res` is the result of the instantiation)
+  def macroTypeInst(id: Identifier, tp: Tree, inst: Tree): Option[Either[String,Tree]] = inst match {
     case MacroTypeInst(Var(`id`), args) =>
       def loop(remBinders: Tree, remArgs: Seq[(Boolean, Tree)], acc: Map[Identifier, Tree])
         : Option[(Tree, Map[Identifier, Tree])] = {
@@ -17,7 +26,8 @@ object TypeCheckerMetaRules {
             remArgs match {
               case (isTerm, e) +: es if isTerm == x.isTermIdentifier =>
                 loop(body, es, acc.updated(x, e))
-              case _ => None
+              case _ =>
+                None
             }
           case _ =>
             if (remArgs.isEmpty) Some((remBinders, acc)) else None
@@ -25,33 +35,41 @@ object TypeCheckerMetaRules {
       }
 
       loop(tp, args, Map()) match {
-        case Some((ty, m)) =>
-          Some(m.foldLeft(ty) {
-            case (acc, (x, e)) => acc.replace(x,e)
-          })
         case None =>
-          println(s"Wrong instantiation of macro $inst")
-          throw new Exception(s"Wrong instantiation of macro $inst")
+          Some(Left(s"Wrong instantiation of macro: $inst"))
+        case Some((ty, m)) =>
+          Some(Right(m.foldLeft(ty) {
+            case (acc, (x, e)) => acc.replace(x,e)
+          }))
       }
 
-    case _ => None
+    case _ =>
+      None
   }
 
-  def inlineMacro(tp: Tree, id: Identifier, rest: Tree): Tree = {
+  def inlineMacro(tp: Tree, id: Identifier, rest: Tree): Either[String,Tree] = {
     rest.replace(subTree => macroTypeInst(id, tp, subTree))
   }
 
   val InferMacroTypeDecl = Rule("InferMacroTypeDecl", {
     case g @ InferGoal(c, t @ MacroTypeDecl(tp, Bind(id, rest))) =>
-      TypeChecker.debugs(g, "InferMacroTypeDecl")
-      Some((
-        List(_ => InferGoal(c, inlineMacro(tp, id, rest))), {
-          case InferJudgment(_, _, _, ty) :: _ =>
-            (true, InferJudgment("InferMacroTypeDecl", c, t, ty))
-          case _ =>
-            (false, ErrorJudgment("InferMacroTypeDecl", c, g.toString))
-        }
-      ))
+      TypeChecker.debugs(rc, g, "InferMacroTypeDecl")
+      inlineMacro(tp, id, rest) match {
+        case Left(error) =>
+          Some((
+            List(),
+            _ => (false, ErrorJudgment("InferMacroTypeDecl", c, error))
+          ))
+        case Right(inlined) =>
+          Some((
+            List(_ => InferGoal(c, inlined)), {
+              case InferJudgment(_, _, _, ty) :: _ =>
+                (true, InferJudgment("InferMacroTypeDecl", c, t, ty))
+              case _ =>
+                (false, ErrorJudgment("InferMacroTypeDecl", c, g.toString))
+            }
+          ))
+      }
     case g =>
       None
   })

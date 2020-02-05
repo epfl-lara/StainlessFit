@@ -16,33 +16,21 @@ ThisBuild / scalacOptions ++= Seq(
   "-feature"
 )
 
-ThisBuild / maxErrors := 3
+ThisBuild / maxErrors := 5
 
-lazy val cli = project
-  .in(file("cli"))
+lazy val core = project
+  .in(file("core"))
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
   .settings(
-    name := "stainlessfit-cli",
-    assemblyJarName in assembly := "stainlessfit-cli.jar",
+    name := "stainlessfit",
+    assemblyJarName in assembly := "fit.jar",
     test in assembly := {},
     libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.8" % "test",
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),
     Compile / run / fork := true,
     Compile / run / baseDirectory := (ThisBuild / baseDirectory).value,
-    unmanagedBase := {
-      (ThisBuild / baseDirectory).value / "lib"
-    }
-  )
-  .dependsOn(core)
-
-lazy val core = project
-  .in(file("core"))
-  .settings(
-    name := "stainlessfit",
-    libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.8" % "test",
-    ),
     Test / fork := true,
     Test / baseDirectory := (ThisBuild / baseDirectory).value,
     unmanagedBase := {

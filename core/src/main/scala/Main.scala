@@ -13,7 +13,7 @@
    limitations under the License.
  */
 
-package cli
+package core
 
 object Main {
   def main(args: Array[String]): Unit = {

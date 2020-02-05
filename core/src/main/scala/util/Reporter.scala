@@ -1,6 +1,8 @@
 package core
+package util
 
 class Reporter(colors: Boolean) {
+
   def addPrefix(s: String, pre: String): String = {
     pre + s.replaceAll("\n", "\n" + pre)
   }
@@ -30,5 +32,5 @@ class Reporter(colors: Boolean) {
 }
 
 object Reporter {
-  val defaultReporter = new Reporter(true)
+  def testReporter = new Reporter(true)
 }

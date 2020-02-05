@@ -2,7 +2,7 @@ package core
 package typechecker
 
 import Derivation._
-
+import util.RunContext
 
 case class Rule(
   name: String,
@@ -10,8 +10,8 @@ case class Rule(
     List[List[Judgment] => Goal],
     List[Judgment] => (Boolean, Judgment))
   ]) {
-  def t: Tactic[Goal, (Boolean, NodeTree[Judgment])] = Tactic { (g, subgoalSolver) =>
-    Bench.bench.time("Rule " + name) 
+  def t(rc: RunContext): Tactic[Goal, (Boolean, NodeTree[Judgment])] = Tactic { (g, subgoalSolver) =>
+    rc.bench.time("Rule " + name)
     { apply(g) }.flatMap {
       case (sgs, merge) =>
         val subTrees: Option[(Boolean, List[NodeTree[Judgment]])] =
