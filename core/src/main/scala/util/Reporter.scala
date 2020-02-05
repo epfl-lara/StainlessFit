@@ -31,11 +31,15 @@ class Reporter(colors: Boolean) {
   }
 
   def warning(s: String): Unit = {
-    println(addPrefix(s, color("[WARNING] ", Console.YELLOW)))
+    println(addPrefix(s, color(" [WARN] ", Console.YELLOW)))
   }
 
   def info(s: String): Unit = {
-    println(addPrefix(s, color("[INFO] ", Console.BLUE)))
+    println(addPrefix(s, color(" [INFO] ", Console.BLUE)))
+  }
+
+  def debug(s: String): Unit = {
+    println(addPrefix(s, color("[DEBUG] ", Console.CYAN)))
   }
 }
 
