@@ -11,14 +11,15 @@ object Mode {
 }
 
 case class Config(
-  mode: Mode       = null,
-  file: File       = null,
-  watch: Boolean   = false,
-  html: Boolean    = false,
-  refresh: Int     = 0,
-  bench: Boolean   = false,
-  colors: Boolean  = true,
-  verbose: Boolean = false,
+  mode: Mode                       = null,
+  file: File                       = null,
+  watch: Boolean                   = false,
+  html: Boolean                    = false,
+  refresh: Int                     = 0,
+  bench: Boolean                   = false,
+  colors: Boolean                  = true,
+  verbose: Boolean                 = false,
+  debugSections: Set[DebugSection] = Set.empty,
 )
 
 object Config {
@@ -39,6 +40,9 @@ object Config {
       opt[Unit]("verbose")
         .action((_, c) => c.copy(verbose = true))
         .text("Enable verbose output"),
+      opt[Seq[DebugSection]]("debug")
+        .action((ds, c) => c.copy(debugSections = ds.toSet))
+        .text(s"Enable debugging information (available: ${DebugSection.available.mkString(", ")})"),
       opt[Unit]("html")
         .action((_, c) => c.copy(html = true))
         .text("Enable HTML output with typing derivation"),
