@@ -10,7 +10,5 @@ object DebugSection {
   val Equality  = DebugSection("equality")
 
   val available: Set[DebugSection] = Set(Rule, TypeCheck, Equality)
-
-  implicit val scoptRead: scopt.Read[DebugSection] = scopt.Read.reads(DebugSection(_))
 }
 
