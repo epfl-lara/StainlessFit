@@ -52,7 +52,7 @@ trait TypeCheckerSynthesisRules {
           case SynthesisJudgment(_, _, _, t) :: _ =>
             (true, SynthesisJudgment("SynthesisPi", c, tp, Lambda(Some(tyX), Bind(x, t))))
           case _ =>
-            (false, ErrorJudgment("SynthesisPi", c, g.toString))
+            emitErrorWithJudgment(rc, "SynthesisPi", g, None)
         }
       ))
     case _ => None
@@ -60,13 +60,13 @@ trait TypeCheckerSynthesisRules {
 
   val SynthesisSigma = Rule("SynthesisSigma", {
     case g @ SynthesisGoal(c, tp @ SigmaType(ty1, Bind(id, ty2))) =>
-      val g1 = SynthesisGoal(c.incrementLevel(), ty1)
+      val g1 = SynthesisGoal(c.incrementLevel, ty1)
       val fg2: List[Judgment] => Goal = {
         case SynthesisJudgment(_, _, _, t1) :: _ =>
           val c1 = c.incrementLevel.bind(id, t1)
           SynthesisGoal(c1, ty2)
         case _ =>
-          ErrorGoal(c, g1.toString)
+          ErrorGoal(c, None)
       }
       Some((
         List(_ => g1, fg2),
@@ -74,7 +74,7 @@ trait TypeCheckerSynthesisRules {
           case SynthesisJudgment(_, _, _, t1) :: SynthesisJudgment(_, _, _, t2) :: _ =>
             (true, SynthesisJudgment("SynthesisSigma", c, tp, Pair(t1, t2)))
           case _ =>
-            (false, ErrorJudgment("SynthesisSigma", c,  g.toString))
+            emitErrorWithJudgment(rc, "SynthesisSigma", g, None)
         }
       ))
     case _ => None
@@ -82,8 +82,8 @@ trait TypeCheckerSynthesisRules {
 
   val SynthesisSum = Rule("SynthesisSum", {
     case g @ SynthesisGoal(c, tp @ SumType(ty1, ty2)) =>
-      val g1 = SynthesisGoal(c.incrementLevel(), ty1)
-      val g2 = SynthesisGoal(c.incrementLevel(), ty1)
+      val g1 = SynthesisGoal(c.incrementLevel, ty1)
+      val g2 = SynthesisGoal(c.incrementLevel, ty1)
       Some((
         List(_ => g1, _ => g2),
         {
@@ -92,7 +92,7 @@ trait TypeCheckerSynthesisRules {
           case _ :: SynthesisJudgment(_, _, _, t2) :: _ =>
             (true, SynthesisJudgment("SynthesisSum", c, tp, RightTree(t2)))
           case _ =>
-            (false, ErrorJudgment("SynthesisSum", c, g.toString))
+            emitErrorWithJudgment(rc, "SynthesisSum", g, None)
         }
       ))
     case _ => None

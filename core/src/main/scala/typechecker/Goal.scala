@@ -58,15 +58,15 @@ case class EqualityGoal(c: Context, t1: Tree, t2: Tree) extends Goal {
   }
 }
 
-case class ErrorGoal(c: Context, s: String) extends Goal {
+case class ErrorGoal(c: Context, err: Option[String]) extends Goal {
   val level = 0
 
   override def toString: String = {
-    s"Error Goal: ${s}"
+    s"Error Goal: ${err}"
   }
 
   def replace(id: Identifier, t: Tree): Goal = {
-    ErrorGoal(c.replace(id, t), s)
+    ErrorGoal(c.replace(id, t), err)
   }
 
   def updateContext(newC: Context): Goal = copy(c = newC)

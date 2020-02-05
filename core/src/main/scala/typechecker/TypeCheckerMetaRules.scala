@@ -58,15 +58,15 @@ trait TypeCheckerMetaRules {
         case Left(error) =>
           Some((
             List(),
-            _ => (false, ErrorJudgment("InferMacroTypeDecl", c, error))
+            _ => emitErrorWithJudgment(rc, "InferMacroTypeDecl", g, Some(error))
           ))
         case Right(inlined) =>
           Some((
-            List(_ => InferGoal(c, inlined)), {
+            List(_ => InferGoal(c.incrementLevel, inlined)), {
               case InferJudgment(_, _, _, ty) :: _ =>
                 (true, InferJudgment("InferMacroTypeDecl", c, t, ty))
               case _ =>
-                (false, ErrorJudgment("InferMacroTypeDecl", c, g.toString))
+                emitErrorWithJudgment(rc, "InferMacroTypeDecl", g, None)
             }
           ))
       }

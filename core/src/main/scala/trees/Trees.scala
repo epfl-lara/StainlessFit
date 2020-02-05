@@ -167,7 +167,7 @@ object Tree {
       case Error(_, None) => (t, max)
       case Var(id) =>
         m.get(id) match {
-          case None => throw new java.lang.Exception(s"Error in setId: undefined variable $id at position ${t.pos}")
+          case None => throw new java.lang.Exception(s"Error in name resolution: undefined variable $id at position ${t.pos}")
           case Some(newId) => (Var(newId), max)
         }
       case IfThenElse(cond, t1, t2) =>
@@ -183,6 +183,9 @@ object Tree {
         val (newT1, max1) = setId(t1, m, max)
         val (newT2, max2) = setId(t2, m, max1)
         (Pair(newT1, newT2), max2)
+      case Size(t) =>
+        val (newT, max1) = setId(t, m, max)
+        (Size(newT), max1)
       case First(t) =>
         val (newT, max1) = setId(t, m, max)
         (First(newT), max1)
@@ -332,6 +335,7 @@ object Tree {
       case App(t1, t2) =>
         App(replace(id, v, t1), replace(id, v, t2))
       case Pair(t1, t2) => Pair(replace(id, v, t1), replace(id, v, t2))
+      case Size(t) => Size(replace(id, v, t))
       case First(t) => First(replace(id, v, t))
       case Second(t) => Second(replace(id, v, t))
       case LeftTree(t) => LeftTree(replace(id, v, t))
@@ -411,6 +415,7 @@ object Tree {
         ) yield
           Pair(rt1, rt2)
 
+      case Size(t) => replace(p, t).map(Size(_))
       case First(t) => replace(p, t).map(First(_))
       case Second(t) => replace(p, t).map(Second(_))
       case LeftTree(t) => replace(p, t).map(LeftTree(_))
@@ -598,6 +603,7 @@ object Tree {
       case App(t1, t2) =>
         App(replaceMany(p, t1), replaceMany(p, t2))
       case Pair(t1, t2) => Pair(replaceMany(p, t1), replaceMany(p, t2))
+      case Size(t) => Size(replaceMany(p, t))
       case First(t) => First(replaceMany(p, t))
       case Second(t) => Second(replaceMany(p, t))
       case LeftTree(t) => LeftTree(replaceMany(p, t))
@@ -655,6 +661,7 @@ object Tree {
     case IfThenElse(cond, t1, t2) => IfThenElse(erase(cond), erase(t1), erase(t2))
     case App(t1, t2) => App(erase(t1), erase(t2))
     case Pair(t1, t2) => Pair(erase(t1), erase(t2))
+    case Size(t) => Size(erase(t))
     case First(t) => First(erase(t))
     case Second(t) => Second(erase(t))
     case LeftTree(t) => LeftTree(erase(t))
@@ -772,8 +779,8 @@ object Tree {
 }
 
 case class Identifier(id: Int, name: String) extends Positioned {
-  override def toString: String = name + "#" + id
-  // override def toString: String = name
+  // override def toString: String = name + "#" + id
+  override def toString: String = name
 
   def isTypeIdentifier: Boolean = name.size > 0 && name(0).isUpper
   def isTermIdentifier: Boolean = name.size > 0 && name(0).isLower
@@ -791,6 +798,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
         isFreeIn(cond)
       case App(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case Pair(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+      case Size(t) => isFreeIn(t)
       case First(t) => isFreeIn(t)
       case Second(t) => isFreeIn(t)
       case LeftTree(t) => isFreeIn(t)
@@ -934,6 +942,12 @@ case class App(t1: Tree, t2: Tree) extends Tree {
 case class Pair(t1: Tree, t2: Tree) extends Tree {
   override def toString: String = {
      "(" + t1.toString + ", " + t2.toString + ")"
+  }
+}
+
+case class Size(t: Tree) extends Tree {
+  override def toString: String = {
+    "Size(" + t.toString + ")"
   }
 }
 

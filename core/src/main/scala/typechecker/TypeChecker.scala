@@ -18,7 +18,7 @@ case class Context(
   val typeVariables: Set[Identifier],
   val level: Int,
   val n: Int // All variables in the context must have an identifier strictly smaller than n.
-) {
+) extends Positioned {
 
   def bind(i: Identifier, t: Tree): Context = {
     if (variables.contains(i)) throw new Exception("Already bound " + i.toString)
@@ -40,7 +40,7 @@ case class Context(
 
   def addEquality(t1: Tree, t2: Tree): Context = bindFresh("eq", EqualityType(t1, t2))._2
 
-  def incrementLevel(): Context = copy(level = level + 1)
+  def incrementLevel: Context = copy(level = level + 1)
 
   def containsVarOfType(tp: Tree): Boolean =
     variables.exists(v => termVariables.contains(v) && termVariables(v) == tp)
@@ -123,6 +123,7 @@ class TypeChecker(val rc: RunContext)
     InferMacroTypeDecl.t(rc) ||
     InferBool.t(rc) || InferNat.t(rc) || InferUnit.t(rc) || InferVar.t(rc) ||
     InferLeft.t(rc) || InferRight.t(rc) ||
+    InferSize.t(rc) ||
     InferError.t(rc) ||
     InferLet.t(rc) ||
     InferPair.t(rc) || InferFirst.t(rc) || InferSecond.t(rc) ||

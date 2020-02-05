@@ -57,7 +57,7 @@ object ScalaLexer extends Lexers with CharRegExps {
     word("if") | word("else") | word("case") | word("match") |
     word("fix") | word("fun") | word("val") |
     word("Error") |
-    word("left") | word("right") |
+    word("left") | word("right") | word("size") |
     word("Rec") | word("Pi") | word("Sigma") |
     word("Forall") | word("PolyForall") |
     word("Lambda") |
@@ -197,8 +197,9 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val fixK: Syntax[Token] = elem(KeyWordClass("fix"))
   val funK: Syntax[Token] = elem(KeyWordClass("fun"))
   val funOfK: Syntax[Token] = elem(KeyWordClass("funof"))
-  val rightK: Syntax[Token] = elem(KeyWordClass("right"))
+  val sizeK: Syntax[Token] = elem(KeyWordClass("size"))
   val leftK: Syntax[Token] = elem(KeyWordClass("left"))
+  val rightK: Syntax[Token] = elem(KeyWordClass("right"))
   val matchK: Syntax[Token] = elem(KeyWordClass("match"))
   val returnsK: Syntax[Token] = elem(KeyWordClass("[returns"))
   val caseK: Syntax[Token] = elem(KeyWordClass("case"))
@@ -309,8 +310,9 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val termIdentifier: Syntax[Identifier] = accept(TermIdentifierClass) {
     case t@TermIdentifierToken(content) => Identifier(0, content).setPos(t)
   } |
+    leftK.map { case t => Identifier(0, "left").setPos(t) } |
     rightK.map { case t => Identifier(0, "right").setPos(t) } |
-    leftK.map { case t => Identifier(0, "left").setPos(t) }
+    sizeK.map { case t => Identifier(0, "size").setPos(t) }
 
 
   val typeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass) {

@@ -38,11 +38,11 @@ class App(val rc: RunContext) {
         false
 
       case Right((success, _)) if success =>
-        rc.reporter.info(s"Successfully type checked file '$file'.")
+        rc.reporter.info(s"Successfully typechecked file '$file'.")
         true
 
       case _ =>
-        rc.reporter.error(s"Error while type checking file '$file'.")
+        rc.reporter.error(s"There was an error while typechecking file '$file'.")
         false
     }
   }

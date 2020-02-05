@@ -42,6 +42,7 @@ object Core {
   }
 
   val primitives = Map(
+    Identifier(0, "size") -> Identifier(0, "size"),
     Identifier(0, "left") -> Identifier(0, "left"),
     Identifier(0, "right") -> Identifier(0, "right"),
     Identifier(0, "first") -> Identifier(0, "first"),
@@ -50,8 +51,9 @@ object Core {
 
   def replacePrimitives(t: Tree): Tree = {
     t.replaceMany(subTree => subTree match {
-      case App(Var(Identifier(0, "right")), e) => Some(RightTree(e))
+      case App(Var(Identifier(0, "size")), e) => Some(Size(e))
       case App(Var(Identifier(0, "left")), e) => Some(LeftTree(e))
+      case App(Var(Identifier(0, "right")), e) => Some(RightTree(e))
       case App(Var(Identifier(0, "first")), e) => Some(First(e))
       case App(Var(Identifier(0, "second")), e) => Some(Second(e))
       case _ => None
@@ -75,7 +77,7 @@ object Core {
       val t2 = replacePrimitives(t1)
 
       new TypeChecker(rc).infer(t2, max) match {
-        case None => Left(s"Could not type check: $f")
+        case None => Left(s"Could not typecheck: $f")
         case Some((success, tree)) =>
           if (html)
             rc.bench.time("makeHTMLFile") {

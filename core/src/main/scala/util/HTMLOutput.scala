@@ -3,9 +3,11 @@ package util
 
 import core.trees._
 import core.typechecker.Derivation._
+import core.typechecker._
 
 import java.io.FileWriter
 import java.io.File
+import core.typechecker.EmptyGoal
 
 object HTMLOutput {
   def color(c: String, s: String) = s"<span style='color:$c'>$s</span>"
@@ -26,12 +28,24 @@ object HTMLOutput {
   def typeOutput(t: Tree): String =
     typeColor(shortString(t.toString))
 
+  def goalToHTML(g: Goal): String = g match {
+    case EmptyGoal(_) => ""
+    case ErrorGoal(_, _) => ""
+    case InferGoal(c, t) => termColor(shortString(t.toString)) + " ⇑ _"
+    case CheckGoal(c, t, tp) =>
+      termColor(shortString(t.toString)) + " ⇓ " + typeColor(shortString(tp.toString))
+    case SynthesisGoal(c, tp) =>
+      s"_ ⇐ ${typeColor(shortString(tp.toString))}"
+    case EqualityGoal(c, t1, t2) =>
+      termColor(shortString(t1.toString)) + " ≡ " + termColor(shortString(t2.toString))
+  }
+
   def judgementToHTML(j: Judgment): String = j match {
-    case CheckJudgment(name, context, e, t) =>
+    case CheckJudgment(name, context, t, tp) =>
       "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termColor(shortString(e.toString)) + " ⇓ " +
-        typeColor(shortString(t.toString)) +
+        termColor(shortString(t.toString)) + " ⇓ " +
+        typeColor(shortString(tp.toString)) +
       "</span>"
 
     case InferJudgment(name, context, e, t) =>
@@ -51,8 +65,12 @@ object HTMLOutput {
     case SynthesisJudgment(name, context, tp, t) =>
       s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ ${typeColor(shortString(t.toString))} ⇐ ${typeColor(shortString(tp.toString))}"
 
-    case ErrorJudgment(name, context, error) =>
-      s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ ${bold("error: " + error)}"
+    case ErrorJudgment(name, goal, errOpt) =>
+      val errorString = errOpt.map(err => s" [ERROR: $err]").mkString
+      "<span class='error'>" +
+      "(" + headerColor(goal.c.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+      goalToHTML(goal) + errorString +
+      "</span>"
 
     case EmptyJudgment(name, context) =>
       s""
@@ -85,8 +103,8 @@ object HTMLOutput {
     fw.write("<html lang=\"en\">")
     fw.write("<head>\n")
     fw.write("<meta charset=\"UTF-8\">\n")
-    if (rc.config.refresh)
-      fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
+    if (rc.config.refresh > 0)
+      fw.write(s"<meta http-equiv='refresh' content='${rc.config.refresh}' />\n")
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
     fw.write("""|<style>
                 |body {
@@ -115,6 +133,14 @@ object HTMLOutput {
                 |
                 |.equal:hover {
                 |  background-color: #dadba7
+                |}
+                |
+                |.error {
+                |  background-color: #ffbcab
+                |}
+                |
+                |.error:hover {
+                |  background-color: #cc9587
                 |}
                 |
                 |ul {

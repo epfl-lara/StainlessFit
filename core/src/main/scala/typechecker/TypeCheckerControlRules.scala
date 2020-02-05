@@ -14,13 +14,15 @@ trait TypeCheckerControlRules {
 
   val FailRule = Rule("FailRule", {
     g => Some((List(), _ =>
-      (false, ErrorJudgment("FailRule", g.c, "Goal is not handled:\n" + g.toString))
+      emitErrorWithJudgment(rc, "FailRule", g, Some("Goal is not handled"))
     ))
   })
 
   val CatchErrorGoal = Rule("CatchErrorGoal", {
-    case ErrorGoal(c, s) =>
-      Some(List(), _ => (false, ErrorJudgment("CatchErrorGoal", c, s)))
+    case g @ ErrorGoal(c, s) =>
+      Some((List(), _ => {
+        emitErrorWithJudgment(rc, "CatchErrorGoal", g, s)
+      }))
     case g =>
       None
   })

@@ -15,7 +15,7 @@ case class Config(
   file: File       = null,
   watch: Boolean   = false,
   html: Boolean    = false,
-  refresh: Boolean = false,
+  refresh: Int     = 0,
   bench: Boolean   = false,
   colors: Boolean  = true,
   verbose: Boolean = false,
@@ -42,9 +42,9 @@ object Config {
       opt[Unit]("html")
         .action((_, c) => c.copy(html = true))
         .text("Enable HTML output with typing derivation"),
-      opt[Unit]("refresh")
-        .action((_, c) => c.copy(refresh = true))
-        .text("Have the HTML file automatically refresh every second"),
+      opt[Int]("refresh")
+        .action((n, c) => c.copy(refresh = n))
+        .text("Have the HTML file automatically refresh every <value> seconds"),
       opt[Unit]("bench")
         .action((_, c) => c.copy(bench = true))
         .text("Display benchmarked times"),
@@ -54,22 +54,29 @@ object Config {
       opt[Unit]("no-colors")
         .action((_, c) => c.copy(colors = false))
         .text("Disable colors in output"),
+
+      note(""),
       cmd("eval")
         .action((_, c) => c.copy(mode = Mode.Eval))
         .text("Evaluate the given file")
         .children(
-          arg[File]("<file>...")
+          arg[File]("<file>")
             .required()
-            .action((f, c) => c.copy(file = f)),
+            .action((f, c) => c.copy(file = f))
+            .text("The file to evaluate, in `sf` format")
         ),
+
+      note(""),
       cmd("typecheck")
         .action((_, c) => c.copy(mode = Mode.TypeCheck))
-        .text("Type check the given file")
+        .text("Typecheck the given file")
         .children(
-          arg[File]("<file>...")
+          arg[File]("<file>")
             .required()
-            .action((f, c) => c.copy(file = f)),
+            .action((f, c) => c.copy(file = f))
+            .text("The file to typecheck, in `sf` format")
         ),
+
       checkConfig {
         case c if c.mode == null => failure("Please specify a command: eval, typecheck")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
