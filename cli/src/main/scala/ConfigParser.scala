@@ -1,3 +1,4 @@
+package stainlessfit
 package cli
 
 import core._
@@ -15,6 +16,7 @@ object ConfigParser {
     scopt.Read.reads(DebugSection(_))
 
   private val builder = OParser.builder[Config]
+
   private val options = {
     import builder._
 

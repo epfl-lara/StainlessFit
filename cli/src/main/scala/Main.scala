@@ -13,6 +13,7 @@
  * limitations under the License.
  */
 
+package stainlessfit
 package cli
 
 import core.App

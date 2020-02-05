@@ -1,5 +1,6 @@
 /* Copyright 2009-2018 EPFL, Lausanne */
 
+package stainlessfit
 package core
 package util
 

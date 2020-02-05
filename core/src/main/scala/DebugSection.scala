@@ -1,3 +1,4 @@
+package stainlessfit
 package core
 
 case class DebugSection(name: String) extends AnyVal {

@@ -1,3 +1,5 @@
+package stainlessfit
+
 import java.io.File
 
 object Utils {

@@ -1,3 +1,4 @@
+package stainlessfit
 package core
 
 import core.trees._

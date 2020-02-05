@@ -1,3 +1,5 @@
+package stainlessfit
+
 import org.scalatest.FunSuite
 import core.parser.ScalaParser._
 import core.parser._

@@ -1,3 +1,5 @@
+package stainlessfit
+
 import Utils._
 import org.scalatest.FunSuite
 
