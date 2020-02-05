@@ -22,7 +22,7 @@ lazy val core = project
   .in(file("core"))
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
   .settings(
-    name := "stainlessfit",
+    name := "stainless-fit",
     assemblyJarName in assembly := "fit.jar",
     test in assembly := {},
     libraryDependencies ++= Seq(

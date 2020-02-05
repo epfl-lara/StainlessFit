@@ -33,7 +33,7 @@ object Config {
     import builder._
 
     OParser.sequence(
-      programName("stainless-core"),
+      programName("stainless-fit"),
       head("StainlessFit", BuildInfo.version),
       help("help").text("Prints help information"),
       opt[Unit]("verbose")
