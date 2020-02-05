@@ -85,7 +85,8 @@ object HTMLOutput {
     fw.write("<html lang=\"en\">")
     fw.write("<head>\n")
     fw.write("<meta charset=\"UTF-8\">\n")
-    // fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
+    if (rc.config.refresh)
+      fw.write("<meta http-equiv=\"refresh\" content=\"1\"/>\n")
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
     fw.write("""|<style>
                 |body {
