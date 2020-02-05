@@ -8,7 +8,7 @@ fun cons[X] (x [X]) (xs [List[X]])  [returns List[X]] = {
   [fold as List[X]](right ((x, xs)))
 }
 
-fun map[X][Y](f [X => Y])(xs [List[X]]) [returns List[X]] = {
+fun map[X][Y](f [X => Y])(xs [List[X]]) [returns List[Y]] = {
   [decreases (size xs)]
   [unfold] val xs = xs;
   match xs {
