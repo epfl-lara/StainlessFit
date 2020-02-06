@@ -289,6 +289,7 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
       case (ty1, t @ SeparatorToken("=>"), ty2) => PiType(ty1, Bind(Identifier(newId, "_X"), ty2))
       case (ty1, t @ OperatorToken(Plus), ty2) => SumType(ty1, ty2)
       case (ty1, t @ OperatorToken(Eq), ty2) => EqualityType(ty1, ty2)
+      case _ => sys.error("Unreachable")
     }, {
       case PiType(ty1, Bind(_, ty2)) => (ty1, SeparatorToken("=>"), ty2)
       case SumType(ty1, ty2) => (ty1, OperatorToken(Plus), ty2)
@@ -474,12 +475,12 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   }
 
   lazy val fixpoint: Syntax[Tree] =
-    (fixK.skip ~ opt(lsbra ~ termVariable ~ arrow ~ typeExpr ~ rsbra) ~
+    (fixK.skip ~ opt(lsbra ~ termIdentifier ~ arrow ~ typeExpr ~ rsbra) ~
     lpar.skip ~ termIdentifier ~ arrow ~ expr ~ rpar).map {
       case None ~ x ~ _ ~ e ~ _ =>
         val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
         Fix(None, Bind(Identifier(0, "_"), Bind(x, body)))
-      case Some(_ ~ Var(n) ~ _ ~ tp ~ _) ~ x ~ _ ~ e ~ _ =>
+      case Some(_ ~ n ~ _ ~ tp ~ _) ~ x ~ _ ~ e ~ _ =>
         val body = Tree.replace(
           x,
           Inst(
@@ -489,6 +490,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
           e
         )
         Fix(Some(Bind(n, tp)), Bind(n, Bind(x, body)))
+      case _ =>
+        sys.error("Unreachable")
     }
 
   lazy val fold: Syntax[Tree] =
@@ -575,12 +578,14 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
 
   lazy val eitherMatch: Syntax[Tree] =
     (matchK.skip ~ expr ~ lbracase.skip ~
-                   leftK.skip ~ lpar.skip ~ termVariable ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
-      caseK.skip ~ rightK.skip ~ lpar.skip ~ termVariable ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
+                   leftK.skip ~ lpar.skip ~ termIdentifier ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ rightK.skip ~ lpar.skip ~ termIdentifier ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
     rbra.skip
     ).map {
-      case (e ~ Var(v1) ~ e1 ~ Var(v2) ~ e2) =>
+      case (e ~ v1 ~ e1 ~ v2 ~ e2) =>
         EitherMatch(e, Bind(v1, e1), Bind(v2, e2))
+      case _ =>
+        sys.error("Unreachable")
     }
 
   val prefixedApplication: Syntax[Tree] = prefixes(not, application)({
@@ -596,6 +601,7 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
       lt | gt | lteq | gteq is LeftAssociative,
       eq is LeftAssociative)({
       case (x, OperatorToken(op), y) => Primitive(op, List(x,y))
+      case _ => sys.error("Unreachable")
     }, {
       case Primitive(op, x ::  y ::  Nil) => (x, OperatorToken(op), y)
     })
