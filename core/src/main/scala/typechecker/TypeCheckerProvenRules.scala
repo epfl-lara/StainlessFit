@@ -708,9 +708,9 @@ trait TypeCheckerProvenRules {
   val CheckSigma = Rule("CheckSigma", {
     case g @ CheckGoal(c, t, tpe @ SigmaType(ty1, Bind(id, ty2))) =>
       TypeChecker.debugs(rc, g, "CheckSigma")
-        val checkFirst = CheckGoal(c.incrementLevel, First(t), ty1)
-        val c1 = c.bind(id, ty2).addEquality(Var(id), First(t)).incrementLevel
-        val checkSecond = CheckGoal(c1, Second(t), ty2)
+      val checkFirst = CheckGoal(c.incrementLevel, First(t), ty1)
+      val c1 = c.bind(id, ty2).addEquality(Var(id), First(t)).incrementLevel
+      val checkSecond = CheckGoal(c1, Second(t), ty2)
       Some((List(_ => checkFirst, _ => checkSecond),
         {
           case CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: _ =>
