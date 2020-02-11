@@ -113,7 +113,7 @@ class TypeChecker(val rc: RunContext)
   val deterministicTypeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CheckBool.t(rc) || CheckNat.t(rc) || CheckUnit.t(rc) || CheckVar.t(rc) ||
     CheckIf.t(rc) || CheckMatch.t(rc) || CheckEitherMatch.t(rc) || CheckLet.t(rc) ||
-    CheckLeft.t(rc) || CheckRight.t(rc) ||
+    CheckLeft.t(rc) || CheckRight.t(rc) || CheckSum.t(rc) ||
     CheckIntersection.t(rc) ||
     CheckLambda.t(rc) || CheckPi.t(rc) ||
     CheckPair.t(rc) || CheckSigma.t(rc) ||

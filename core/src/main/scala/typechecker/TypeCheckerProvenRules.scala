@@ -471,7 +471,10 @@ trait TypeCheckerProvenRules {
       val gInfer = InferGoal(c.incrementLevel, t)
       Some((List(_ => gInfer),
         {
-          case InferJudgment(_, _, _, tpe) :: _ if (dropRefinements(tpe) == ty) =>
+          case InferJudgment(_, _, _, ty2) :: _ if {
+            val ty3 = dropRefinements(ty2)
+            ty3 == ty || ty3 == BottomType
+          } =>
             (true, CheckJudgment("CheckReflexive", c, t, ty))
           case InferJudgment(_, _, _, tpe) :: _ =>
             emitErrorWithJudgment(rc, "CheckReflexive", g,

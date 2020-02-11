@@ -62,6 +62,29 @@ trait TypeCheckerUnprovenRules {
       None
   })
 
+  val CheckSum = Rule("CheckSum", {
+    case g @ CheckGoal(c, t, tpe @ SumType(ty1, ty2)) =>
+      TypeChecker.debugs(rc, g, "CheckSum")
+      val (id, c1) = c.incrementLevel.getFresh("x")
+      val subgoal = CheckGoal(c1,
+        EitherMatch(t,
+          Bind(id, LeftTree(Var(id))),
+          Bind(id, RightTree(Var(id)))
+        ),
+        SumType(ty1, ty2)
+      )
+      Some((List(_ => subgoal),
+        {
+          case CheckJudgment(_, _, _, _) :: _ =>
+            (true, CheckJudgment("CheckSum", c, t, tpe))
+          case _ =>
+            emitErrorWithJudgment(rc, "CheckSum", g, None)
+        }
+      ))
+    case g =>
+      None
+  })
+
   val NatEqualToEqual = Rule("NatEqualToEqual", {
     case g @ EqualityGoal(c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true)) =>
       TypeChecker.debugs(rc, g, "NatEqualToEqual")
