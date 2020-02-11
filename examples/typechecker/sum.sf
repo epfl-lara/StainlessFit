@@ -1,0 +1,6 @@
+fun id[T](x [T])  [returns T] = {
+  x
+}
+
+val x = left();
+id [Unit + Unit] x
