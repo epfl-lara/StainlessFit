@@ -347,31 +347,38 @@ trait TypeCheckerProvenRules {
   })
 
   val InferFix = Rule("InferFix", {
-    case g @ InferGoal(c, e @ Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))) if !n1.isFreeIn(t.erase) =>
+    case g @ InferGoal(c, e @ Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))) =>
       TypeChecker.debugs(rc, g, "InferFix")
 
-      val (freshM, c0) = c.incrementLevel.getFresh("_M")
-      val (freshN, c1) = c0.bindFresh(n1.name, NatType)
-      val (freshY, c2) = c1.bindFresh(y.name,
-        PiType(UnitType, Bind(Identifier(0, "_"),
+      val erased = t.erase
+
+      if (n1.isFreeIn(erased)) {
+        Some((List(),
+          _ => emitErrorWithJudgment(rc, "InferFix", g, Some(s"Variable $n1 should not appear in the erasure of $t."))
+        ))
+      } else if (!erased.isValue) {
+        Some((List(),
+          _ => emitErrorWithJudgment(rc, "InferFix", g, Some(s"The erasure of $t must be a value."))
+        ))
+      } else {
+        val (freshM, c0) = c.incrementLevel.getFresh("_M")
+        val (freshN, c1) = c0.bindFresh(n1.name, NatType)
+        val (freshY, c2) = c1.bindFresh(y.name,
           IntersectionType(
             RefinementType(NatType, Bind(freshM, Primitive(Lt, List(Var(freshM), Var(freshN))))),
             Bind(freshM, ty.replace(n, Var(freshM)))
           )
+        )
+        val c3 = c2.addEquality(Var(freshY), e)
+        Some((
+          List(_ => CheckGoal(c3, t.replace(n1, freshN).replace(y, freshY), ty.replace(n, freshN))), {
+            case CheckJudgment(_, _, _, _) :: _ =>
+              (true, InferJudgment("InferFix", c, e, IntersectionType(NatType, Bind(n, ty))))
+            case _ =>
+              emitErrorWithJudgment(rc, "InferFix", g, None)
+          }
         ))
-      )
-      val c3 = c2.addEquality(
-        Var(freshY),
-        Lambda(Some(UnitType), Bind(Identifier(0, "_Unit"), e))
-      )
-      Some((
-        List(_ => CheckGoal(c3, t.replace(n1, freshN).replace(y, freshY), ty.replace(n, freshN))), {
-          case CheckJudgment(_, _, _, _) :: _ =>
-            (true, InferJudgment("InferFix", c, e, IntersectionType(NatType, Bind(n, ty))))
-          case _ =>
-            emitErrorWithJudgment(rc, "InferFix", g, None)
-        }
-      ))
+      }
 
     case _ => None
   })
