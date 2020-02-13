@@ -61,7 +61,7 @@ object Core {
     })
   }
 
-  def evalFile(rc: RunContext, f: File): Either[String, Tree] =
+  def evalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
     parseFile(rc, f) flatMap { src =>
       val (t1, _) = Tree.setId(src, primitives, 0)
       val t2 = replacePrimitives(t1)
@@ -72,12 +72,12 @@ object Core {
       }
     }
 
-  def typeCheckFile(rc: RunContext, f: File, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] = {
+  def typeCheckFile(f: File, html: Boolean)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(rc, f) flatMap { src =>
       val (t1, max) = Tree.setId(src, primitives, 0)
       val t2 = replacePrimitives(t1)
 
-      new TypeChecker(rc).infer(t2, max) match {
+      new TypeChecker().infer(t2, max) match {
         case None => Left(s"Could not typecheck: $f")
         case Some((success, tree)) =>
           if (html)
@@ -90,10 +90,10 @@ object Core {
     }
   }
 
-  def evalFile(rc: RunContext, s: String): Either[String, Tree] =
-    evalFile(rc, new File(s))
+  def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
+    evalFile(new File(s))
 
-  def typeCheckFile(rc: RunContext, s: String, html: Boolean): Either[String, (Boolean, NodeTree[Judgment])] =
-    typeCheckFile(rc, new File(s), html)
+  def typeCheckFile(s: String, html: Boolean)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
+    typeCheckFile(new File(s), html)
 
 }

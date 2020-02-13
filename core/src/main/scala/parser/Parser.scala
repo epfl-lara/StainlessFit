@@ -401,11 +401,11 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
       case f ~ args ~ retType ~ measure ~ e1 ~ e2 =>
         val followingExpr = e2.getOrElse(Var(f))
         if (f.isFreeIn(e1) && measure.isEmpty) {
-          throw new java.lang.Exception(s"Recursive function $f needs a Decreases clause.")
+          throw new java.lang.Exception(s"Recursive function $f needs a decreases clause.")
         }
         (measure, retType) match {
           case (Some(_), None) =>
-            throw new java.lang.Exception(s"Recursive function $f a needs return type.")
+            throw new java.lang.Exception(s"Recursive function $f needs a return type.")
           case (None, None) =>
             val (fun, _) = createFun(args, None, e1, f)
             LetIn(None, fun, Bind(f, followingExpr))
@@ -415,10 +415,9 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
           case (Some(measure), Some(ty)) =>
             val n = freshIdentifier("_n")
             val expr = e1.replace(f,
-              Inst(App(Var(f), UnitLiteral),
-                Primitive(Minus, List(Var(n), NatLiteral(1)))
-              )
+              Inst(Var(f), Primitive(Minus, List(Var(n), NatLiteral(1))))
             )
+
             val refinedArgs = mapFirst(args.reverse, { (arg: DefArgument) => arg match {
               case ForallArgument(id, ty) =>
                 Some(ForallArgument(id, RefinementType(ty, Bind(id, Primitive(Lteq, List(measure, Var(n)))))))
@@ -426,9 +425,10 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
                 Some(PiArgument(id, RefinementType(ty, Bind(id, Primitive(Lteq, List(measure, Var(n)))))))
               case _ =>
                 None
-            }}).getOrElse(
-              throw new java.lang.Exception(s"Recursive function $f must have at least one non-type argument")
-            ).reverse
+            }}).getOrElse {
+              throw new java.lang.Exception(s"Recursive function $f with arguments: $args must have at least one non-type argument")
+            }.reverse
+
             val (fun, funTy) = createFun(refinedArgs, Some(ty), expr, f)
             val fix = Fix(Some(Bind(n, funTy.get)), Bind(n, Bind(f, fun)))
 
@@ -478,15 +478,11 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
     (fixK.skip ~ opt(lsbra ~ termIdentifier ~ arrow ~ typeExpr ~ rsbra) ~
     lpar.skip ~ termIdentifier ~ arrow ~ expr ~ rpar).map {
       case None ~ x ~ _ ~ e ~ _ =>
-        val body = Tree.replace(x, App(Var(x), UnitLiteral), e)
-        Fix(None, Bind(Identifier(0, "_"), Bind(x, body)))
+        Fix(None, Bind(Identifier(0, "_"), Bind(x, e)))
       case Some(_ ~ n ~ _ ~ tp ~ _) ~ x ~ _ ~ e ~ _ =>
         val body = Tree.replace(
           x,
-          Inst(
-            App(Var(x), UnitLiteral),
-            Primitive(Minus, List(Var(n), NatLiteral(1)))
-          ),
+          Inst(Var(x), Primitive(Minus, List(Var(n), NatLiteral(1)))),
           e
         )
         Fix(Some(Bind(n, tp)), Bind(n, Bind(x, body)))
@@ -522,8 +518,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   lazy val parExpr: Syntax[Tree] = {
     (lpar ~ repsep(expr, comma.unit()) ~ rpar).map {
       case _ ~ l ~ _ =>
-        if(l.isEmpty) UnitLiteral
-        else if(l.size == 1) l.head
+        if (l.isEmpty) UnitLiteral
+        else if (l.size == 1) l.head
         else {
           val h = l.reverse.head
           val r = l.reverse.tail.reverse

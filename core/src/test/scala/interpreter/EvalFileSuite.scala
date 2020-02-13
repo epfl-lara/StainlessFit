@@ -7,11 +7,11 @@ import core.Core
 
 class EvalFileSuite extends FunSuite {
 
-  val rc = core.util.RunContext.testContext
+  implicit val rc = core.util.RunContext.testContext
 
   for (f <- files("examples/eval", _.endsWith("sf"))) {
     test(s"Running file $f") {
-      assert(Core.evalFile(rc, f).isRight)
+      assert(Core.evalFile(f).isRight)
     }
   }
 }

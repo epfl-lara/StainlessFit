@@ -17,6 +17,12 @@ class Reporter(colors: Boolean) {
       s
   }
 
+  def fatalError[T](s: String): T = {
+    error(s)
+    System.exit(1)
+    ???
+  }
+
   def error(e: Throwable): Unit = {
     error(e.toString)
     error(e.getStackTrace.mkString("\n"))

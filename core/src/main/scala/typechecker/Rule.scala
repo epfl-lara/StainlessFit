@@ -11,7 +11,7 @@ case class Rule(
     List[List[Judgment] => Goal],
     List[Judgment] => (Boolean, Judgment))
   ]) {
-  def t(rc: RunContext): Tactic[Goal, (Boolean, NodeTree[Judgment])] = Tactic { (g, subgoalSolver) =>
+  def t(implicit rc: RunContext): Tactic[Goal, (Boolean, NodeTree[Judgment])] = Tactic { (g, subgoalSolver) =>
     rc.bench.time("Rule " + name)
     { apply(g) }.flatMap {
       case (sgs, merge) =>

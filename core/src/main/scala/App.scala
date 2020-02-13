@@ -25,7 +25,7 @@ import core.util.FileWatcher
 import core.util.Reporter
 import core.util.RunContext
 
-class App(val rc: RunContext) {
+class App()(implicit val rc: RunContext) {
 
   val file = rc.config.file
 
@@ -37,7 +37,7 @@ class App(val rc: RunContext) {
   }
 
   def eval(): Unit = FileWatcher.watchable(rc, file) {
-    Core.evalFile(rc, file) match {
+    Core.evalFile(file) match {
       case Left(error) =>
         rc.reporter.error(s"Error during evaluation: $error")
         false
@@ -48,7 +48,7 @@ class App(val rc: RunContext) {
   }
 
   def typeCheck(): Unit = FileWatcher.watchable(rc, file) {
-    Core.typeCheckFile(rc, file, rc.config.html) match {
+    Core.typeCheckFile(file, rc.config.html) match {
       case Left(error) =>
         rc.reporter.error(s"$error")
         false
@@ -68,7 +68,7 @@ object App {
   def launch(config: Config): Unit = {
 
     val rc = new RunContext(config)
-    val app = new App(rc)
+    val app = new App()(rc)
 
     app.start()
 
