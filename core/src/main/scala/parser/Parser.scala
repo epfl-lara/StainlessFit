@@ -57,11 +57,10 @@ object ScalaLexer extends Lexers with CharRegExps {
     word("as") | word("fun of") | word("keep") |
     word("if") | word("else") | word("case") | word("match") |
     word("fix") | word("fun") | word("val") |
-    word("Error") |
+    word("error") |
     word("left") | word("right") | word("size") |
     word("Rec") | word("Pi") | word("Sigma") |
     word("Forall") | word("PolyForall") |
-    word("Lambda") |
     word("type")
       |> { (cs, r) => KeyWordToken(cs.mkString.replaceAll("""[ \n]""", "")).setPos(r) },
 
@@ -207,7 +206,7 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val lbracase: Syntax[Token] = elem(KeyWordClass("{case"))
   val valK: Syntax[Token] = elem(KeyWordClass("val"))
   val keepK: Syntax[Token] = elem(KeyWordClass("keep"))
-  val errorK: Syntax[Token] = elem(KeyWordClass("Error"))
+  val errorK: Syntax[Token] = elem(KeyWordClass("error"))
   val foldK: Syntax[Token] = elem(KeyWordClass("[fold"))
   val asK: Syntax[Token] = elem(KeyWordClass("as"))
   val unfoldK: Syntax[Token] = elem(KeyWordClass("[unfold]"))
@@ -218,7 +217,6 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val forallK: Syntax[Token] = elem(KeyWordClass("Forall"))
   val polyForallK: Syntax[Token] = elem(KeyWordClass("PolyForall"))
   val recK: Syntax[Token] = elem(KeyWordClass("Rec"))
-  val lambdaK: Syntax[Token] = elem(KeyWordClass("Lambda"))
   val typeK: Syntax[Token] = elem(KeyWordClass("type"))
 
   val natType: Syntax[Tree] = accept(TypeClass("Nat")) { case _ => NatType }
@@ -231,8 +229,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   def opParser(op: Operator): Syntax[Token] = elem(OperatorClass(op))
 
   lazy val parTypeExpr: Syntax[Tree] = {
-    (lpar ~ rep1sep(typeExpr, comma.unit()) ~ rpar).map {
-      case _ ~ l ~ _ =>
+    (lpar ~>~ rep1sep(typeExpr, comma.unit()) ~<~ rpar).map {
+      case l =>
         if (l.size == 1) l.head
         else {
           val h = l.reverse.head
@@ -245,8 +243,8 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   }
 
   lazy val bPiType: Syntax[Tree] = {
-    (piK ~ lpar ~ termIdentifier ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ id ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => PiType(ty1, Bind(id, ty2))
+    (piK ~>~ lpar ~>~ termIdentifier ~<~ colon ~ typeExpr ~<~ comma ~ typeExpr ~<~ rpar).map {
+      case id ~ ty1 ~ ty2 => PiType(ty1, Bind(id, ty2))
     }
   }
 
@@ -342,12 +340,6 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val gt = opParser(Gt)
   val lteq = opParser(Lteq)
   val gteq = opParser(Gteq)
-
-  lazy val lambdaAbs: Syntax[Tree] = {
-    (lambdaK ~ termIdentifier ~ arrow ~ bracketExpr).map {
-      case _ ~ x ~ _ ~ e => Abs(Bind(x, e))
-    }
-  }
 
   sealed abstract class DefArgument {
     def toAppArgument(): AppArgument
@@ -616,8 +608,7 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   }
 
   lazy val simpleExpr: Syntax[Tree] = literal | parExpr | fixpoint |
-    function | keep |
-    error | fold | lambdaAbs
+    function | keep | error | fold
 
   lazy val macroTypeDeclaration: Syntax[Tree] = {
     (lsbra.skip ~ typeK.skip ~ typeIdentifier ~
