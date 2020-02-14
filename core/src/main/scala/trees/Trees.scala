@@ -709,25 +709,6 @@ object Tree {
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
-  def isObviousSubType(ty1: Tree, ty2: Tree): Boolean = {
-    (ty1, ty2) match {
-      case (BottomType, _) => true
-      case (_, TopType) => true
-      case (ty1, ty2) if ty1 == ty2 => true
-      case (RefinementType(ty, Bind(a, t)), ty2) => isObviousSubType(ty, ty2)
-      case (SumType(l1, r1), SumType(l2, r2)) => isObviousSubType(l1, l2) && isObviousSubType(r1, r2)
-      case (SigmaType(l1, Bind(x, r1)), SigmaType(l2, Bind(y, r2))) =>
-        isObviousSubType(l1, l2) && isObviousSubType(r1, r2.replace(y, Var(x)))
-      case (PiType(ty1, Bind(x, ty1b)), PiType(ty2, Bind(y, ty2b))) =>
-        isObviousSubType(ty2, ty1) && isObviousSubType(ty1b, ty2b.replace(y, Var(x)))
-      case (IntersectionType(ty1, Bind(x, ty1b)), IntersectionType(ty2, Bind(y, ty2b))) =>
-        isObviousSubType(ty2, ty1) && isObviousSubType(ty2b, ty1b.replace(y, Var(x)))
-      case (PolyForallType(Bind(x1, ty1)), PolyForallType(Bind(x2, ty2))) =>
-        isObviousSubType(ty1, ty2.replace(x2, Var(x1)))
-      case _ => false
-    }
-  }
-
   def areEqual(t1: Tree, t2: Tree): Boolean = {
     (t1, t2) match {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
@@ -841,8 +822,6 @@ sealed abstract class Tree extends Positioned {
   def isError: Boolean = Tree.isError(this)
 
   def isValue: Boolean = Tree.isValue(this)
-
-  def isObviousSubType(ty: Tree): Boolean = Tree.isObviousSubType(this, ty)
 
   def isEqual(t: Tree): Boolean = Tree.areEqual(this, t)
 
