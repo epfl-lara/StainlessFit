@@ -866,11 +866,11 @@ case object UnitLiteral extends Tree {
 }
 
 case class BooleanLiteral(b: Boolean) extends Tree {
-   override def toString: String = if (b) "true" else "false"
+  override def toString: String = if (b) "true" else "false"
 }
 
 case class Bind(id: Identifier, body: Tree) extends Tree {
-   private def bodyString(): String = {
+  private def bodyString(): String = {
     " => {\n  " + body.toString.replaceAll("\n", "\n  ") + "\n}"
   }
 
