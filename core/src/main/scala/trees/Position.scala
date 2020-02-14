@@ -14,6 +14,12 @@ case object NoPosition extends Position {
   def widen(other: Position): Position = other
 }
 
+case object SyntheticPosition extends Position {
+  override def toString = "<synthetic tree>"
+
+  def widen(other: Position): Position = other
+}
+
 case class DefinedPosition(l1: Int, c1: Int, l2: Int, c2: Int) extends Position {
   override def toString = {
     if (l1 == l2)
@@ -25,6 +31,7 @@ case class DefinedPosition(l1: Int, c1: Int, l2: Int, c2: Int) extends Position 
 
   def widen(other: Position): Position = other match {
     case NoPosition => this
+    case SyntheticPosition => this
     case DefinedPosition(l3, c3, l4, c4) =>
       val (l5, c5) = smallestLineColum(l1, c1, l3, c3)
       val (l6, c6) = largestLineColum(l2, c2, l4, c4)
@@ -34,6 +41,8 @@ case class DefinedPosition(l1: Int, c1: Int, l2: Int, c2: Int) extends Position 
 
 trait Positioned {
   var pos: Position = NoPosition
+
+  def hasPos: Boolean = pos != NoPosition
 
   def setPos(newPos: Position): this.type = {
     pos = newPos
