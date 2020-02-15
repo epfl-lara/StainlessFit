@@ -60,6 +60,8 @@ class FileWatcher(reporter: Reporter, files: Set[File], action: () => Unit) {
         }
 
         if (proceed) {
+          // Wait a little bit to avoid reading incomplete files
+          Thread.sleep(100)
           reporter.info(s"Detecting some file modifications...: ${modified mkString ", "}")
           action()
           reporter.info(s"\n\nWaiting for source changes...\n\n")
