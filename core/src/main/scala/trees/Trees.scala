@@ -1188,7 +1188,7 @@ case class PolyForallType(t: Tree) extends Tree {
   override def toString: String = {
     t match {
       case Bind(a, t) =>
-        "(∀" + a.toString + ": Type. " + t.toString
+        s"(∀$a: Type. $t)"
       case _ => "<Missing bind in PolyForallType>"
     }
   }
