@@ -2,30 +2,29 @@ package stainlessfit
 package core
 package typechecker
 
-import core.trees._
-import core.util.RunContext
+import trees._
+import util.RunContext
+import parser.FitParser
 
 import Derivation._
 
 
 object Context {
-  def empty: Context = Context(List(), Map(), Set(), 0, 0)
-  def empty(max: Int): Context = Context(List(), Map(), Set(), 0, max)
+  def empty(implicit rc: RunContext): Context = Context(Map(), Set(), 0, 0)
+  def empty(max: Int)(implicit rc: RunContext): Context = Context(Map(), Set(), 0, max)
 }
 
 case class Context(
-  val variables: List[Identifier],
   val termVariables: Map[Identifier, Tree],
   val typeVariables: Set[Identifier],
   val level: Int,
   val n: Int // All variables in the context must have an identifier strictly smaller than n.
-) extends Positioned {
+)(implicit rc: RunContext) extends Positioned {
 
   def bind(i: Identifier, t: Tree): Context = {
-    if (variables.contains(i)) throw new Exception("Already bound " + i.toString)
+    if (termVariables.contains(i)) throw new Exception("Already bound " + i.toString)
     copy(
-      termVariables = termVariables.updated(i, t),
-      variables = i :: variables
+      termVariables = termVariables.updated(i, t)
     )
   }
 
@@ -44,36 +43,28 @@ case class Context(
   def incrementLevel: Context = copy(level = level + 1)
 
   def containsVarOfType(tp: Tree): Boolean =
-    variables.exists(v => termVariables.contains(v) && termVariables(v) == tp)
+    termVariables.exists(_._2 == tp)
 
   def getVarOfType(tp: Tree): Option[Identifier] =
-    variables.find(v => termVariables.contains(v) && termVariables(v) == tp)
+    termVariables.find(_._2 == tp).map(_._1)
 
   override def toString: String = {
-    "Term variables:\n" ++
-    variables.foldLeft("") {
-      case (acc, id) => acc + s"${id}: ${termVariables(id)}\n"
-    }
+    Printer.asString(this)(rc)
   }
 
-  def hasRefinementBound: Boolean = {
-    variables.exists { case v =>
-      termVariables.contains(v) &&
-      (termVariables(v) match {
+  def hasRefinement: Boolean = {
+    termVariables.exists { case (v, tp) =>
+      tp match {
         case RefinementType(_, _) => true
         case _ => false
-      })
+      }
     }
   }
 
-  def replace(id: Identifier, t: Tree): Context = {
+  def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Context = {
     copy(
-      termVariables = variables.foldLeft(Map[Identifier, Tree]()) {
-        case (m, termId) =>
-          if (termVariables.contains(termId))
-            m.updated(termId, Tree.replace(id, t, termVariables(termId)))
-          else
-            m
+      termVariables = termVariables.map {
+        case (v, tp) => (v, tp.replace(id, t))
       }
     )
   }
@@ -102,7 +93,7 @@ case class Tactic[A,B](apply: (A, (A => Option[B])) => Option[B]) {
   }
 }
 
-class TypeChecker()(implicit val rc: RunContext)
+class TypeChecker(implicit val rc: RunContext)
   extends TypeCheckerProvenRules
   with TypeCheckerUnprovenRules
   with TypeCheckerUnsoundRules
@@ -166,19 +157,19 @@ object TypeChecker {
     typeCheckDebug(rc, s"${"   " * g.c.level}Current goal ${g} $ruleName : ${g.c.toString.replaceAll("\n", s"\n${"   " * g.c.level}")}\n")
   }
 
-  def ruleNameDebug(rc: RunContext, s: String): Unit = {
+  def ruleNameDebug(rc: RunContext, s: => String): Unit = {
     if (rc.debugEnabled(DebugSection.Rule)) {
       rc.reporter.debug(s)
     }
   }
 
-  def typeCheckDebug(rc: RunContext, s: String): Unit = {
+  def typeCheckDebug(rc: RunContext, s: => String): Unit = {
     if (rc.debugEnabled(DebugSection.TypeCheck)) {
       rc.reporter.debug(s)
     }
   }
 
-  def equalityDebug(rc: RunContext, s: String): Unit = {
+  def equalityDebug(rc: RunContext, s: => String): Unit = {
     if (rc.debugEnabled(DebugSection.Equality)) {
       rc.reporter.debug(s)
     }

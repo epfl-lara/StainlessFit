@@ -3,10 +3,11 @@ package core
 package typechecker
 
 import trees._
-
+import util.RunContext
+import parser.FitParser
 
 object TypeOperators {
-  private def unify(t1: Tree, t2: Tree, f: (Tree, Tree) => Tree): Option[Tree] = {
+  private def unify(t1: Tree, t2: Tree, f: (Tree, Tree) => Tree)(implicit rc: RunContext): Option[Tree] = {
     (t1, t2) match {
       case (UnitType, UnitType) => Some(UnitType)
       case (NatType, NatType) => Some(NatType)
@@ -63,16 +64,16 @@ object TypeOperators {
     }
   }
 
-  def ifThenElse(tc: Tree, t1: Tree, t2: Tree): Option[Tree] = {
+  def ifThenElse(tc: Tree, t1: Tree, t2: Tree)(implicit rc: RunContext): Option[Tree] = {
     if (t1 == t2) Some(t1)
     else unify(t1, t2, (ty1: Tree, ty2: Tree) => IfThenElse(tc, ty1, ty2))
   }
 
-  def matchSimpl(n: Tree, t0: Tree, id: Identifier, tn: Tree): Option[Tree] = {
-    unify(t0, tn, (ty0: Tree, tyn: Tree) => Match(n, ty0, Bind(id, tyn)))
+  def matchSimpl(n: Tree, t0: Tree, id: Identifier, tn: Tree)(implicit rc: RunContext): Option[Tree] = {
+    unify(t0, tn, (ty0: Tree, tyn: Tree) => NatMatch(n, ty0, Bind(id, tyn)))
   }
 
-  def eitherMatch(n: Tree, idl: Identifier, tl: Tree, idr: Identifier, tr: Tree): Option[Tree] = {
+  def eitherMatch(n: Tree, idl: Identifier, tl: Tree, idr: Identifier, tr: Tree)(implicit rc: RunContext): Option[Tree] = {
     unify(tl, tr, (tyl: Tree, tyr: Tree) => EitherMatch(n, Bind(idl, tyl), Bind(idr, tyr)))
   }
 

@@ -30,12 +30,4 @@ object Utils {
       f(x).map[(List[A], B)] { case (y,b) => (y ::  xs, b) } orElse
       mapFirstWithResult(xs, f).map[(List[A], B)]{ case (ys,b) => (x ::  ys, b) }
   }
-
-  val freshIdentifier = {
-    var n: Int = 0
-    (s: String) => {
-      n = n + 1
-      Identifier(n, s)
-    }
-  }
 }

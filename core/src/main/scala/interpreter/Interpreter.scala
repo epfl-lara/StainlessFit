@@ -4,7 +4,7 @@ package interpreter
 
 import trees._
 import util.RunContext
-
+import parser.FitParser
 
 object Interpreter {
 
@@ -30,9 +30,9 @@ object Interpreter {
       case App(f, v) => App(smallStep(f), v)
       case Fix(_, Bind(id, bind)) if bind.isBind => Tree.replaceBind(bind, e)
 
-      case Match(NatLiteral(`zero`), t0, _) => t0
-      case Match(NatLiteral(n), _, bind) if bind.isBind => Tree.replaceBind(bind, NatLiteral(n - 1))
-      case Match(t, t0, bind) => Match(smallStep(t), t0, bind)
+      case NatMatch(NatLiteral(`zero`), t0, _) => t0
+      case NatMatch(NatLiteral(n), _, bind) if bind.isBind => Tree.replaceBind(bind, NatLiteral(n - 1))
+      case NatMatch(t, t0, bind) => NatMatch(smallStep(t), t0, bind)
 
       case EitherMatch(LeftTree(v), bind, _) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
       case EitherMatch(RightTree(v), _, bind) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
@@ -46,8 +46,8 @@ object Interpreter {
       case Primitive(Eq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 == n2)
       case Primitive(Lt, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 < n2)
       case Primitive(Gt, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 > n2)
-      case Primitive(Lteq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 <= n2)
-      case Primitive(Gteq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 >= n2)
+      case Primitive(Leq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 <= n2)
+      case Primitive(Geq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 >= n2)
 
       case Primitive(Plus, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => NatLiteral(n1 + n2)
       case Primitive(Minus, NatLiteral(n1) :: NatLiteral(n2) :: Nil) if n1 >= n2 => NatLiteral(n1 - n2)

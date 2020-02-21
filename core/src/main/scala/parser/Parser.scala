@@ -7,14 +7,50 @@ import scallion.lexical._
 import scallion.syntactic._
 
 import core.trees._
+import core.trees.TreeBuilders._
 
 import util.Utils._
+import util.RunContext
+import stainlessfit.core.extraction.BuiltInIdentifiers
 
-sealed abstract class Token extends Positioned
+sealed abstract class Indentation
+object Indentation {
+  case object Indent extends Indentation
+  case object Unindent extends Indentation
+  case object Same extends Indentation
 
-case object AssignationToken extends Token
+  def update(s: String, indentation: Indentation): String = indentation match {
+    case Same => s
+    case Indent => "  " + s
+    case Unindent => s.drop(2)
+  }
+}
 
-case class KeyWordToken(value: String) extends Token
+
+sealed abstract class Token extends Positioned {
+  var after: String = ""
+  var indentation: Indentation = Indentation.Same
+
+  def printWith(s: String): Token = {
+    after = s
+    this
+  }
+
+  def indent(): Token = {
+    indentation = Indentation.Indent
+    this
+  }
+
+  def unindent(): Token = {
+    indentation = Indentation.Unindent
+    this
+  }
+
+}
+
+case object EqualityToken extends Token
+
+case class KeywordToken(value: String) extends Token
 case class SeparatorToken(value: String) extends Token
 case class BooleanToken(value: Boolean) extends Token
 case class NumberToken(value: BigInt) extends Token
@@ -31,7 +67,7 @@ case class TypeIdentifierToken(content: String) extends Token
 case class OperatorToken(op: Operator) extends Token
 case class TypeToken(content: String) extends Token
 
-object ScalaLexer extends Lexers with CharRegExps {
+object FitLexer extends Lexers with CharRegExps {
   type Token = parser.Token
   type Position = (Int, Int)
 
@@ -45,10 +81,9 @@ object ScalaLexer extends Lexers with CharRegExps {
 
     //Assignation
     oneOf("=")
-      |> { (cs, r) => AssignationToken.setPos(r) },
+      |> { (cs, r) => EqualityToken.setPos(r) },
 
     // Keywords
-    (elem('{') ~ blank ~ word("case")) |
     (elem('[') ~ blank ~ word("returns")) |
     (elem('[') ~ blank ~ word("fold")) |
     (elem('[') ~ blank ~ word("decreases")) |
@@ -58,11 +93,12 @@ object ScalaLexer extends Lexers with CharRegExps {
     word("if") | word("else") | word("case") | word("match") |
     word("fix") | word("fun") | word("val") |
     word("error") |
+    word("zero") | word("succ") |
     word("left") | word("right") | word("size") |
     word("Rec") | word("Pi") | word("Sigma") |
     word("Forall") | word("PolyForall") |
     word("type")
-      |> { (cs, r) => KeyWordToken(cs.mkString.replaceAll("""[ \n]""", "")).setPos(r) },
+      |> { (cs, r) => KeywordToken(cs.mkString.replaceAll("""[ \n]""", "")).setPos(r) },
 
     // Compound separator
     word("[|") | word("|]")
@@ -142,18 +178,16 @@ case object NumberClass extends TokenClass
 case object StringClass extends TokenClass
 case object NoClass extends TokenClass
 case object UnitClass extends TokenClass
-case object AssignationClass extends TokenClass
-case class KeyWordClass(value: String) extends TokenClass
+case object EqualityClass extends TokenClass
+case class KeywordClass(value: String) extends TokenClass
 case class TypeClass(value: String) extends TokenClass
 
-object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Debug {
+class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with ll1.Parsing with ll1.Debug with PrettyPrinting {
 
   type Token = parser.Token
   type Kind = parser.TokenClass
 
-  import Implicits._
-
-  var id = 0
+  import SafeImplicits._
 
   override def getKind(token: Token): TokenClass = token match {
     case SeparatorToken(value) => SeparatorClass(value)
@@ -162,168 +196,76 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
     case TypeIdentifierToken(content) => TypeIdentifierClass
     case TermIdentifierToken(content) => TermIdentifierClass
     case OperatorToken(op) => OperatorClass(op)
-    case AssignationToken => AssignationClass
-    case KeyWordToken(value) => KeyWordClass(value)
+    case EqualityToken => EqualityClass
+    case KeywordToken(value) => KeywordClass(value)
     case UnitToken => UnitClass
     case TypeToken(content) => TypeClass(content)
     case StringToken(content) => StringClass
     case _ => NoClass
   }
 
-  def newId: Int = {
-    id = id + 1
-    id
-  }
+  val equal: Syntax[Unit] = elem(EqualityClass).unit(EqualityToken)
+  val dlbra: Syntax[Unit] = elem(SeparatorClass("[|")).unit(SeparatorToken("[|"))
+  val drbra: Syntax[Unit] = elem(SeparatorClass("|]")).unit(SeparatorToken("|]"))
+  val lpar: Syntax[Unit] = elem(SeparatorClass("(")).unit(SeparatorToken("("))
+  val rpar: Syntax[Unit] = elem(SeparatorClass(")")).unit(SeparatorToken(")"))
+  val lbra: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{"))
+  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").printWith("\n").indent())
+  val rbra: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}"))
+  val rbraBlock: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n").unindent())
+  val rbraBlock2: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n\n").unindent())
+  val lsbra: Syntax[Unit] = elem(SeparatorClass("[")).unit(SeparatorToken("["))
+  val rsbra: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]"))
+  val rsbraNewLine: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]").printWith("\n"))
+  val rsbraNewLines: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]").printWith("\n\n"))
+  val comma: Syntax[Unit] = elem(SeparatorClass(",")).unit(SeparatorToken(","))
+  val pipe: Syntax[Unit] = elem(SeparatorClass("|")).unit(SeparatorToken("|"))
+  val colon: Syntax[Unit] = elem(SeparatorClass(":")).unit(SeparatorToken(":"))
+  val semicolon: Syntax[Unit] = elem(SeparatorClass(";")).unit(SeparatorToken(";").printWith("\n"))
+  val dot: Syntax[Unit] = elem(SeparatorClass(".")).unit(SeparatorToken("."))
+  val arrow: Syntax[Unit] = elem(SeparatorClass("=>")).unit(SeparatorToken("=>"))
+  val ifK: Syntax[Unit] = elem(KeywordClass("if")).unit(KeywordToken("if"))
+  val elseK: Syntax[Unit] = elem(KeywordClass("else")).unit(KeywordToken("else"))
+  val fixK: Syntax[Unit] = elem(KeywordClass("fix")).unit(KeywordToken("fix"))
+  val funK: Syntax[Unit] = elem(KeywordClass("fun")).unit(KeywordToken("fun"))
+  val funOfK: Syntax[Unit] = elem(KeywordClass("funof")).unit(KeywordToken("funof"))
+  val matchK: Syntax[Unit] = elem(KeywordClass("match")).unit(KeywordToken("match"))
+  val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
+  val caseK: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case"))
+  val valK: Syntax[Unit] = elem(KeywordClass("val")).unit(KeywordToken("val"))
+  val keepK: Syntax[Unit] = elem(KeywordClass("keep")).unit(KeywordToken("keep"))
+  val errorK: Syntax[Unit] = elem(KeywordClass("error")).unit(KeywordToken("error"))
+  val foldK: Syntax[Unit] = elem(KeywordClass("[fold")).unit(KeywordToken("[fold"))
+  val asK: Syntax[Unit] = elem(KeywordClass("as")).unit(KeywordToken("as"))
+  val unfoldK: Syntax[Unit] = elem(KeywordClass("[unfold]")).unit(KeywordToken("[unfold]"))
+  val unfoldPositiveK: Syntax[Unit] = elem(KeywordClass("[unfoldpositive]")).unit(KeywordToken("[unfoldpositive]"))
+  val decreasesK: Syntax[Unit] = elem(KeywordClass("[decreases")).unit(KeywordToken("[decreases"))
+  val piK: Syntax[Unit] = elem(KeywordClass("Pi")).unit(KeywordToken("Pi"))
+  val sigmaK: Syntax[Unit] = elem(KeywordClass("Sigma")).unit(KeywordToken("Sigma"))
+  val forallK: Syntax[Unit] = elem(KeywordClass("Forall")).unit(KeywordToken("Forall"))
+  val polyForallK: Syntax[Unit] = elem(KeywordClass("PolyForall")).unit(KeywordToken("PolyForall"))
+  val recK: Syntax[Unit] = elem(KeywordClass("Rec")).unit(KeywordToken("Rec"))
+  val typeK: Syntax[Unit] = elem(KeywordClass("type")).unit(KeywordToken("type"))
 
-  val assignation: Syntax[Token] = elem(AssignationClass)
-  val dlbra: Syntax[Token] = elem(SeparatorClass("[|"))
-  val drbra: Syntax[Token] = elem(SeparatorClass("|]"))
-  val lpar: Syntax[Token] = elem(SeparatorClass("("))
-  val rpar: Syntax[Token] = elem(SeparatorClass(")"))
-  val lbra: Syntax[Token] = elem(SeparatorClass("{"))
-  val rbra: Syntax[Token] = elem(SeparatorClass("}"))
-  val lsbra: Syntax[Token] = elem(SeparatorClass("["))
-  val rsbra: Syntax[Token] = elem(SeparatorClass("]"))
-  val comma: Syntax[Token] = elem(SeparatorClass(","))
-  val pipe: Syntax[Token] = elem(SeparatorClass("|"))
-  val colon: Syntax[Token] = elem(SeparatorClass(":"))
-  val semicolon: Syntax[Token] = elem(SeparatorClass(";"))
-  val appK: Syntax[Token] = elem(SeparatorClass("\\"))
-  val tupleK: Syntax[Token] = elem(SeparatorClass("\\("))
-  val dot: Syntax[Token] = elem(SeparatorClass("."))
-  val arrow: Syntax[Token] = elem(SeparatorClass("=>"))
-  val ifK: Syntax[Token] = elem(KeyWordClass("if"))
-  val elseK: Syntax[Token] = elem(KeyWordClass("else"))
-  val fixK: Syntax[Token] = elem(KeyWordClass("fix"))
-  val funK: Syntax[Token] = elem(KeyWordClass("fun"))
-  val funOfK: Syntax[Token] = elem(KeyWordClass("funof"))
-  val sizeK: Syntax[Token] = elem(KeyWordClass("size"))
-  val leftK: Syntax[Token] = elem(KeyWordClass("left"))
-  val rightK: Syntax[Token] = elem(KeyWordClass("right"))
-  val matchK: Syntax[Token] = elem(KeyWordClass("match"))
-  val returnsK: Syntax[Token] = elem(KeyWordClass("[returns"))
-  val caseK: Syntax[Token] = elem(KeyWordClass("case"))
-  val lbracase: Syntax[Token] = elem(KeyWordClass("{case"))
-  val valK: Syntax[Token] = elem(KeyWordClass("val"))
-  val keepK: Syntax[Token] = elem(KeyWordClass("keep"))
-  val errorK: Syntax[Token] = elem(KeyWordClass("error"))
-  val foldK: Syntax[Token] = elem(KeyWordClass("[fold"))
-  val asK: Syntax[Token] = elem(KeyWordClass("as"))
-  val unfoldK: Syntax[Token] = elem(KeyWordClass("[unfold]"))
-  val unfoldPositiveK: Syntax[Token] = elem(KeyWordClass("[unfoldpositive]"))
-  val decreasesK: Syntax[Token] = elem(KeyWordClass("[decreases"))
-  val piK: Syntax[Token] = elem(KeyWordClass("Pi"))
-  val sigmaK: Syntax[Token] = elem(KeyWordClass("Sigma"))
-  val forallK: Syntax[Token] = elem(KeyWordClass("Forall"))
-  val polyForallK: Syntax[Token] = elem(KeyWordClass("PolyForall"))
-  val recK: Syntax[Token] = elem(KeyWordClass("Rec"))
-  val typeK: Syntax[Token] = elem(KeyWordClass("type"))
+  val leftK: Syntax[Token] = elem(KeywordClass("left"))
+  val rightK: Syntax[Token] = elem(KeywordClass("right"))
+  val sizeK: Syntax[Token] = elem(KeywordClass("size"))
 
-  val natType: Syntax[Tree] = accept(TypeClass("Nat")) { case _ => NatType }
-  val boolType: Syntax[Tree] = accept(TypeClass("Bool")) { case _ => BoolType }
-  val unitType: Syntax[Tree] = accept(TypeClass("Unit")) { case _ => UnitType }
-  val topType: Syntax[Tree] = accept(TypeClass("Top")) { case _ => TopType }
 
-  val literalType: Syntax[Tree] = natType | boolType | unitType | topType
+  def primitiveTypeSyntax(s: String, ty: Tree): Syntax[Tree] =
+    accept(TypeClass(s))(_ => ty, {
+    case `ty` => Seq(TypeToken(s))
+    case _ => Seq()
+  })
+
+  val natType = primitiveTypeSyntax("Nat", NatType)
+  val boolType = primitiveTypeSyntax("Bool", BoolType)
+  val unitType = primitiveTypeSyntax("Unit", UnitType)
+  val topType = primitiveTypeSyntax("Top", TopType)
+
+  val primitiveType: Syntax[Tree] = natType | boolType | unitType | topType
 
   def opParser(op: Operator): Syntax[Token] = elem(OperatorClass(op))
-
-  lazy val parTypeExpr: Syntax[Tree] = {
-    (lpar ~>~ rep1sep(typeExpr, comma.unit()) ~<~ rpar).map {
-      case l =>
-        if (l.size == 1) l.head
-        else {
-          val h = l.reverse.head
-          val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) =>
-            SigmaType(e, Bind(Identifier(newId, "_S"), acc)).setPos(e, acc)
-          }
-        }
-    }
-  }
-
-  lazy val bPiType: Syntax[Tree] = {
-    (piK ~>~ lpar ~>~ termIdentifier ~<~ colon ~ typeExpr ~<~ comma ~ typeExpr ~<~ rpar).map {
-      case id ~ ty1 ~ ty2 => PiType(ty1, Bind(id, ty2))
-    }
-  }
-
-  lazy val bSigmaType: Syntax[Tree] = {
-    (sigmaK ~ lpar ~ termIdentifier ~ colon ~ typeExpr ~ comma ~ typeExpr ~ rpar).map {
-      case _ ~ _ ~ id ~ _ ~ ty1 ~ _ ~ ty2 ~ _ => SigmaType(ty1, Bind(id, ty2))
-    }
-  }
-
-  lazy val bForallType: Syntax[Tree] = {
-    (forallK.skip ~ lpar.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rpar.skip).map {
-      case id ~ ty1 ~ ty2 => IntersectionType(ty1, Bind(id, ty2))
-    }
-  }
-
-  lazy val polyForallType: Syntax[Tree] = {
-    (polyForallK.skip ~ lpar.skip ~ typeIdentifier ~ comma.skip ~ typeExpr ~ rpar.skip).map {
-      case id ~ ty2 => PolyForallType(Bind(id, ty2))
-    }
-  }
-
-  lazy val recType: Syntax[Tree] = {
-    (recK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ lpar.skip ~ typeIdentifier ~ arrow.skip ~ typeExpr ~ rpar.skip).map {
-      case y ~ alpha ~ ty => RecType(y, Bind(alpha, ty))
-    }
-  }
-
-  lazy val refinementType: Syntax[Tree] = {
-    (lbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ expr ~ rbra.skip).map {
-      case x ~ ty ~ p => RefinementType(ty, Bind(x, p))
-    }
-  }
-
-  lazy val operatorType: Syntax[Tree] = {
-    operators(simpleTypeExpr)(
-      plus is LeftAssociative,
-      arrow is RightAssociative,
-      eq is LeftAssociative
-    )({
-      case (ty1, t @ SeparatorToken("=>"), ty2) => PiType(ty1, Bind(Identifier(newId, "_X"), ty2))
-      case (ty1, t @ OperatorToken(Plus), ty2) => SumType(ty1, ty2)
-      case (ty1, t @ OperatorToken(Eq), ty2) => EqualityType(ty1, ty2)
-      case _ => sys.error("Unreachable")
-    }, {
-      case PiType(ty1, Bind(_, ty2)) => (ty1, SeparatorToken("=>"), ty2)
-      case SumType(ty1, ty2) => (ty1, OperatorToken(Plus), ty2)
-      case EqualityType(ty1, ty2) => (ty1, OperatorToken(Eq), ty2)
-    })
-  }
-
-  lazy val simpleTypeExpr: Syntax[Tree] =
-    literalType | parTypeExpr | recType | refinementType |
-    macroTypeInst |
-    bPiType | bSigmaType | bForallType | polyForallType
-
-  lazy val typeExpr: Syntax[Tree] = recursive {
-    operatorType
-  }
-
-  val boolean: Syntax[Tree] = accept(BooleanClass) { case BooleanToken(value) => BooleanLiteral(value) }
-  val number: Syntax[Tree] = accept(NumberClass) { case NumberToken(value) => NatLiteral(value) }
-
-  val termIdentifier: Syntax[Identifier] = accept(TermIdentifierClass) {
-    case t@TermIdentifierToken(content) => Identifier(0, content).setPos(t)
-  } |
-    leftK.map { case t => Identifier(0, "left").setPos(t) } |
-    rightK.map { case t => Identifier(0, "right").setPos(t) } |
-    sizeK.map { case t => Identifier(0, "size").setPos(t) }
-
-
-  val typeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass) {
-    case t@TypeIdentifierToken(content) => Identifier(0, content).setPos(t)
-  }
-  val termVariable: Syntax[Tree] = termIdentifier.map(Var(_))
-  val typeVariable: Syntax[Tree] = typeIdentifier.map(Var(_))
-
-  val unit: Syntax[Tree] = accept(UnitClass) { case _ => UnitLiteral }
-
-  val literal: Syntax[Tree] = termVariable | number | boolean | unit
 
   val plus = opParser(Plus)
   val minus = opParser(Minus)
@@ -334,295 +276,521 @@ object ScalaParser extends Syntaxes with Operators with ll1.Parsing with ll1.Deb
   val or = opParser(Or)
   val not = opParser(Not)
 
-  val eq = opParser(Eq)
+  val doubleEqual = opParser(Eq)
   val neq = opParser(Neq)
   val lt = opParser(Lt)
   val gt = opParser(Gt)
-  val lteq = opParser(Lteq)
-  val gteq = opParser(Gteq)
+  val leq = opParser(Leq)
+  val geq = opParser(Geq)
 
-  sealed abstract class DefArgument {
-    def toAppArgument(): AppArgument
+  lazy val parTypeExpr: Syntax[Tree] = {
+    (lpar ~>~ rep1sep(typeExpr, comma) ~<~ rpar).map(Sigmas.apply, ty => Seq(Sigmas.unapply(ty).get))
   }
 
-  case class TypeArgument(id: Identifier) extends DefArgument {
-    def toAppArgument(): AppArgument = TypeAppArg(Var(id))
+  lazy val piType: Syntax[Tree] = {
+    (piK ~>~ lpar ~>~ termIdentifier ~<~ colon ~ typeExpr ~<~ comma ~ typeExpr ~<~ rpar).map({
+      case id ~ ty1 ~ ty2 => PiType(ty1, Bind(id, ty2))
+    }, {
+      case PiType(ty1, Bind(id, ty2)) => Seq(id ~ ty1 ~ ty2)
+      case _ => Seq()
+    })
   }
 
-  case class ForallArgument(id: Identifier, ty: Tree) extends DefArgument {
-    def toAppArgument(): AppArgument = ErasableAppArg(Var(id))
+  lazy val sigmaType: Syntax[Tree] = {
+    (sigmaK.skip ~ lpar.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rpar.skip).map({
+      case id ~ ty1 ~ ty2 => SigmaType(ty1, Bind(id, ty2))
+    }, {
+      case SigmaType(ty1, Bind(id, ty2)) => Seq(id ~ ty1 ~ ty2)
+      case _ => Seq()
+    })
   }
 
-  case class PiArgument(id: Identifier, ty: Tree) extends DefArgument {
-    def toAppArgument(): AppArgument = TermAppArg(Var(id))
+  lazy val forallType: Syntax[Tree] = {
+    (forallK.skip ~ lpar.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rpar.skip).map({
+      case id ~ ty1 ~ ty2 => IntersectionType(ty1, Bind(id, ty2))
+    }, {
+      case IntersectionType(ty1, Bind(id, ty2)) => Seq(id ~ ty1 ~ ty2)
+      case _ => Seq()
+    })
   }
 
-  lazy val normalArgument: Syntax[DefArgument] = {
-    (lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ rpar.skip).map {
-      case id ~ ty => PiArgument(id, ty)
-    }
+  lazy val polyForallType: Syntax[Tree] = {
+    (polyForallK.skip ~ lpar.skip ~ typeIdentifier ~ comma.skip ~ typeExpr ~ rpar.skip).map({
+      case id ~ ty2 => PolyForallType(Bind(id, ty2))
+    }, {
+      case PolyForallType(Bind(id, ty2)) => Seq(id ~ ty2)
+      case _ => Seq()
+    })
+  }
+
+  lazy val recType: Syntax[Tree] = {
+    (recK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ lpar.skip ~ typeIdentifier ~ arrow.skip ~ typeExpr ~ rpar.skip).map({
+      case y ~ alpha ~ ty => RecType(y, Bind(alpha, ty))
+    }, {
+      case RecType(y, Bind(alpha, ty)) => Seq(y ~ alpha ~ ty)
+      case _ => Seq()
+    })
+  }
+
+  lazy val refinementType: Syntax[Tree] =
+    (lbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ expr ~ rbra.skip).map({
+      case x ~ ty ~ p => RefinementType(ty, Bind(x, p))
+    }, {
+      case RefinementType(ty, Bind(x, p)) => Seq(x ~ ty ~ p)
+      case _ => Seq()
+    })
+
+  lazy val sums: Syntax[Tree] = infixLeft(simpleTypeExpr, plus)({
+    case (ty1, _, ty2) => SumType(ty1, ty2)
+  }, {
+    case SumType(ty1, ty2) => (ty1, OperatorToken(Plus), ty2)
+  })
+
+  lazy val arrows: Syntax[Tree] = infixRight(sums, arrow)({
+    case (ty1, _, ty2) => PiType(ty1, Bind(Identifier.fresh("X"), ty2))
+  }, {
+    case PiType(ty1, Bind(id, ty2)) if !id.isFreeIn(ty2) => (ty1, OperatorToken(Plus), ty2)
+  })
+
+  def some[A](s: Syntax[A]): Syntax[Option[A]] = {
+    s.map(Some(_), {
+      case Some(e) => Seq(e)
+      case _ => Seq()
+    })
+  }
+
+  // lazy val someEqArrow: Syntax[Option[Tree]] = equal.skip ~ some(arrows)
+
+  def withNone[A](s: Syntax[Option[A]]): Syntax[Option[A]] = epsilon(None: Option[A]) | s
+
+  // lazy val typeOrEquality: Syntax[Tree] =
+  //   (arrows ~ withNone(someEqArrow)).map({
+  //     case ty ~ None => ty
+  //     case ty1 ~ Some(ty2) => EqualityType(ty1, ty2)
+  //   }, {
+  //     case EqualityType(ty1, ty2) => Seq(ty1 ~ Some(ty2))
+  //     case ty => Seq(ty ~ None)
+  //   })
+
+  lazy val equalityType: Syntax[Tree] =
+    (pipe.skip ~ expr ~ equal.skip ~ expr ~ pipe.skip).map({
+      case ty1 ~ ty2 => EqualityType(ty1, ty2)
+    }, {
+      case EqualityType(ty1, ty2) => Seq(ty1 ~ ty2)
+      case _ => Seq()
+    })
+
+  lazy val simpleTypeExpr: Syntax[Tree] =
+    primitiveType | parTypeExpr | recType | refinementType |
+    macroTypeInst | equalityType |
+    piType | sigmaType | forallType | polyForallType
+
+  lazy val typeExpr: Syntax[Tree] = recursive { arrows }
+
+  val boolean: Syntax[Tree] = accept(BooleanClass)({
+    case BooleanToken(value) => BooleanLiteral(value)
+  }, {
+    case BooleanLiteral(value) => Seq(BooleanToken(value))
+    case _ => Seq()
+  })
+  val number: Syntax[Tree] = accept(NumberClass)({
+    case NumberToken(value) => NatLiteral(value)
+  }, {
+    case NatLiteral(value) => Seq(NumberToken(value))
+    case _ => Seq()
+  })
+
+  def builtinIdentifier(s: String): Syntax[Identifier] = {
+    elem(KeywordClass(s)).map({
+      case t => Identifier(0, s).setPos(t)
+    }, {
+      case Identifier(0, s) => Seq(KeywordToken(s))
+      case _ => Seq()
+    })
+  }
+
+  lazy val userIdentifier: Syntax[Identifier] = accept(TermIdentifierClass)({
+    case t@TermIdentifierToken(content) => Identifier(0, content).setPos(t)
+  }, {
+    case Identifier(id, name) if (!name.isEmpty && name(0).isLower) =>
+      if (rc.config.printUniqueIds)
+        Seq(TermIdentifierToken(s"$name#$id"))
+      else
+        Seq(TermIdentifierToken(name))
+    case _ => Seq()
+  })
+
+  lazy val termIdentifier: Syntax[Identifier] =
+    userIdentifier |
+    BuiltInIdentifiers.builtInIdentifiers.map(s => builtinIdentifier(s)).reduce(_ | _)
+
+  lazy val typeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass)({
+    case t@TypeIdentifierToken(content) => Identifier(0, content).setPos(t)
+  }, {
+    case Identifier(id, name) if (!name.isEmpty && name(0).isUpper) =>
+      if (rc.config.printUniqueIds)
+        Seq(TypeIdentifierToken(s"$name#$id"))
+      else
+        Seq(TypeIdentifierToken(name))
+    case _ => Seq()
+  })
+
+  lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
+    case Var(id) => Seq(id)
+    case _ => Seq()
+  })
+
+  lazy val typeVariable: Syntax[Tree] = typeIdentifier.map(Var(_), {
+    case Var(id) => Seq(id)
+    case _ => Seq()
+  })
+
+  lazy val unit: Syntax[Tree] = accept(UnitClass)({ case _ => UnitLiteral }, {
+    case UnitLiteral => Seq(UnitToken)
+    case _ => Seq()
+  })
+
+  lazy val literal: Syntax[Tree] = termVariable | number | boolean | unit
+
+  lazy val untypedArgument: Syntax[DefArgument] = {
+    termIdentifier.map({
+      case id => UntypedArgument(id)
+    }, {
+      case UntypedArgument(id) => Seq(id)
+      case _ => Seq()
+    })
+  }
+
+  lazy val typedArgument: Syntax[DefArgument] = {
+    (lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ rpar.skip).map({
+      case id ~ ty => TypedArgument(id, ty)
+    }, {
+      case TypedArgument(id, ty) => Seq(id ~ ty)
+      case _ => Seq()
+    })
   }
 
   lazy val typeArgument: Syntax[DefArgument] =
-    (lsbra.skip ~ typeIdentifier ~ rsbra.skip).map { case id => TypeArgument(id): DefArgument }
+    (lsbra.skip ~ typeIdentifier ~ rsbra.skip).map({
+      case id => TypeArgument(id): DefArgument
+    }, {
+      case TypeArgument(id) => Seq(id)
+      case _ => Seq()
+    })
 
   lazy val ghostArgument: Syntax[DefArgument] = {
-    (dlbra.skip ~ termIdentifier ~ colon ~ typeExpr ~ drbra.skip).map {
-      case id ~ _ ~ ty => ForallArgument(id, ty): DefArgument
-    }
+    (dlbra.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ drbra.skip).map({
+      case id ~ ty => ForallArgument(id, ty): DefArgument
+    }, {
+      case ForallArgument(id, ty) => Seq(id ~ ty)
+      case _ => Seq()
+    })
   }
 
-  lazy val argument: Syntax[DefArgument] = normalArgument | typeArgument | ghostArgument
-
-  def createFun(args: Seq[DefArgument], retType: Option[Tree], body: Tree, f: Identifier): (Tree, Option[Tree]) = {
-    val (fun, funType) = args.foldRight((body, retType.getOrElse(UnitType))) {
-      case (arg, (accTree, accType)) =>
-        arg match {
-          case TypeArgument(id)   => (Abs(Bind(id, accTree)), PolyForallType(Bind(id, accType)))
-          case ForallArgument(id, ty) => (ErasableLambda(ty, Bind(id, accTree)), IntersectionType(ty, (Bind(id, accType))))
-          case PiArgument(id, ty) => (Lambda(Some(ty), Bind(id, accTree)), PiType(ty, Bind(id, accType)))
-        }
-    }
-    if (retType.isEmpty) (fun, None)
-    else (fun, Some(funType))
-  }
+  lazy val argument: Syntax[DefArgument] = untypedArgument | typedArgument | typeArgument | ghostArgument
 
   lazy val defFunction: Syntax[Tree] =
-    (funK.skip ~ termIdentifier ~ many1(argument) ~ opt(retTypeP) ~ assignation.skip ~ lbra.skip ~ opt(measureP) ~
-    expr ~ rbra.skip ~ opt(expr)).map {
-      case f ~ args ~ retType ~ measure ~ e1 ~ e2 =>
+    (funK.skip ~ termIdentifier ~ many1(argument) ~ opt(retTypeP) ~ equal.skip ~ lbraBlock.skip ~ opt(measureP) ~
+    expr ~ rbraBlock2.skip ~ opt(expr)).map({
+      case f ~ args ~ optRet ~ optMeasure ~ e1 ~ e2 =>
+        val ids = args.map(_.id)
         val followingExpr = e2.getOrElse(Var(f))
-        if (f.isFreeIn(e1) && measure.isEmpty) {
-          throw new java.lang.Exception(s"Recursive function $f needs a decreases clause.")
-        }
-        (measure, retType) match {
-          case (Some(_), None) =>
-            throw new java.lang.Exception(s"Recursive function $f needs a return type.")
-          case (None, None) =>
-            val (fun, _) = createFun(args, None, e1, f)
-            LetIn(None, fun, Bind(f, followingExpr))
-          case (None, Some(ty)) =>
-            val (fun, funType) = createFun(args, Some(ty), e1, f)
-            LetIn(Some(funType.get), fun, Bind(f, followingExpr))
-          case (Some(measure), Some(ty)) =>
-            val n = freshIdentifier("_n")
-            val expr = e1.replace(f,
-              Inst(Var(f), Primitive(Minus, List(Var(n), NatLiteral(1))))
-            )
-
-            val refinedArgs = mapFirst(args.reverse, { (arg: DefArgument) => arg match {
-              case ForallArgument(id, ty) =>
-                Some(ForallArgument(id, RefinementType(ty, Bind(id, Primitive(Lteq, List(measure, Var(n)))))))
-              case PiArgument(id, ty) =>
-                Some(PiArgument(id, RefinementType(ty, Bind(id, Primitive(Lteq, List(measure, Var(n)))))))
-              case _ =>
-                None
-            }}).getOrElse {
-              throw new java.lang.Exception(s"Recursive function $f with arguments: $args must have at least one non-type argument")
-            }.reverse
-
-            val (fun, funTy) = createFun(refinedArgs, Some(ty), expr, f)
-            val fix = Fix(Some(Bind(n, funTy.get)), Bind(n, Bind(f, fun)))
-
-            val instBody = createApp(
-              args.map(_.toAppArgument),
-              Inst(Var(f), Primitive(Plus, List(measure, NatLiteral(1))))
-            )
-            val (instFun, _) = createFun(args, Some(ty), instBody, f)
-            LetIn(None, fix, Bind(f,
-              LetIn(None, instFun, Bind(f,
-                followingExpr)
-              )
-            ))
-        }
-    }
+        DefFunction(
+          args,
+          optRet.map(ret => Binds(ids, ret)),
+          optMeasure.map(measure => Binds(ids, measure)),
+          Binds(ids, Bind(f, e1)),
+          Binds(ids, Bind(f, followingExpr))
+        )
+      case _ => sys.error("Unreachable")
+    }, {
+      case DefFunction(args, optRet, optMeasure, e1, Binds(ids, body)) =>
+        Seq(
+          ids.last ~
+          args ~
+          optRet.map(Binds.remove) ~
+          optMeasure.map(Binds.remove) ~
+          Binds.remove(e1) ~
+          Some(body)
+        )
+      case _ => Seq()
+    })
 
   lazy val retTypeP: Syntax[Tree] = {
     returnsK ~>~ typeExpr ~<~ rsbra
   }
 
   lazy val measureP: Syntax[Tree] = {
-    decreasesK ~>~ expr ~<~ rsbra
+    decreasesK ~>~ expr ~<~ rsbraNewLine
   }
 
-  lazy val function: Syntax[Tree] = {
-    (funOfK.skip ~ many(argument) ~ assignation.skip ~ bracketExpr).map {
-      case args ~ e => createFun(args, None, e, Identifier(0, "__"))._1
-    }
-  }
+  lazy val lambda: Syntax[Tree] =
+    (funOfK.skip ~ many(argument) ~ equal.skip ~ bracketExpr).map({
+      case args ~ e => Abstractions(args, e)
+    }, {
+      case Abstractions(args, e) => Seq(args ~ e)
+      case _ => Seq()
+    })
 
-  lazy val keep: Syntax[Tree] = {
-    (keepK.skip ~ bracketExpr).map {
-      case e =>
-        Lambda(Some(UnitType), Bind(Identifier(0, "__"), e))
-    }
-  }
+  lazy val keep: Syntax[Tree] =
+    (keepK.skip ~ bracketExpr).map({
+      case e => Lambda(Some(UnitType), Bind(Identifier(0, "u"), e))
+    }, {
+      case Lambda(Some(UnitType), Bind(id, e)) if !id.isFreeIn(e) => Seq(e)
+      case _ => Seq()
+    })
 
-  lazy val string: Syntax[String] = accept(StringClass) { case StringToken(content) => content }
+  lazy val string: Syntax[String] = accept(StringClass)({
+    case StringToken(content) => content
+    case _ => sys.error("Unreachable")
+  }, {
+    s => Seq(StringToken(s))
+  })
 
-  lazy val error: Syntax[Tree] = {
-    (errorK.skip ~ opt(lsbra.skip ~ typeExpr ~ rsbra.skip) ~ lpar.skip ~ string ~ rpar.skip).map {
+
+  lazy val error: Syntax[Tree] =
+    (errorK.skip ~ opt(lsbra.skip ~ typeExpr ~ rsbra.skip) ~ lpar.skip ~ string ~ rpar.skip).map({
       case optTy ~ s => Error(s, optTy)
-    }
-  }
+    }, {
+      case Error(s, optTy) => Seq(optTy ~ s)
+      case _ => Seq()
+    })
 
   lazy val fixpoint: Syntax[Tree] =
-    (fixK.skip ~ opt(lsbra ~ termIdentifier ~ arrow ~ typeExpr ~ rsbra) ~
-    lpar.skip ~ termIdentifier ~ arrow ~ expr ~ rpar).map {
-      case None ~ x ~ _ ~ e ~ _ =>
-        Fix(None, Bind(Identifier(0, "_"), Bind(x, e)))
-      case Some(_ ~ n ~ _ ~ tp ~ _) ~ x ~ _ ~ e ~ _ =>
-        val body = Tree.replace(
-          x,
-          Inst(Var(x), Primitive(Minus, List(Var(n), NatLiteral(1)))),
-          e
-        )
-        Fix(Some(Bind(n, tp)), Bind(n, Bind(x, body)))
+    (fixK.skip ~ opt(lsbra.skip ~ termIdentifier ~ rsbra.skip ~ lsbra.skip ~ typeExpr ~ rsbra.skip) ~
+    lpar.skip ~ termIdentifier ~ arrow.skip ~ expr ~ rpar.skip).map({
+      case None ~ x ~ e =>
+        Fix(None, Bind(Identifier.fresh("n"), Bind(x, e)))
+      case Some(n ~ tp) ~ x ~ e =>
+        Fix(Some(Bind(n, tp)), Bind(n, Bind(x, e)))
       case _ =>
         sys.error("Unreachable")
-    }
+    }, {
+      case Fix(None, Bind(id, Bind(x, e))) =>
+        assert(!id.isFreeIn(e))
+        Seq(None ~ x ~ e)
+      case Fix(Some(Bind(n1, tp)), Bind(n2, Bind(x, e))) =>
+        Seq(Some(n1 ~ tp) ~ x ~ e.replace(n2, n1)(rc))
+      case _ => Seq()
+    })
 
   lazy val fold: Syntax[Tree] =
     (foldK.skip ~ asK.skip ~ typeExpr ~ rsbra.skip ~
-    lpar.skip ~ expr ~ rpar.skip).map {
+    lpar.skip ~ expr ~ rpar.skip).map({
       case ty ~ e  => Fold(ty, e)
-    }
+      case _ => sys.error("Unreachable")
+    }, {
+      case Fold(ty, e) => Seq(ty ~ e)
+      case _ => Seq()
+    })
 
   lazy val unfoldIn: Syntax[Tree] =
-    (unfoldK.skip ~ valK.skip ~ termIdentifier ~ assignation.skip ~ expr ~ semicolon.skip ~
-     expr).map {
+    (unfoldK.skip ~ valK.skip ~ termIdentifier ~ equal.skip ~ expr ~ semicolon.skip ~
+     expr).map({
       case x ~ e1 ~ e2 => Unfold(e1, Bind(x, e2))
-    }
+      case _ => sys.error("Unreachable")
+    }, {
+      case Unfold(e1, Bind(x, e2)) => Seq(x ~ e1 ~ e2)
+      case _ => Seq()
+    })
 
   lazy val unfoldPositiveIn: Syntax[Tree] =
-    (unfoldPositiveK.skip ~ valK.skip ~ termIdentifier ~ assignation.skip ~ expr ~ semicolon.skip ~
-     expr).map {
+    (unfoldPositiveK.skip ~ valK.skip ~ termIdentifier ~ equal.skip ~ expr ~ semicolon.skip ~
+     expr).map({
       case x ~ e1 ~ e2 => UnfoldPositive(e1, Bind(x, e2))
-    }
+      case _ => sys.error("Unreachable")
+    }, {
+      case UnfoldPositive(e1, Bind(x, e2)) => Seq(x ~ e1 ~ e2)
+      case _ => Seq()
+    })
 
   lazy val letIn: Syntax[Tree] =
-     (valK.skip ~ termIdentifier ~ opt(lsbra.skip ~ typeExpr ~ rsbra.skip) ~ assignation.skip ~
-      expr ~ semicolon.skip ~ expr).map {
-      case x ~ optTy ~ e ~ e2 =>
-        LetIn(optTy, e, Bind(x, e2))
-    }
+     (valK.skip ~ termIdentifier ~ opt(lsbra.skip ~ typeExpr ~ rsbra.skip) ~ equal.skip ~
+      expr ~ semicolon.skip ~ expr).map({
+      case x ~ optTy ~ e ~ e2 => LetIn(optTy, e, Bind(x, e2))
+      case _ => sys.error("Unreachable")
+    }, {
+      case LetIn(optTy, e, Bind(x, e2)) => Seq(x ~ optTy ~ e ~ e2)
+      case _ => Seq()
+    })
 
-  lazy val parExpr: Syntax[Tree] = {
-    (lpar ~ repsep(expr, comma.unit()) ~ rpar).map {
-      case _ ~ l ~ _ =>
-        if (l.isEmpty) UnitLiteral
-        else if (l.size == 1) l.head
-        else {
-          val h = l.reverse.head
-          val r = l.reverse.tail.reverse
-          r.foldRight(h) { case (e, acc) => Pair(e, acc) }
-        }
-    }
-  }
-
-  sealed abstract class AppArgument
-  case class TypeAppArg(ty: Tree) extends AppArgument
-  case class TermAppArg(t: Tree) extends AppArgument
-  case class ErasableAppArg(t: Tree) extends AppArgument
+  lazy val parExpr: Syntax[Tree] =
+    (lpar ~>~ repsep(expr, comma) ~<~ rpar).map(Pairs(_),
+      e => Seq(Pairs.unapply(e).get)
+    )
 
   lazy val sBracketAppArg: Syntax[AppArgument] = {
-    (lsbra.skip ~ typeExpr ~ rsbra.skip).map { case e => TypeAppArg(e) }
+    (lsbra.skip ~ typeExpr ~ rsbra.skip).map({
+      case e => TypeAppArg(e)
+    }, {
+      case TypeAppArg(e) => Seq(e)
+      case _ => Seq()
+    })
   }
 
   lazy val bracketAppArg: Syntax[AppArgument] = {
-    (dlbra.skip ~ expr ~ drbra.skip).map { case ty => ErasableAppArg(ty) }
+    (dlbra.skip ~ expr ~ drbra.skip).map({
+      case e => ErasableAppArg(e)
+    }, {
+      case ErasableAppArg(e) => Seq(e)
+      case _ => Seq()
+    })
   }
 
   lazy val parAppArg: Syntax[AppArgument] = {
-    simpleExpr.map { case e => TermAppArg(e) }
+    simpleExpr.map({
+      case e => AppArg(e)
+    }, {
+      case AppArg(e) => Seq(e)
+      case _ => Seq()
+    })
   }
 
   lazy val appArg: Syntax[AppArgument] = parAppArg | bracketAppArg | sBracketAppArg
 
-  def createApp(args: Seq[AppArgument], fun: Tree): Tree = {
-    args.foldLeft(fun) {
-      case (acc, TypeAppArg(ty))     => TypeApp(acc, ty)
-      case (acc, TermAppArg(t))      => App(acc, t)
-      case (acc, ErasableAppArg(t))  => Inst(acc, t)
-    }
-  }
-
   lazy val application: Syntax[Tree] = {
-    (simpleExpr ~ many(appArg)).map { case f ~ args => createApp(args, f) }
+    (simpleExpr ~ many(appArg)).map({
+      case f ~ args => Applications(f, args)
+    }, {
+      case LeftTree(t)  => Seq(Var(Identifier(0, "left"))   ~ Seq(AppArg(t)))
+      case RightTree(t) => Seq(Var(Identifier(0, "right"))  ~ Seq(AppArg(t)))
+      case Size(t)      => Seq(Var(Identifier(0, "size"))   ~ Seq(AppArg(t)))
+      case First(t)     => Seq(Var(Identifier(0, "first"))  ~ Seq(AppArg(t)))
+      case Second(t)    => Seq(Var(Identifier(0, "second")) ~ Seq(AppArg(t)))
+      case Applications(f, args) => Seq(f ~ args)
+      case _ => Seq()
+    })
   }
 
   lazy val macroTermArg: Syntax[(Boolean, Tree)] =
-    simpleExpr.map((true, _))
+    simpleExpr.map((true, _), {
+      case (true, e) => Seq(e)
+      case _ => Seq()
+    })
 
   lazy val macroTypeArg: Syntax[(Boolean, Tree)] =
-    (lsbra.skip ~ typeExpr ~ rsbra.skip).map((false, _))
+    (lsbra.skip ~ typeExpr ~ rsbra.skip).map((false, _), {
+      case (false, e) => Seq(e)
+      case _ => Seq()
+    })
 
-  lazy val macroTypeInst: Syntax[Tree] = {
-    (typeIdentifier ~ many(macroTermArg | macroTypeArg)).map {
+  lazy val macroTypeInst: Syntax[Tree] =
+    (typeIdentifier ~ many(macroTermArg | macroTypeArg)).map({
       case id ~ Nil => Var(id)
       case id ~ args => MacroTypeInst(Var(id), args)
-    }
-  }
+    }, {
+      case Var(id) => Seq(id ~ Nil)
+      case MacroTypeInst(Var(id), args) => Seq(id ~ args)
+      case _ => Seq()
+    })
 
   lazy val eitherMatch: Syntax[Tree] =
-    (matchK.skip ~ expr ~ lbracase.skip ~
-                   leftK.skip ~ lpar.skip ~ termIdentifier ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
-      caseK.skip ~ rightK.skip ~ lpar.skip ~ termIdentifier ~ rpar.skip ~ arrow.skip ~ optBracketExpr ~
+    (matchK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ leftK.unit(KeywordToken("left")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ rightK.unit(KeywordToken("right")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
     rbra.skip
-    ).map {
-      case (e ~ v1 ~ e1 ~ v2 ~ e2) =>
-        EitherMatch(e, Bind(v1, e1), Bind(v2, e2))
-      case _ =>
-        sys.error("Unreachable")
-    }
-
-  val prefixedApplication: Syntax[Tree] = prefixes(not, application)({
-      case _ => throw new java.lang.Exception("Not implemented")
-    }, {
-      case _ => throw new java.lang.Exception("Not implemented")
-    })
-
-  val operator: Syntax[Tree] = {
-    operators(prefixedApplication)(
-      mul | div | and is LeftAssociative,
-      plus | minus | or is LeftAssociative,
-      lt | gt | lteq | gteq is LeftAssociative,
-      eq is LeftAssociative)({
-      case (x, OperatorToken(op), y) => Primitive(op, List(x,y))
+    ).map({
+      case (e ~ id1 ~ e1 ~ id2 ~ e2) => EitherMatch(e, Bind(id1, e1), Bind(id2, e2))
       case _ => sys.error("Unreachable")
     }, {
-      case Primitive(op, x ::  y ::  Nil) => (x, OperatorToken(op), y)
+      case EitherMatch(e, Bind(id1, e1), Bind(id2, e2)) => Seq(e ~ id1 ~ e1 ~ id2 ~ e2)
+      case _ => Seq()
     })
-  }
+
+  lazy val natMatch: Syntax[Tree] =
+    (matchK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ leftK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ rightK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
+    rbra.skip
+    ).map({
+      case (e ~ e1 ~ id2 ~ e2) => NatMatch(e, e1, Bind(id2, e2))
+      case _ => sys.error("Unreachable")
+    }, {
+      case NatMatch(e, e1, Bind(id2, e2)) => Seq(e ~ e1 ~ id2 ~ e2)
+      case _ => Seq()
+    })
+
+  lazy val notApplication: Syntax[Tree] = prefixes(not, application)({
+      case (_, e) => Primitive(Not, List(e))
+      case _ => sys.error("Unreachable")
+    }, {
+      case Primitive(not, List(e)) => (OperatorToken(Not), e)
+    })
+
+  lazy val mulDivAnd: Syntax[Tree] = infixLeft(notApplication, mul | div | and)({
+    case (x, OperatorToken(op), y) => Primitive(op, List(x,y))
+    case _ => sys.error("Unreachable")
+  }, {
+    case Primitive(op, x ::  y ::  Nil)
+      if op == Mul || op == Div || op == And =>
+
+      (x, OperatorToken(op), y)
+  })
+
+  lazy val plusMinusOr: Syntax[Tree] = infixLeft(mulDivAnd, plus | minus | or)({
+    case (x, OperatorToken(op), y) => Primitive(op, List(x,y))
+    case _ => sys.error("Unreachable")
+  }, {
+    case Primitive(op, x ::  y ::  Nil)
+      if op == Plus || op == Minus || op == Or =>
+
+      (x, OperatorToken(op), y)
+  })
+
+  lazy val ltGtLeqGeq: Syntax[Tree] = infixLeft(plusMinusOr, lt | gt | leq | geq)({
+    case (x, OperatorToken(op), y) => Primitive(op, List(x,y))
+    case _ => sys.error("Unreachable")
+  }, {
+    case Primitive(op, x ::  y ::  Nil)
+      if op == Lt || op == Gt || op == Leq || op == Geq => (x, OperatorToken(op), y)
+  })
+
+  lazy val termOrEquality: Syntax[Tree] =
+    (ltGtLeqGeq ~ withNone(doubleEqual.unit(OperatorToken(Eq)).skip ~ some(ltGtLeqGeq))).map({
+      case ty ~ None => ty
+      case ty1 ~ Some(ty2) => Primitive(Eq, List(ty1, ty2))
+    }, {
+      case Primitive(Eq, x ::  y ::  Nil) => Seq(x ~ Some(y))
+      case e => Seq(e ~ None)
+    })
 
   lazy val condition: Syntax[Tree] = {
-    (ifK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ bracketExpr ~ elseK.skip ~ bracketExpr).map {
-      case cond ~ vTrue ~ vFalse => IfThenElse(cond, vTrue, vFalse)
-    }
+    (ifK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ bracketExpr ~ elseK.skip ~ bracketExpr).map({
+      case cond ~ e1 ~ e2 => IfThenElse(cond, e1, e2)
+      case _ => sys.error("Unreachable")
+    }, {
+      case IfThenElse(cond, e1, e2) => Seq(cond ~ e1 ~ e2)
+      case _ => Seq()
+    })
   }
 
   lazy val optBracketExpr: Syntax[Tree] = expr | bracketExpr
 
-  lazy val bracketExpr: Syntax[Tree] = {
-    (lbra ~ expr ~ rbra).map { case _ ~ e ~ _ => e }
-  }
+  lazy val bracketExpr: Syntax[Tree] = lbraBlock.skip ~ expr ~ rbraBlock.skip
 
-  lazy val simpleExpr: Syntax[Tree] = literal | parExpr | fixpoint |
-    function | keep | error | fold
+  lazy val simpleExpr: Syntax[Tree] =
+    literal | parExpr | fixpoint |
+    lambda | keep | error | fold
 
   lazy val macroTypeDeclaration: Syntax[Tree] = {
     (lsbra.skip ~ typeK.skip ~ typeIdentifier ~
       many((lpar.skip ~ termIdentifier ~ rpar.skip) |
            (lsbra.skip ~ typeIdentifier ~ rsbra.skip)) ~
-      assignation.skip ~ typeExpr ~ rsbra.skip ~ expr).map {
-      case id ~ args ~ ty ~ rest =>
-        MacroTypeDecl(args.foldRight(ty)((arg, acc) => Bind(arg, acc)), Bind(id, rest))
-    }
+      equal.skip ~ typeExpr ~ rsbraNewLines.skip ~ expr).map({
+      case id ~ ids ~ ty ~ rest =>
+        MacroTypeDecl(Binds(ids, ty), Bind(id, rest))
+      case _ =>
+        sys.error("Unreachable")
+    }, {
+      case MacroTypeDecl(Binds(ids, ty), Bind(id, rest)) =>
+        Seq(id ~ ids ~ ty ~ rest)
+      case _ => Seq()
+    })
   }
 
   lazy val expr: Syntax[Tree] = recursive {
-    condition | eitherMatch | letIn | unfoldIn | unfoldPositiveIn |
-    defFunction | operator | macroTypeDeclaration
+    termOrEquality | condition | eitherMatch | letIn | unfoldIn | unfoldPositiveIn |
+    defFunction | macroTypeDeclaration
   }
 
   val exprParser = LL1(expr)

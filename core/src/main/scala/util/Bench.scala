@@ -31,7 +31,7 @@ class Bench() {
     result
   }
 
-  def seconds(ns: Double): String = s"${(ns / 1000000).toInt}ms"
+  def ms(ns: Double): String = s"${(ns / 1000000).toInt}ms"
 
   def surround(s: String, n: Int, c: Char): String = {
     c.toString * ((n - s.length) / 2) +
@@ -71,7 +71,7 @@ class Bench() {
         "Name",
         "Total",
         // "Min",
-        // "Max",
+        "Max",
         // "Average",
         "Times"
       ) +:
@@ -80,16 +80,17 @@ class Bench() {
           name,
           total,
           // seconds(minTimes(name)),
-          // seconds(maxTimes(name)),
+          maxTimes(name),
           // seconds(total / counts(name)),
           counts(name).toString
         )
       }.toSeq.sortBy(l => -(l(1).asInstanceOf[Double]))(Ordering.Double.TotalOrdering)
-             .map(l => Row(l.updated(1, seconds(l(1).asInstanceOf[Double]))
+             .map(l => Row(l.updated(1, ms(l(1).asInstanceOf[Double]))
+                            .updated(2, ms(l(2).asInstanceOf[Double]))
                             .map(_.toString)))
     )
     reporter.info(t.toString("TIMES"))
-    reporter.info("Sum times:  " + seconds(times.values.sum))
-    reporter.info("Total time: " + seconds(stopTime - startTime))
+    reporter.info("Sum times:  " + ms(times.values.sum))
+    reporter.info("Total time: " + ms(stopTime - startTime))
   }
 }

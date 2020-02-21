@@ -12,7 +12,7 @@ fun map[X][Y](f [X => Y])(xs [List[X]]) [returns List[Y]] = {
   [decreases (size xs)]
   [unfold] val xs = xs;
   match xs {
-    case left(u) => nil[Y]
-    case right(p) => cons[Y](f (first p))(map[X][Y](f)(second p))
+    case left u => nil[Y]
+    case right p => cons[Y](f (first p))(map[X][Y](f)(second p))
   }
 }

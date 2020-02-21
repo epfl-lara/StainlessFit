@@ -24,11 +24,11 @@ object Derivation {
 
   case class NodeTree[T](node: T, children: List[NodeTree[T]])
 
-  def emitErrorWithJudgment(rc: RunContext, name: String, goal: Goal, errOpt: Option[String]): (Boolean, Judgment) = {
+  def emitErrorWithJudgment(name: String, goal: Goal, errOpt: Option[String])(implicit rc: RunContext): (Boolean, Judgment) = {
     for (err <- errOpt)
       rc.reporter.error(
         s"""Error while applying rule $name at position ${goal.c.pos}
-          |on goal: $goal
+          |on goal: ${Printer.asString(goal)}
           |$err\n""".stripMargin
       )
     (false, ErrorJudgment(name, goal, errOpt))

@@ -20,12 +20,14 @@ import java.io.File
 
 import core.Core
 
-import core.util.Bench
-import core.util.FileWatcher
-import core.util.Reporter
-import core.util.RunContext
+import util.Bench
+import util.FileWatcher
+import util.Reporter
+import util.RunContext
+import parser.FitParser
+import trees.Printer
 
-class App()(implicit val rc: RunContext) {
+class App()(implicit rc: RunContext) {
 
   val file = rc.config.file
 
@@ -36,19 +38,19 @@ class App()(implicit val rc: RunContext) {
     }
   }
 
-  def eval(): Unit = FileWatcher.watchable(rc, file) {
+  def eval(): Unit = FileWatcher.watchable(file) {
     Core.evalFile(file) match {
       case Left(error) =>
         rc.reporter.error(s"Error during evaluation: $error")
         false
       case Right(value) =>
-        rc.reporter.info(s"$value")
+        Printer.exprInfo(value)
         true
     }
   }
 
-  def typeCheck(): Unit = FileWatcher.watchable(rc, file) {
-    Core.typeCheckFile(file, rc.config.html) match {
+  def typeCheck(): Unit = FileWatcher.watchable(file) {
+    Core.typeCheckFile(file) match {
       case Left(error) =>
         rc.reporter.error(s"$error")
         false
@@ -67,8 +69,9 @@ class App()(implicit val rc: RunContext) {
 object App {
   def launch(config: Config): Unit = {
 
-    val rc = new RunContext(config)
-    val app = new App()(rc)
+    implicit val rc = new RunContext(config)
+
+    val app = new App()
 
     app.start()
 

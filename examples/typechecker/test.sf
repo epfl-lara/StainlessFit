@@ -4,8 +4,8 @@ fun f(x [Nat])  [returns Nat] = {
 
 fun g(x [Nat + Nat])  [returns Nat] = {
   match x {
-    case left(x) => x
-    case right(x) => x
+    case left x => x
+    case right x => x
   }
 }
 
@@ -13,7 +13,7 @@ fun h(x [Unit]) = {
   2
 }
 
-fun badDef( x [{x [Nat] | x < second (fix[n => Nat](div => div), 2) }] )
+fun badDef( x [{x [Nat] | x < second (fix(div => div), 2) }] )
   [returns Nat] = {
   2
 }

@@ -19,6 +19,7 @@ case class Config(
   colors: Boolean                  = true,
   verbose: Boolean                 = false,
   info: Boolean                    = true,
+  printUniqueIds: Boolean          = false,
   debugSections: Set[DebugSection] = Set.empty,
 )
 

@@ -24,9 +24,6 @@ object ConfigParser {
       programName("stainless-fit"),
       head("StainlessFit", BuildInfo.version),
       help("help").text("Prints help information"),
-      opt[Unit]("verbose")
-        .action((_, c) => c.copy(verbose = true))
-        .text("Enable verbose output"),
       opt[Seq[DebugSection]]("debug")
         .action((ds, c) => c.copy(debugSections = ds.toSet))
         .text(s"Enable debugging information (available: ${DebugSection.available.mkString(", ")})"),
@@ -48,6 +45,9 @@ object ConfigParser {
       opt[Unit]("no-info")
         .action((_, c) => c.copy(info = false))
         .text("Disable [INFO] prefix in output"),
+      opt[Unit]("print-ids")
+        .action((_, c) => c.copy(printUniqueIds = true))
+        .text("Print unique identifiers"),
 
       note(""),
       cmd("eval")
@@ -74,7 +74,11 @@ object ConfigParser {
       checkConfig {
         case c if c.mode == null => failure("Please specify a command: eval, typecheck")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
-        case _ => success
+        case c =>
+          c.debugSections.find(!DebugSection.available(_)) match {
+            case None => success
+            case Some(section) => failure(s"$section is not a valid debug section")
+          }
       }
     )
   }

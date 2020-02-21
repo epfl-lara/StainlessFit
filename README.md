@@ -14,7 +14,7 @@ Then, after making a symbolic link or referring to the binary directly, you can
 type-check an example using:
 
 ```
-stainless-fit-cli typecheck --html examples/typechecker/stream.sf
+fit typecheck --html examples/typechecker/stream.sf
 ```
 
 This will create an HTML file of the type-checking derivation in `examples/typechecker/stream.sf.html`.

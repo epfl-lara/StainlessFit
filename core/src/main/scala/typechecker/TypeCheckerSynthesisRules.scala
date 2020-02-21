@@ -11,7 +11,7 @@ import Derivation._
 
 trait TypeCheckerSynthesisRules {
 
-  val rc: RunContext
+  implicit val rc: RunContext
 
   val SynthesisUnit = Rule("SynthesisUnit", {
     case g @ SynthesisGoal(c, UnitType) =>
@@ -53,7 +53,7 @@ trait TypeCheckerSynthesisRules {
           case SynthesisJudgment(_, _, _, t) :: _ =>
             (true, SynthesisJudgment("SynthesisPi", c, tp, Lambda(Some(tyX), Bind(x, t))))
           case _ =>
-            emitErrorWithJudgment(rc, "SynthesisPi", g, None)
+            emitErrorWithJudgment("SynthesisPi", g, None)
         }
       ))
     case _ => None
@@ -75,7 +75,7 @@ trait TypeCheckerSynthesisRules {
           case SynthesisJudgment(_, _, _, t1) :: SynthesisJudgment(_, _, _, t2) :: _ =>
             (true, SynthesisJudgment("SynthesisSigma", c, tp, Pair(t1, t2)))
           case _ =>
-            emitErrorWithJudgment(rc, "SynthesisSigma", g, None)
+            emitErrorWithJudgment("SynthesisSigma", g, None)
         }
       ))
     case _ => None
@@ -93,7 +93,7 @@ trait TypeCheckerSynthesisRules {
           case _ :: SynthesisJudgment(_, _, _, t2) :: _ =>
             (true, SynthesisJudgment("SynthesisSum", c, tp, RightTree(t2)))
           case _ =>
-            emitErrorWithJudgment(rc, "SynthesisSum", g, None)
+            emitErrorWithJudgment("SynthesisSum", g, None)
         }
       ))
     case _ => None

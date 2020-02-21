@@ -2,24 +2,18 @@ package stainlessfit
 package core
 package trees
 
+import util.RunContext
+import parser.FitParser
 
 sealed abstract class Operator {
   def isNatToNatBinOp: Boolean = Operator.isNatToNatBinOp(this)
-
   def isNatToBoolBinOp: Boolean = Operator.isNatToBoolBinOp(this)
-
   def isNatBinOp: Boolean = Operator.isNatBinOp(this)
-
   def isBoolToBoolBinOp: Boolean = Operator.isBoolToBoolBinOp(this)
-
   def isBoolToBoolUnOp: Boolean = Operator.isBoolToBoolBinOp(this)
-
   def returnedType: Tree = Operator.returnedType(this)
-
   def operandsType: Tree = Operator.operandsType(this)
-
   def isBinOp: Boolean = Operator.isBinOp(this)
-
   def isUnOp: Boolean = Operator.isUnOp(this)
 }
 
@@ -52,10 +46,10 @@ case object Eq extends Operator {
 case object Neq extends Operator {
   override def toString = "!="
 }
-case object Lteq extends Operator {
+case object Leq extends Operator {
   override def toString = "<="
 }
-case object Gteq extends Operator {
+case object Geq extends Operator {
   override def toString = ">="
 }
 case object Lt extends Operator {
@@ -85,8 +79,8 @@ object Operator {
     op match {
       case Eq => true
       case Neq => true
-      case Lteq => true
-      case Gteq => true
+      case Leq => true
+      case Geq => true
       case Lt => true
       case Gt => true
       case _ => false
@@ -145,8 +139,8 @@ object Operator {
     case "/" => Some(Div)
     case "==" => Some(Eq)
     case "!=" => Some(Neq)
-    case "<=" => Some(Lteq)
-    case ">=" => Some(Gteq)
+    case "<=" => Some(Leq)
+    case ">=" => Some(Geq)
     case "<" => Some(Lt)
     case ">" => Some(Gt)
     case _ => None
@@ -154,169 +148,8 @@ object Operator {
 }
 
 object Tree {
-  def setId(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Int) = {
-    t match {
-      case UnitLiteral => (t, max)
-      case NatLiteral(_) => (t, max)
-      case BooleanLiteral(_) => (t, max)
-      case UnitType => (t, max)
-      case NatType => (t, max)
-      case BoolType => (t, max)
-      case Error(s, Some(t)) =>
-        val (newT, max1) = setId(t, m, max)
-        (Error(s, Some(newT)), max1)
-      case Error(_, None) => (t, max)
-      case Var(id) =>
-        m.get(id) match {
-          case None => throw new java.lang.Exception(s"Error in name resolution: undefined variable $id at position ${t.pos}")
-          case Some(newId) => (Var(newId), max)
-        }
-      case IfThenElse(cond, t1, t2) =>
-        val (newC, max1) = setId(cond, m, max)
-        val (newT1, max2) = setId(t1, m, max1)
-        val (newT2, max3) = setId(t2, m, max2)
-        (IfThenElse(newC, newT1, newT2), max3)
-      case App(t1, t2) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newT2, max2) = setId(t2, m, max1)
-        (App(newT1, newT2), max2)
-      case Pair(t1, t2) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newT2, max2) = setId(t2, m, max1)
-        (Pair(newT1, newT2), max2)
-      case Size(t) =>
-        val (newT, max1) = setId(t, m, max)
-        (Size(newT), max1)
-      case First(t) =>
-        val (newT, max1) = setId(t, m, max)
-        (First(newT), max1)
-      case Second(t) =>
-        val (newT, max1) = setId(t, m, max)
-        (Second(newT), max1)
-      case LeftTree(t) =>
-        val (newT, max1) = setId(t, m, max)
-        (LeftTree(newT), max1)
-      case RightTree(t) =>
-        val (newT, max1) = setId(t, m, max)
-        (RightTree(newT), max1)
-      case Bind(y, e) =>
-        val m1 = m.updated(y, Identifier(max, y.name))
-        val (newE, max2) = setId(e, m1, max + 1)
-        (Bind(Identifier(max, y.name), newE), max2)
-      case Lambda(Some(tp), bind) =>
-        val (newTp, max1) = setId(tp, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (Lambda(Some(newTp), newBind), max2)
-      case Lambda(None, bind) =>
-        val (newBind, max1) = setId(bind, m, max)
-        (Lambda(None, newBind), max1)
-      case ErasableLambda(tp, bind) =>
-        val (newTp, max1) = setId(tp, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (ErasableLambda(newTp, newBind), max2)
-      case Fix(Some(tp), bind) =>
-        val (newTp, max1) = setId(tp, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (Fix(Some(newTp), newBind), max2)
-      case Fix(None, bind) =>
-        val (newBind, max1) = setId(bind, m, max)
-        (Fix(None, newBind), max1)
 
-      case LetIn(Some(tp), v, bind) =>
-        val (newTp, max1) = setId(tp, m, max)
-        val (newV, max2) = setId(v, m, max1)
-        val (newBind, max3) = setId(bind, m, max2)
-        (LetIn(Some(newTp), newV, newBind), max3)
-      case LetIn(None, v, bind) =>
-        val (newV, max1) = setId(v, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (LetIn(None, newV, newBind), max2)
-      case MacroTypeDecl(tpe, bind) =>
-        val (newTpe, max1) = setId(tpe, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (MacroTypeDecl(newTpe, newBind), max2)
-      case MacroTypeInst(v, args) =>
-        val (newV, max1) = setId(v, m, max)
-        val newArgs =
-          args.scanLeft((true, (UnitLiteral: Tree, max1))) {
-            case (cmax, (isTerm, arg)) =>
-              (isTerm, setId(arg, m, cmax._2._2))
-          }.tail
-        (MacroTypeInst(newV.asInstanceOf[Var], newArgs.map(p => (p._1, p._2._1))), newArgs.last._2._2)
-
-      case Match(t, t0, bind) =>
-        val (newT, max1) = setId(t, m, max)
-        val (newT0, max2) = setId(t0, m, max1)
-        val (newBind, max3) = setId(bind, m, max2)
-        (Match(newT, newT0, newBind), max3)
-      case EitherMatch(t, bind1, bind2) =>
-        val (newT, max1) = setId(t, m, max)
-        val (newBind1, max2) = setId(bind1, m, max1)
-        val (newBind2, max3) = setId(bind2, m, max2)
-        (EitherMatch(newT, newBind1, newBind2), max3)
-      case Primitive(op, t ::  Nil) =>
-        val (newT, max1) = setId(t, m, max)
-        (Primitive(op, newT ::  Nil), max1)
-      case Primitive(op, t1 ::  t2 ::  Nil) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newT2, max2) = setId(t2, m, max1)
-        (Primitive(op, newT1 ::  newT2 ::  Nil), max2)
-      case Inst(t1, t2) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newT2, max2) = setId(t2, m, max1)
-        (Inst(newT1, newT2), max2)
-      case Fold(tp, t) =>
-        val (newTp, max1) = setId(tp, m, max)
-        val (newT, max2) = setId(t, m, max1)
-        (Fold(newTp, newT), max2)
-      case Unfold(t, bind) =>
-        val (newT,max1) = setId(t, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (Unfold(newT, newBind), max2)
-      case UnfoldPositive(t, bind) =>
-        val (newT,max1) = setId(t, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (UnfoldPositive(newT, newBind), max2)
-      case Abs(bind) =>
-        val (newBind, max1) = setId(bind, m, max)
-        (Abs(newBind), max1)
-      case TypeApp(abs, t) =>
-        val (newAbs, max1) = setId(abs, m, max)
-        val (newT, max2) = setId(t, m, max1)
-        (TypeApp(newAbs, newT), max2)
-      case SumType(t1, t2) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newT2, max2) = setId(t2, m, max1)
-        (SumType(newT1, newT2), max2)
-      case PiType(t1, bind) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (PiType(newT1, newBind), max2)
-      case SigmaType(t1, bind) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (SigmaType(newT1, newBind), max2)
-      case IntersectionType(t1, bind) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (IntersectionType(newT1, newBind), max2)
-      case RefinementType(t1, bind) =>
-        val (newT1, max1) = setId(t1, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (RefinementType(newT1, newBind), max2)
-      case RecType(n, bind) =>
-        val (newN, max1) = setId(n, m, max)
-        val (newBind, max2) = setId(bind, m, max1)
-        (RecType(newN, newBind), max2)
-      case PolyForallType(bind) =>
-        val (newBind, max1) = setId(bind, m, max)
-        (PolyForallType(newBind), max1)
-
-      case _ => throw new java.lang.Exception(s"Function `setId` is not defined on tree: $t")
-    }
-  }
-
-  def replaceBind(bind: Tree, v: Tree): Tree = {
+  def replaceBind(bind: Tree, v: Tree)(implicit rc: RunContext): Tree = {
     require(isBind(bind))
     bind match {
       case Bind(id, body) => replace(id, v, body)
@@ -324,7 +157,7 @@ object Tree {
     }
   }
 
-  def replace(id: Identifier, v: Tree, body: Tree): Tree = {
+  def replace(id: Identifier, v: Tree, body: Tree)(implicit rc: RunContext): Tree = {
     body match {
       case Var(id2) if id2 == id => v
       case Var(_) => body
@@ -344,7 +177,11 @@ object Tree {
       case Because(t1, t2) => Because(replace(id, v, t1), replace(id, v, t2))
       case Bind(id2, e) if (id == id2) => body
       case Bind(id2, e) =>
-        assert(!id2.isFreeIn(v))
+        if (id2.isFreeIn(v))
+          rc.reporter.fatalError(
+            s"""Replacing ${Printer.asString(id)} by ${Printer.exprOrTypeAsString(v)} in
+              |$body would capture variable ${Printer.asString(id2)}""".stripMargin
+          )
         Bind(id2, replace(id, v, e))
       case Lambda(None, bind) => Lambda(None, replace(id, v, bind))
       case Lambda(Some(tp), bind) => Lambda(Some(replace(id, v, tp)), replace(id, v, bind))
@@ -359,10 +196,10 @@ object Tree {
           replace(id, v, v1),
           args.map(p => (p._1, replace(id, v, p._2)))
         )
-      case Match(t, t0, bind) => Match(replace(id, v, t), replace(id, v, t0), replace(id, v, bind))
+      case NatMatch(t, t0, bind) => NatMatch(replace(id, v, t), replace(id, v, t0), replace(id, v, bind))
       case EitherMatch(t, bind1, bind2) => EitherMatch(replace(id, v, t), replace(id, v, bind1), replace(id, v, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replace(id, v, _)))
-      case Inst(t1, t2) => Inst(replace(id, v, t1), replace(id, v, t2))
+      case ErasableApp(t1, t2) => ErasableApp(replace(id, v, t1), replace(id, v, t2))
       case Fold(tp, t) => Fold(replace(id, v, tp), replace(id, v, t))
       case Unfold(t, bind) => Unfold(replace(id, v, t), replace(id, v, bind))
       case UnfoldPositive(t, bind) => UnfoldPositive(replace(id, v, t), replace(id, v, bind))
@@ -385,6 +222,146 @@ object Tree {
       case TopType => TopType
 
       case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
+    }
+  }
+
+  def traverse_post(t: Tree, f: Tree => Unit): Unit = {
+    t match {
+      case Var(_) => f(t)
+      case UnitLiteral => f(t)
+      case NatLiteral(_) => f(t)
+      case BooleanLiteral(_) => f(t)
+      case IfThenElse(cond, t1, t2) =>
+        traverse_post(cond, f)
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+      case App(t1, t2) =>
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+      case Pair(t1, t2) =>
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+      case Size(t) => traverse_post(t, f); f(t)
+      case First(t) => traverse_post(t, f); f(t)
+      case Second(t) => traverse_post(t, f); f(t)
+      case LeftTree(t) => traverse_post(t, f); f(t)
+      case RightTree(t) => traverse_post(t, f); f(t)
+      case Because(t1, t2) =>
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+      case Bind(id2, e) =>
+        traverse_post(e, f)
+        // We don't feed Bind to `f` as it is not a tree on its own
+      case Lambda(optTy, bind) =>
+        optTy.foreach(ty => traverse_post(ty, f))
+        traverse_post(bind, f)
+        f(t)
+      case ErasableLambda(ty, bind) =>
+        traverse_post(ty, f)
+        traverse_post(bind, f)
+        f(t)
+      case Fix(optTy, bind) =>
+        optTy.foreach(ty => traverse_post(ty, f))
+        traverse_post(bind, f)
+        f(t)
+      case LetIn(optTy, t, bind) =>
+        optTy.foreach(ty => traverse_post(ty, f))
+        traverse_post(t, f)
+        traverse_post(bind, f)
+        f(t)
+      case MacroTypeDecl(ty, bind) =>
+        traverse_post(ty, f)
+        traverse_post(bind, f)
+        f(t)
+      case MacroTypeInst(v, args) =>
+        traverse_post(v, f)
+        args.foreach(arg => traverse_post(arg._2, f))
+        f(t)
+      case NatMatch(t, t0, bind) =>
+        traverse_post(t, f)
+        traverse_post(t0, f)
+        traverse_post(bind, f)
+        f(t)
+      case EitherMatch(t, bind1, bind2) =>
+        traverse_post(t, f)
+        traverse_post(bind1, f)
+        traverse_post(bind2, f)
+        f(t)
+      case Primitive(op, args) =>
+        args.foreach(arg => traverse_post(arg, f))
+        f(t)
+      case ErasableApp(t1, t2) =>
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+      case Fold(tp, t) =>
+        traverse_post(tp, f)
+        traverse_post(t, f)
+        f(t)
+      case Unfold(t, bind) =>
+        traverse_post(t, f)
+        traverse_post(bind, f)
+        f(t)
+      case UnfoldPositive(t, bind) =>
+        traverse_post(t, f)
+        traverse_post(bind, f)
+        f(t)
+      case Abs(bind) =>
+        traverse_post(bind, f)
+        f(t)
+      case TypeApp(abs, t) =>
+        traverse_post(abs, f)
+        traverse_post(t, f)
+        f(t)
+      case Error(_, optTy) =>
+        optTy.foreach(ty => traverse_post(ty, f))
+        f(t)
+
+      case NatType => f(t)
+      case BoolType => f(t)
+      case UnitType => f(t)
+      case SumType(t1, t2) =>
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+      case PiType(t1, bind) =>
+        traverse_post(t1, f)
+        traverse_post(bind, f)
+        f(t)
+      case SigmaType(t1, bind) =>
+        traverse_post(t1, f)
+        traverse_post(bind, f)
+        f(t)
+      case IntersectionType(t1, bind) =>
+        traverse_post(t1, f)
+        traverse_post(bind, f)
+        f(t)
+      case RefinementType(t1, bind) =>
+        traverse_post(t1, f)
+        traverse_post(bind, f)
+        f(t)
+      case RecType(n, bind) =>
+        traverse_post(n, f)
+        traverse_post(bind, f)
+        f(t)
+      case PolyForallType(bind) =>
+        traverse_post(bind, f)
+        f(t)
+      case EqualityType(t1, t2) =>
+        traverse_post(t1, f)
+        traverse_post(t2, f)
+        f(t)
+
+      case BottomType =>
+        f(t)
+      case TopType =>
+        f(t)
+
+      case _ => throw new java.lang.Exception(s"Function `traverse_post` is not implemented on $t (${t.getClass}).")
     }
   }
 
@@ -483,13 +460,13 @@ object Tree {
         ) yield
           MacroTypeInst(rv1, args.map(_._1).zip(rargs))
 
-      case Match(t, t0, bind) =>
+      case NatMatch(t, t0, bind) =>
         for (
           rt <- replace(p, t);
           rt0 <- replace(p, t0);
           rbind <- replace(p, bind)
         ) yield
-          Match(rt, rt0, rbind)
+          NatMatch(rt, rt0, rbind)
       case EitherMatch(t, bind1, bind2) =>
         for (
           rt <- replace(p, t);
@@ -507,12 +484,12 @@ object Tree {
           }
         ) yield
           Primitive(op, rargs)
-      case Inst(t1, t2) =>
+      case ErasableApp(t1, t2) =>
         for (
           rt1 <- replace(p,t1);
           rt2 <- replace(p,t2)
         ) yield
-          Inst(rt1, rt2)
+          ErasableApp(rt1, rt2)
 
       case Fold(tp, t) =>
         for (
@@ -624,10 +601,10 @@ object Tree {
           replaceMany(p, v1),
           args.map(a => (a._1, replaceMany(p, a._2)))
         )
-      case Match(t, t0, bind) => Match(replaceMany(p, t), replaceMany(p, t0), replaceMany(p, bind))
+      case NatMatch(t, t0, bind) => NatMatch(replaceMany(p, t), replaceMany(p, t0), replaceMany(p, bind))
       case EitherMatch(t, bind1, bind2) => EitherMatch(replaceMany(p, t), replaceMany(p, bind1), replaceMany(p, bind2))
       case Primitive(op, args) => Primitive(op, args.map(replaceMany(p, _)))
-      case Inst(t1, t2) => Inst(replaceMany(p, t1), replaceMany(p, t2))
+      case ErasableApp(t1, t2) => ErasableApp(replaceMany(p, t1), replaceMany(p, t2))
       case Fold(tp, t) => Fold(replaceMany(p, tp), replaceMany(p, t))
       case Unfold(t, bind) => Unfold(replaceMany(p, t), replaceMany(p, bind))
       case UnfoldPositive(t, bind) => UnfoldPositive(replaceMany(p, t), replaceMany(p, bind))
@@ -667,17 +644,17 @@ object Tree {
     case Second(t) => Second(erase(t))
     case LeftTree(t) => LeftTree(erase(t))
     case RightTree(t) => RightTree(erase(t))
-    case Because(t1, t2) => Because(erase(t1), erase(t2))
+    case Because(t1, t2) => erase(t1)
     case Bind(id2, e) => Bind(id2, erase(e))
     case Lambda(_, bind) => Lambda(None, erase(bind))
     case ErasableLambda(_, Bind(id, body)) => erase(body)
     case Fix(_, bind) => Fix(None, erase(bind))
     case LetIn(_, t1, bind) => App(Lambda(None, erase(bind)), erase(t1))
     case MacroTypeDecl(tpe, Bind(id, body)) => erase(body)
-    case Match(t, t0, bind) => Match(erase(t), erase(t0), erase(bind))
+    case NatMatch(t, t0, bind) => NatMatch(erase(t), erase(t0), erase(bind))
     case EitherMatch(t, bind1, bind2) => EitherMatch(erase(t), erase(bind1), erase(bind2))
     case Primitive(op, args) => Primitive(op, args.map(erase(_)))
-    case Inst(t1, _) => erase(t1)
+    case ErasableApp(t1, _) => erase(t1)
     case Fold(_, t) => erase(t)
     case Unfold(t1, bind) => App(Lambda(None, erase(bind)), erase(t1))
     case UnfoldPositive(t1, bind) => App(Lambda(None, erase(bind)), erase(t1))
@@ -709,7 +686,7 @@ object Tree {
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
-  def areEqual(t1: Tree, t2: Tree): Boolean = {
+  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext): Boolean = {
     (t1, t2) match {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
         areEqual(cond1, cond2) && areEqual(t11, t21) && areEqual(t12, t22)
@@ -735,13 +712,13 @@ object Tree {
           }
         else
           false
-      case (Match(n1, t1, bind1), Match(n2, t2, bind2)) => areEqual(n1, n2) && areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (NatMatch(n1, t1, bind1), NatMatch(n2, t2, bind2)) => areEqual(n1, n2) && areEqual(t1, t2) && areEqual(bind1, bind2)
       case (EitherMatch(t1, bind11, bind12), EitherMatch(t2, bind21, bind22)) =>
         areEqual(t1, t2) && areEqual(bind11, bind21) && areEqual(bind12, bind22)
       case (Primitive(op1, args1), Primitive(op2, args2)) =>
         if (op1 == op2 && args1.size == args2.size) args1.zip(args2).forall { case (t1, t2) => areEqual(t1, t2)}
         else false
-      case (Inst(t11, t12), Inst(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
+      case (ErasableApp(t11, t12), ErasableApp(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (Fold(tp1, t1), Fold(tp2, t2)) => areEqual(tp1, tp2) && areEqual(t1, t2)
       case (Unfold(t1, bind1), Unfold(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (UnfoldPositive(t1, bind1), UnfoldPositive(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
@@ -760,8 +737,8 @@ object Tree {
 }
 
 case class Identifier(id: Int, name: String) extends Positioned {
-  // override def toString: String = name + "#" + id
-  override def toString: String = name
+  override def toString: String = name + "#" + id
+  // override def toString: String = name
 
   def isTypeIdentifier: Boolean = name.size > 0 && name(0).isUpper
   def isTermIdentifier: Boolean = name.size > 0 && name(0).isLower
@@ -791,7 +768,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case LetIn(tp, v, bind) => isFreeIn(bind) || isFreeIn(v) || tp.exists(isFreeIn)
       case MacroTypeDecl(tp, bind) => isFreeIn(bind) || isFreeIn(tp)
       case MacroTypeInst(v, args) => isFreeIn(v) || args.exists(p => isFreeIn(p._2))
-      case Match(t, t0, bind) =>
+      case NatMatch(t, t0, bind) =>
         isFreeIn(t) || isFreeIn(t0) || isFreeIn(bind)
       case EitherMatch(t, bind1, bind2) =>
         isFreeIn(bind1) || isFreeIn(bind2) ||
@@ -802,7 +779,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case UnfoldPositive(t, bind) => isFreeIn(t) || isFreeIn(bind)
       case Abs(bind) => isFreeIn(bind)
-      case Inst(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+      case ErasableApp(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
@@ -816,6 +793,19 @@ case class Identifier(id: Int, name: String) extends Positioned {
   }
 }
 
+object Identifier {
+  var id = 0
+
+  def fresh(): Int = {
+    id = id + 1
+    id
+  }
+
+  def fresh(name: String): Identifier = {
+    Identifier(fresh(), name)
+  }
+}
+
 sealed abstract class Tree extends Positioned {
   def isBind: Boolean = Tree.isBind(this)
 
@@ -823,381 +813,98 @@ sealed abstract class Tree extends Positioned {
 
   def isValue: Boolean = Tree.isValue(this)
 
-  def isEqual(t: Tree): Boolean = Tree.areEqual(this, t)
+  def isEqual(t: Tree)(implicit rc: RunContext): Boolean = Tree.areEqual(this, t)
 
-  def replace(id: Identifier, t: Tree): Tree = Tree.replace(id, t, this)
+  def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Tree = Tree.replace(id, t, this)
+
+  def traverse_post(f: Tree => Unit): Unit = Tree.traverse_post(this, f)
 
   def replace(p: Tree => Option[Either[String,Tree]]): Either[String,Tree] = Tree.replace(p, this)
 
   def replaceMany(p: Tree => Option[Tree]): Tree = Tree.replaceMany(p, this)
 
-  def replace(id: Identifier, id2: Identifier): Tree = replace(id, Var(id2))
+  def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
   def erase(): Tree = Tree.erase(this)
-
-  def toStringPar: String = {
-    val s = toString
-    this match {
-      case Var(_) => s
-      case UnitLiteral => s
-      case BooleanLiteral(_) => s
-      case NatLiteral(_) => s
-      case _ =>
-        if (s(0) == '(') s
-        else "(" + s + ")"
-    }
-  }
 }
 
 case class Var(id: Identifier) extends Tree {
   setPos(id)
-  override def toString: String = id.toString
 }
 
 case class NatLiteral(n: BigInt) extends Tree {
   require(n >= 0)
-  override def toString: String = n.toString
+}
+
+sealed abstract class AppArgument
+case class TypeAppArg(ty: Tree) extends AppArgument
+case class AppArg(t: Tree) extends AppArgument
+case class ErasableAppArg(t: Tree) extends AppArgument
+
+sealed abstract class DefArgument {
+  val id: Identifier
+  def toAppArgument(): AppArgument
+}
+
+case class TypeArgument(id: Identifier) extends DefArgument {
+  def toAppArgument(): AppArgument = TypeAppArg(Var(id))
+}
+
+case class ForallArgument(id: Identifier, ty: Tree) extends DefArgument {
+  def toAppArgument(): AppArgument = ErasableAppArg(Var(id))
+}
+
+case class UntypedArgument(id: Identifier) extends DefArgument {
+  def toAppArgument(): AppArgument = AppArg(Var(id))
+}
+
+case class TypedArgument(id: Identifier, ty: Tree) extends DefArgument {
+  def toAppArgument(): AppArgument = AppArg(Var(id))
 }
 
 case class Succ(t: Tree) extends Tree
-
-case object UnitLiteral extends Tree {
-  override def toString: String = "unit"
-}
-
-case class BooleanLiteral(b: Boolean) extends Tree {
-  override def toString: String = if (b) "true" else "false"
-}
-
-case class Bind(id: Identifier, body: Tree) extends Tree {
-  private def bodyString(): String = {
-    " => {\n  " + body.toString.replaceAll("\n", "\n  ") + "\n}"
-  }
-
-  override def toString: String = id.toString + bodyString()
-
-  def toStringWithType(ty: Tree): String = {
-    id.toString + ": " + ty.toString + bodyString()
-  }
-}
-
-case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    "if (" + cond.toString + ") {\n" +
-    "  " + t1.toString.replaceAll("\n", "\n  ") + "\n" +
-    "}" + "\n" +
-    "else {" + "\n" +
-    "  " + t2.toString.replaceAll("\n", "\n  ") + "\n" +
-    "}"
-  }
-}
-
-case class Lambda(tp: Option[Tree], bind: Tree) extends Tree {
-  override def toString: String = {
-    (tp, bind) match {
-      case (Some(ty), Bind(id, body)) => s"fun ($id: $ty) => {\n  ${body.toString.replaceAll("\n", "\n  ")}\n}"
-      case (None, Bind(id, body)) => s"fun $id => {\n  ${body.toString.replaceAll("\n", "\n  ")}\n}"
-      case _ => "<Missing bind in λ>"
-    }
-  }
-}
-
-case class ErasableLambda(ty: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
-    bind match {
-      case Bind(id, body) =>
-        s"fun {{$id: $ty}} => {\n  ${body.toString.replaceAll("\n", "\n  ")}\n}"
-      case _ => "<Missing bind in ErasableLambda>"
-    }
-  }
-}
-
-case class App(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    t1.toString + " " + t2.toStringPar
-  }
-}
-
-case class Pair(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-     "(" + t1.toString + ", " + t2.toString + ")"
-  }
-}
-
-case class Size(t: Tree) extends Tree {
-  override def toString: String = {
-    "Size(" + t.toString + ")"
-  }
-}
-
-case class First(t: Tree) extends Tree {
-  override def toString: String = {
-    "First(" + t.toString + ")"
-  }
-}
-
-case class Second(t: Tree) extends Tree {
-  override def toString: String = {
-    "Second(" + t.toString + ")"
-  }
-}
-
-case class Fix(tp: Option[Tree], bind: Tree) extends Tree {
-  override def toString: String = {
-    bind match {
-      case Bind(n1, Bind(x, body)) =>
-        val tyString = tp match {
-          case Some(Bind(n, ty)) => "[" + n.toString + " => " + ty.toString + "]"
-          case _ => ""
-        }
-        "Fix" + tyString + "(\n" +
-        "  " + n1.toString + ", " + Bind(x, body).toString.replaceAll("\n", "\n  ") +
-        "\n)"
-      case _ => s"<Missing bind in Fix($tp, $bind)>"
-    }
-  }
-}
-
-case class Match(t: Tree, t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    t2 match {
-      case Bind(n, tn) =>
-        t.toString + " match {\n" +
-        "  case 0 =>\n" +
-        t1.toString.replaceAll("\n", "\n    ") + "\n"
-        "  case " + n.toString + " =>\n" +
-        tn.toString.replaceAll("\n", "\n    ") + "\n}"
-      case _ => "<Missing bind in Match>"
-    }
-  }
-}
-
-case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    (t1, t2) match {
-      case (Bind(x1, t1), Bind(x2, t2)) =>
-        t.toString + " match {\n" +
-        "  case Left(" + x1.toString + ") =>\n    " +
-        t1.toString.replaceAll("\n", "\n    ") + "\n" +
-        "  case Right(" + x2.toString + ") =>\n    " +
-        t2.toString.replaceAll("\n", "\n    ") + "\n}"
-      case _ => "<Missing bind in EitherMatch>"
-    }
-  }
-}
-
-case class LeftTree(t: Tree) extends Tree {
-  override def toString: String = {
-    "Left(" + t.toString + ")"
-  }
-}
-
-case class RightTree(t: Tree) extends Tree {
-  override def toString: String = {
-    "Right(" + t.toString + ")"
-  }
-}
-
-case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree {
-  override def toString: String = {
-    body match {
-      case Bind(x, t) =>
-        val typeString = tp match {
-            case Some(ty) => ": " + ty.toString
-            case _ => ""
-          }
-        "val " + x.toString + typeString + " = " + v.toString + ";\n" +
-        t.toString
-      case _ => throw new Exception("Missing bind in LetIn")
-    }
-  }
-}
-
-case class MacroTypeDecl(tp: Tree, body: Tree) extends Tree {
-  override def toString: String = {
-    body match {
-      case Bind(x, t) =>
-        def binds(acc: Seq[Identifier], t: Tree): (Seq[Identifier], Tree) = t match {
-          case Bind(id, body) => binds(acc :+ id, body)
-          case _ => (acc, t)
-        }
-        val (params, tpe) = binds(Seq(), tp)
-        s"[type $x${params.map(_.wrap).mkString} = $tpe]\n$t"
-      case _ => throw new Exception("Missing bind in MacroTypeDecl")
-    }
-  }
-}
-
-case class MacroTypeInst(v: Tree, args: Seq[(Boolean, Tree)]) extends Tree {
-  require(!args.isEmpty)
-  override def toString: String = {
-    s"$v${args.map { case (isTerm, arg) =>
-      if (isTerm) "(" + arg + ")"
-      else "[" + arg + "]"
-    }.mkString}"
-  }
-}
-
-case class Error(s: String, t: Option[Tree]) extends Tree {
-  override def toString: String = t match {
-    case None => s"Error($s)"
-    case Some(tp) => s"Error[$tp]($s)"
-  }
-}
-
-case class Primitive(op: Operator, args: List[Tree]) extends Tree {
-  override def toString: String = {
-    args match {
-      case n1 ::  Nil => s"$op($n1)"
-      case n1 ::  n2 ::  Nil =>
-        n1.toStringPar + op.toString + n2.toStringPar
-      case _ => throw new java.lang.Exception("Primitive operations have one or two arguments.")
-    }
-  }
-}
-
-case class Inst(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    s"$t1[{$t2}]"
-  }
-}
-
-case class Refl(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    "Refl(" + t1.toString + ", " + t2.toString + ")"
-  }
-}
-
-case class Fold(tp: Tree, t: Tree) extends Tree {
-  override def toString: String = {
-    s"[fold as $tp]($t)"
-  }
-}
-
-case class Unfold(t: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
-    bind match {
-      case Bind(x, body) => s"[unfold] val $x = $t;\n$body"
-      case _ => "<Missing bind in Unfold>"
-    }
-  }
-}
-
-case class UnfoldPositive(t: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
-    bind match {
-      case Bind(x, body) => s"[unfold positive] val $x = $t;\n$body"
-      case _ => "<Missing bind in UnfoldPositive>"
-    }
-  }
-}
-
-case class Abs(t: Tree) extends Tree {
-  override def toString: String = {
-    t match {
-      case Bind(a, t) =>
-        "Λ" + a.toString + ". " + t.toString
-      case _ => "<Missing bind in Abs>"
-    }
-  }
-}
-
-case class TypeApp(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    s"$t1[$t2]"
-  }
-}
-
-case object BottomType extends Tree {
-  override def toString: String = "⊥"
-}
-
-case object TopType extends Tree {
-  override def toString: String = "⊤"
-}
-
-case object UnitType extends Tree {
-  override def toString: String = "Unit"
-}
-
-case object BoolType extends Tree {
-  override def toString: String = "Bool"
-}
-
-case object NatType extends Tree {
-  override def toString: String = "Nat"
-}
-
-case class SigmaType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    t2 match {
-      case Bind(x, t2) =>
-        "(Σ" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<Missing bind in SigmaType>"
-    }
-  }
-}
-
-case class SumType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    "(" + t1.toString + ") + (" + t2.toString + ")"
-  }
-}
-
-case class PiType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    t2 match {
-      case Bind(x, t2) =>
-        "(Π " + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<Missing bind in PiType>"
-    }
-  }
-}
-
-case class IntersectionType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    t2 match {
-      case Bind(x, t2) =>
-        "(∀" + x.toString + ": " + t1.toString + ". " + t2.toString + ")"
-      case _ => "<Missing bind in IntersectionType>"
-    }
-  }
-}
-
-case class RefinementType(t1: Tree, t2: Tree) extends Tree {
-  override def toString: String = {
-    t2 match {
-      case Bind(x, t2) =>
-        "{" + x.toString + ": " + t1.toString + " | " + t2.toString + "}"
-      case _ => "<Missing bind in RefinementType>"
-    }
-  }
-}
-
-case class RecType(n: Tree, bind: Tree) extends Tree {
-  override def toString: String = {
-    bind match {
-      case Bind(a, ty) =>
-        "(Rec(" + n.toString + ")(" + a.toString + " => " + ty.toString + ")"
-      case _ => "<Missing bind in RecType>"
-    }
-  }
-}
-
-case class PolyForallType(t: Tree) extends Tree {
-  override def toString: String = {
-    t match {
-      case Bind(a, t) =>
-        s"(∀$a: Type. $t)"
-      case _ => "<Missing bind in PolyForallType>"
-    }
-  }
-}
-
+case object UnitLiteral extends Tree
+case class BooleanLiteral(b: Boolean) extends Tree
+case class Bind(id: Identifier, body: Tree) extends Tree
+case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree
+case class Lambda(tp: Option[Tree], bind: Tree) extends Tree
+case class DefFunction(args: Seq[DefArgument], optRet: Option[Tree], optMeasure: Option[Tree], body: Tree, rest: Tree) extends Tree
+case class ErasableLambda(ty: Tree, bind: Tree) extends Tree
+case class App(t1: Tree, t2: Tree) extends Tree
+case class Pair(t1: Tree, t2: Tree) extends Tree
+case class Size(t: Tree) extends Tree
+case class First(t: Tree) extends Tree
+case class Second(t: Tree) extends Tree
+case class Fix(tp: Option[Tree], bind: Tree) extends Tree
+case class NatMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
+case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
+case class LeftTree(t: Tree) extends Tree
+case class RightTree(t: Tree) extends Tree
+case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree
+case class MacroTypeDecl(tp: Tree, body: Tree) extends Tree
+case class MacroTypeInst(v: Tree, args: Seq[(Boolean, Tree)]) extends Tree
+case class Error(s: String, t: Option[Tree]) extends Tree
+case class Primitive(op: Operator, args: List[Tree]) extends Tree
+case class ErasableApp(t1: Tree, t2: Tree) extends Tree
+case class Refl(t1: Tree, t2: Tree) extends Tree
+case class Fold(tp: Tree, t: Tree) extends Tree
+case class Unfold(t: Tree, bind: Tree) extends Tree
+case class UnfoldPositive(t: Tree, bind: Tree) extends Tree
+case class Abs(t: Tree) extends Tree
+case class TypeApp(t1: Tree, t2: Tree) extends Tree
+case object BottomType extends Tree
+case object TopType extends Tree
+case object UnitType extends Tree
+case object BoolType extends Tree
+case object NatType extends Tree
+case class SigmaType(t1: Tree, t2: Tree) extends Tree
+case class SumType(t1: Tree, t2: Tree) extends Tree
+case class PiType(t1: Tree, t2: Tree) extends Tree
+case class IntersectionType(t1: Tree, t2: Tree) extends Tree
+case class RefinementType(t1: Tree, t2: Tree) extends Tree
+case class RecType(n: Tree, bind: Tree) extends Tree
+case class PolyForallType(t: Tree) extends Tree
 case class UnionType(t1: Tree, t2: Tree) extends Tree
-
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
-
 case class SingletonType(t: Tree) extends Tree
-
 case class Because(t1: Tree, t2: Tree) extends Tree
