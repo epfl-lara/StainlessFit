@@ -6,10 +6,18 @@ case class DebugSection(name: String) extends AnyVal {
 }
 
 object DebugSection {
-  val Rule      = DebugSection("rule")
-  val TypeCheck = DebugSection("typecheck")
-  val Equality  = DebugSection("equality")
+  val Rule                   = DebugSection("rule")
+  val TypeCheck              = DebugSection("typecheck")
+  val Equality               = DebugSection("equality")
+  val Phases                 = DebugSection("phases")
+  val DefFunctionElimination = DebugSection("DefFunctionElimination")
+  val FixIndexing            = DebugSection("FixIndexing")
+  val Namer                  = DebugSection("Namer")
+  val BuiltInIdentifiers     = DebugSection("BuiltInIdentifiers")
 
-  val available: Set[DebugSection] = Set(Rule, TypeCheck, Equality)
+  val available: Set[DebugSection] =
+    Set(
+      Rule, TypeCheck, Equality, Phases,
+      DefFunctionElimination, FixIndexing, Namer, BuiltInIdentifiers
+    )
 }
-

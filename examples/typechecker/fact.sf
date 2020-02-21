@@ -4,4 +4,4 @@ fun fac(m [Nat]) [returns Nat] = {
   else { m * fac(m - 1) }
 }
 
-fac(2)
+fac 2

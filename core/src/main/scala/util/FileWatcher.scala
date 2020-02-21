@@ -12,13 +12,13 @@ import scala.jdk.CollectionConverters._
 import scala.collection.mutable.{ Map => MutableMap }
 
 /**
- * Facility to run an [[action]] whenever any of the given [[files]] are updated.
+ * Facility to run an `action` whenever any of the given `files` are updated.
  *
- * The [[files]] should refer to absolute paths.
+ * The `files` should refer to absolute paths.
  *
  * Code taken from: https://github.com/epfl-lara/stainless/blob/0b10d1725319f4d2295f2b0bbfb59f6739191e99/core/src/main/scala/stainless/utils/FileWatcher.scala
  */
-class FileWatcher(reporter: Reporter, files: Set[File], action: () => Unit) {
+class FileWatcher(files: Set[File], action: () => Unit)(implicit rc: RunContext) {
 
   def run(): Unit = {
     action()
@@ -32,7 +32,7 @@ class FileWatcher(reporter: Reporter, files: Set[File], action: () => Unit) {
     val dirs: Set[Path] = files map { _.getParentFile.toPath }
     dirs foreach { _.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY) }
 
-    reporter.info(s"\n\nWaiting for source changes...\n\n")
+    rc.reporter.info(s"\n\nWaiting for source changes...\n\n")
 
     while (true) {
       // Wait for further changes, filtering out everything that is not of interest
@@ -62,14 +62,14 @@ class FileWatcher(reporter: Reporter, files: Set[File], action: () => Unit) {
         if (proceed) {
           // Wait a little bit to avoid reading incomplete files
           Thread.sleep(100)
-          reporter.info(s"Detecting some file modifications...: ${modified mkString ", "}")
+          rc.reporter.info(s"Detecting some file modifications...: ${modified mkString ", "}")
           action()
-          reporter.info(s"\n\nWaiting for source changes...\n\n")
+          rc.reporter.info(s"\n\nWaiting for source changes...\n\n")
         }
 
         val valid = key.reset()
         if (!valid)
-          reporter.info(s"Watcher is no longer valid for $relativeDir!")
+          rc.reporter.info(s"Watcher is no longer valid for $relativeDir!")
       }
     }
 
@@ -79,9 +79,8 @@ class FileWatcher(reporter: Reporter, files: Set[File], action: () => Unit) {
 }
 
 object FileWatcher {
-  def watchFile(rc: RunContext, file: File)(action: => Unit): Unit = {
+  def watchFile(file: File)(action: => Unit)(implicit rc: RunContext): Unit = {
     val watcher = new util.FileWatcher(
-      rc.reporter,
       Set(file.getAbsoluteFile),
       () =>
         try {
@@ -96,9 +95,9 @@ object FileWatcher {
     watcher.run()
   }
 
-  def watchable(rc: RunContext, file: File)(action: => Boolean): Unit = {
+  def watchable(file: File)(action: => Boolean)(implicit rc: RunContext): Unit = {
     if (rc.config.watch) {
-      watchFile(rc, file)(action)
+      watchFile(file)(action)
     }
     else {
       val result = action

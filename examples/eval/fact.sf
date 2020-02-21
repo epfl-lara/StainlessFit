@@ -1,7 +1,7 @@
 Include("../assert.sf")
 
-val fact = fix[n => Nat => Nat](fac =>
-  fun of (m [Nat]) = {
+val fact = fix(fac =>
+  fun of m = {
     if (m == 0) { 1 }
     else { m * (fac (m - 1)) }
   }

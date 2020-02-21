@@ -6,13 +6,14 @@ import core.trees._
 
 import util.Utils._
 import util.RunContext
+import parser.FitParser
 
 import Derivation._
 import TypeOperators._
 
 trait TypeCheckerProvenRules {
 
-  val rc: RunContext
+  implicit val rc: RunContext
 
   val InferBool = Rule("InferBool", {
     case g @ InferGoal(c, BooleanLiteral(b)) =>
@@ -73,7 +74,7 @@ trait TypeCheckerProvenRules {
       TypeChecker.debugs(rc, g, "InferVar")
       Some((List(), _ =>
         c.getTypeOf(id) match {
-          case None => emitErrorWithJudgment(rc, "InferVar", g, Some(s"$id is not in context"))
+          case None => emitErrorWithJudgment("InferVar", g, Some(s"$id is not in context"))
           case Some(tpe) => (true, InferJudgment("InferVar", c, Var(id), tpe))
         }
       ))
@@ -99,7 +100,7 @@ trait TypeCheckerProvenRules {
       Some((List(_ => errorGoal),
         {
           case AreEqualJudgment(_, _, _, _, _) :: _ => (true, InferJudgment("InferError", c, e, tp))
-          case _ => emitErrorWithJudgment(rc, "InferError", g, None)
+          case _ => emitErrorWithJudgment("InferError", g, None)
         }
       ))
 
@@ -125,7 +126,7 @@ trait TypeCheckerProvenRules {
           case _ :: InferJudgment(_, _, _, tyb) :: _ =>
             (true, InferJudgment("InferLet", c, e, tyb))
           case _ =>
-            emitErrorWithJudgment(rc, "InferLet", g, None)
+            emitErrorWithJudgment("InferLet", g, None)
         }
       ))
 
@@ -140,7 +141,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: InferJudgment(_, _, _, tyb) :: _ =>
             (true, InferJudgment("InferLet", c, e, tyb))
           case _ =>
-            emitErrorWithJudgment(rc, "InferLet", g, None)
+            emitErrorWithJudgment("InferLet", g, None)
         }
       ))
 
@@ -161,7 +162,7 @@ trait TypeCheckerProvenRules {
           case _ =>
             // Returning Top is sound but a bit misleading
             // (true, InferJudgment(c, e, TopType))
-            emitErrorWithJudgment(rc, "InferLambda", g, None)
+            emitErrorWithJudgment("InferLambda", g, None)
         }
       ))
 
@@ -181,7 +182,7 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, tyb) :: _ =>
             (true, InferJudgment("InferErasableLambda", c, e, IntersectionType(ty1, Bind(id, tyb))))
           case _ =>
-            emitErrorWithJudgment(rc, "InferErasableLambda", g, None)
+            emitErrorWithJudgment("InferErasableLambda", g, None)
         }
       ))
 
@@ -218,7 +219,7 @@ trait TypeCheckerProvenRules {
             }
 
           case _ =>
-            emitErrorWithJudgment(rc, "InferIf", g, None)
+            emitErrorWithJudgment("InferIf", g, None)
         }
       ))
 
@@ -232,7 +233,7 @@ trait TypeCheckerProvenRules {
       val opType = op.operandsType
       val checkN1 = CheckGoal(c.incrementLevel, n1, opType)
       val checkN2 = CheckGoal(c.incrementLevel, n2, opType)
-      val checkEq = EqualityGoal(c.incrementLevel, Primitive(Gteq, List(n1, n2)), BooleanLiteral(true))
+      val checkEq = EqualityGoal(c.incrementLevel, Primitive(Geq, List(n1, n2)), BooleanLiteral(true))
       Some((
         if(op == Minus) List(_ => checkN1, _ => checkN2, _ => checkEq) else List(_ => checkN1, _ => checkN2),
         {
@@ -241,7 +242,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: _ if op != Minus =>
             (true, InferJudgment("InferBinaryPrimitive", c, e, op.returnedType))
           case _ =>
-            emitErrorWithJudgment(rc, "InferBinaryPrimitive", g, None)
+            emitErrorWithJudgment("InferBinaryPrimitive", g, None)
         }
       ))
 
@@ -259,7 +260,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, InferJudgment("InferUnaryPrimitive", c, e, op.returnedType))
           case _ =>
-            emitErrorWithJudgment(rc, "InferUnaryPrimitive", g, None)
+            emitErrorWithJudgment("InferUnaryPrimitive", g, None)
         }
       ))
 
@@ -267,7 +268,7 @@ trait TypeCheckerProvenRules {
   })
 
   val InferMatch = Rule("InferMatch", {
-    case g @ InferGoal(c, e @ Match(t, t0, Bind(id, tn))) =>
+    case g @ InferGoal(c, e @ NatMatch(t, t0, Bind(id, tn))) =>
       TypeChecker.debugs(rc, g, "InferMatch")
       val c0 = c.incrementLevel
       val checkN = CheckGoal(c0, t, NatType)
@@ -292,7 +293,7 @@ trait TypeCheckerProvenRules {
             }
 
           case _ =>
-            emitErrorWithJudgment(rc, "InferMatch", g, None)
+            emitErrorWithJudgment("InferMatch", g, None)
         }
       ))
 
@@ -333,13 +334,13 @@ trait TypeCheckerProvenRules {
             InferJudgment(_, _, _, ty1) ::
             InferJudgment(_, _, _, ty2) :: _ =>
               TypeOperators.eitherMatch(t, id1, ty1, id2, ty2) match {
-                case None => emitErrorWithJudgment(rc, "InferEitherMatch", g,
+                case None => emitErrorWithJudgment("InferEitherMatch", g,
                   Some(s"Cannot unify types $ty1 and $ty2")
                 )
                 case Some(ty) => (true, InferJudgment("InferEitherMatch", c, e, ty))
               }
 
-          case _ => emitErrorWithJudgment(rc, "InferEitherMatch", g, None)
+          case _ => emitErrorWithJudgment("InferEitherMatch", g, None)
         }
       ))
 
@@ -354,14 +355,14 @@ trait TypeCheckerProvenRules {
 
       if (n1.isFreeIn(erased)) {
         Some((List(),
-          _ => emitErrorWithJudgment(rc, "InferFix", g, Some(s"Variable $n1 should not appear in the erasure of $t."))
+          _ => emitErrorWithJudgment("InferFix", g, Some(s"Variable $n1 should not appear in the erasure of $t."))
         ))
       } else if (!erased.isValue) {
         Some((List(),
-          _ => emitErrorWithJudgment(rc, "InferFix", g, Some(s"The erasure of $t must be a value."))
+          _ => emitErrorWithJudgment("InferFix", g, Some(s"The erasure of $t must be a value."))
         ))
       } else {
-        val (freshM, c0) = c.incrementLevel.getFresh("_M")
+        val (freshM, c0) = c.incrementLevel.getFresh("m")
         val (freshN, c1) = c0.bindFresh(n1.name, NatType)
         val (freshY, c2) = c1.bindFresh(y.name,
           IntersectionType(
@@ -375,7 +376,7 @@ trait TypeCheckerProvenRules {
             case CheckJudgment(_, _, _, _) :: _ =>
               (true, InferJudgment("InferFix", c, e, IntersectionType(NatType, Bind(n, ty))))
             case _ =>
-              emitErrorWithJudgment(rc, "InferFix", g, None)
+              emitErrorWithJudgment("InferFix", g, None)
           }
         ))
       }
@@ -384,7 +385,7 @@ trait TypeCheckerProvenRules {
   })
 
   val InferForallInstantiation = Rule("InferForallInstantiation", {
-    case g @ InferGoal(c, e @ Inst(t1, t2)) =>
+    case g @ InferGoal(c, e @ ErasableApp(t1, t2)) =>
       TypeChecker.debugs(rc, g, "InferForallInstantiation")
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, t1)
@@ -406,12 +407,12 @@ trait TypeCheckerProvenRules {
               case IntersectionType(_, Bind(x, ty)) =>
                 (true, InferJudgment("InferForallInstantiation", c, e, ty.replace(x, t2)))
 
-              case _ => emitErrorWithJudgment(rc, "InferForallInstantiation", g,
+              case _ => emitErrorWithJudgment("InferForallInstantiation", g,
                 Some(s"Expected an intersection type for ${t1}, found ${ty} instead")
               )
             }
 
-          case _ => emitErrorWithJudgment(rc, "InferForallInstantiation", g, None)
+          case _ => emitErrorWithJudgment("InferForallInstantiation", g, None)
         }
       ))
 
@@ -441,13 +442,13 @@ trait TypeCheckerProvenRules {
             dropRefinements(ty) match {
               case PiType(_, Bind(x, ty)) =>
                 (true, InferJudgment("InferApp", c, e, ty.replace(x, t2)))
-              case _ => emitErrorWithJudgment(rc, "InferApp", g,
+              case _ => emitErrorWithJudgment("InferApp", g,
                 Some(s"Expected a Pi-type for ${t1}, found ${ty} instead")
               )
             }
 
           case _ =>
-            emitErrorWithJudgment(rc, "InferApp", g, None)
+            emitErrorWithJudgment("InferApp", g, None)
         }
       ))
 
@@ -465,7 +466,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckRefinement", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckRefinement", g, None)
+            emitErrorWithJudgment("CheckRefinement", g, None)
         }
       ))
 
@@ -484,11 +485,11 @@ trait TypeCheckerProvenRules {
           } =>
             (true, CheckJudgment("CheckReflexive", c, t, ty))
           case InferJudgment(_, _, _, tpe) :: _ =>
-            emitErrorWithJudgment(rc, "CheckReflexive", g,
+            emitErrorWithJudgment("CheckReflexive", g,
               Some(s"Expected type ${ty} for ${t}, found $tpe instead")
             )
           case _ =>
-            emitErrorWithJudgment(rc, "CheckReflexive", g, None)
+            emitErrorWithJudgment("CheckReflexive", g, None)
         }
       ))
     case g =>
@@ -503,10 +504,10 @@ trait TypeCheckerProvenRules {
       Some((List(_ => inferFirst, _ => inferSecond),
         {
           case InferJudgment(_, _, _, ty1) :: InferJudgment(_, _, _, ty2) :: _ =>
-            val inferredType = SigmaType(ty1, Bind(Identifier(0, "_X"), ty2))
+            val inferredType = SigmaType(ty1, Bind(Identifier.fresh("X"), ty2))
             (true, InferJudgment("InferPair", c, e, inferredType))
           case _ =>
-            emitErrorWithJudgment(rc, "InferPair", g, None)
+            emitErrorWithJudgment("InferPair", g, None)
         }
       ))
     case g =>
@@ -522,7 +523,7 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, SigmaType(ty, _)) :: _ =>
             (true, InferJudgment("InferFirst", c, e, ty))
           case _ =>
-            emitErrorWithJudgment(rc, "InferFirst", g, None)
+            emitErrorWithJudgment("InferFirst", g, None)
         }
       ))
     case g =>
@@ -538,7 +539,7 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, SigmaType(_, Bind(x, ty))) :: _ =>
             (true, InferJudgment("InferSecond", c, e, ty.replace(x, First(t))))
           case _ =>
-            emitErrorWithJudgment(rc, "InferSecond", g, None)
+            emitErrorWithJudgment("InferSecond", g, None)
         }
       ))
     case g =>
@@ -554,7 +555,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckLeft", c, e, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckLeft", g, None)
+            emitErrorWithJudgment("CheckLeft", g, None)
         }
       ))
     case g =>
@@ -570,7 +571,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckRight", c, e, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckRight", g, None)
+            emitErrorWithJudgment("CheckRight", g, None)
         }
       ))
     case g =>
@@ -587,7 +588,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckLambda", c, e, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckLambda", g, None)
+            emitErrorWithJudgment("CheckLambda", g, None)
         }
       ))
     case g =>
@@ -604,7 +605,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckPi", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckPi", g, None)
+            emitErrorWithJudgment("CheckPi", g, None)
         }
       ))
     case g =>
@@ -629,7 +630,7 @@ trait TypeCheckerProvenRules {
                 _ =>
             (true, CheckJudgment("CheckIf", c, e, ty))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckIf", g, None)
+            emitErrorWithJudgment("CheckIf", g, None)
         }
       ))
 
@@ -638,7 +639,7 @@ trait TypeCheckerProvenRules {
   })
 
   val CheckMatch = Rule("CheckMatch", {
-    case g @ CheckGoal(c, e @ Match(t, t0, Bind(id, tn)), ty) =>
+    case g @ CheckGoal(c, e @ NatMatch(t, t0, Bind(id, tn)), ty) =>
       TypeChecker.debugs(rc, g, "CheckMatch")
       val c0 = c.incrementLevel
       val checkN = CheckGoal(c0, t, NatType)
@@ -651,7 +652,7 @@ trait TypeCheckerProvenRules {
                 CheckJudgment(_, _, _, _) ::
                 CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckMatch", c, e, ty))
-          case _ => emitErrorWithJudgment(rc, "CheckMatch", g, None)
+          case _ => emitErrorWithJudgment("CheckMatch", g, None)
         }
       ))
 
@@ -690,7 +691,7 @@ trait TypeCheckerProvenRules {
                 CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckEitherMatch", c, e, tpe))
 
-          case _ => emitErrorWithJudgment(rc, "CheckEitherMatch", g, None)
+          case _ => emitErrorWithJudgment("CheckEitherMatch", g, None)
         }
       ))
 
@@ -708,7 +709,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckPair", c, e, ty))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckPair", g, None)
+            emitErrorWithJudgment("CheckPair", g, None)
         }
       ))
     case g =>
@@ -726,7 +727,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckSigma", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckSigma", g, None)
+            emitErrorWithJudgment("CheckSigma", g, None)
         }
       ))
     case g =>
@@ -737,13 +738,13 @@ trait TypeCheckerProvenRules {
     case g @ CheckGoal(c, t, tpe @ IntersectionType(tyid, Bind(id, ty))) =>
       TypeChecker.debugs(rc, g, "CheckIntersection")
       val (freshId, c1) = c.bindFresh(id.name, tyid)
-      val subgoal = CheckGoal(c1.incrementLevel, Inst(t, Var(freshId)), ty.replace(id, Var(freshId)))
+      val subgoal = CheckGoal(c1.incrementLevel, ErasableApp(t, Var(freshId)), ty.replace(id, Var(freshId)))
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckIntersection", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckIntersection", g, None)
+            emitErrorWithJudgment("CheckIntersection", g, None)
         }
       ))
     case g =>
@@ -768,7 +769,7 @@ trait TypeCheckerProvenRules {
           case _ :: CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckLet", c, e, ty))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckLet", g, None)
+            emitErrorWithJudgment("CheckLet", g, None)
         }
       ))
 
@@ -783,7 +784,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckLet", c, e, ty))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckLet", g, None)
+            emitErrorWithJudgment("CheckLet", g, None)
         }
       ))
 
@@ -797,7 +798,7 @@ trait TypeCheckerProvenRules {
       val checkN = CheckGoal(c.incrementLevel, n, NatType)
       val c1 = c.addEquality(n, NatLiteral(0))
       val checkBase = CheckGoal(c1.incrementLevel, t, TypeOperators.basetype(a, ty))
-      val (id, c2) = c.bindFresh("_n", NatType)
+      val (id, c2) = c.bindFresh("n", NatType)
       val n2 = Var(id)
       val c3 = c2.addEquality(
         n,
@@ -811,7 +812,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: _ =>
             (true, InferJudgment("InferFold", c, e, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "InferFold", g, None)
+            emitErrorWithJudgment("InferFold", g, None)
         }
       ))
     case g =>
@@ -829,7 +830,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ if TypeOperators.spos(a, ty) =>
             (true, InferJudgment("InferFoldGen", c, e, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "InferFoldGen", g, None)
+            emitErrorWithJudgment("InferFoldGen", g, None)
         }
       ))
     case g =>
@@ -858,7 +859,7 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckRecursive", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckRecursive", g, None)
+            emitErrorWithJudgment("CheckRecursive", g, None)
         }
       ))
 
@@ -882,7 +883,7 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckTop2", c, t, TopType))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckTop2", g, None)
+            emitErrorWithJudgment("CheckTop2", g, None)
         }
       ))
     case g =>
@@ -961,15 +962,15 @@ trait TypeCheckerProvenRules {
                         ty1 + " is not equal to " + ty2)
                       )
                     )
-                  case _ => emitErrorWithJudgment(rc, "InferUnfold", g, None)
+                  case _ => emitErrorWithJudgment("InferUnfold", g, None)
                 }
                case _ =>
-                emitErrorWithJudgment(rc, "InferUnfold", g,
+                emitErrorWithJudgment("InferUnfold", g,
                   Some("Expected a rec type for " + t1 + ", found: " + ty)
                 )
             }
           case _ =>
-            emitErrorWithJudgment(rc, "InferUnfold", g, None)
+            emitErrorWithJudgment("InferUnfold", g, None)
         }
       ))
 
@@ -1003,7 +1004,7 @@ trait TypeCheckerProvenRules {
           case  InferJudgment(_, _, _, _) ::
                 InferJudgment(_, _, _, ty2) :: _ =>
             (true, InferJudgment("InferUnfoldPositive", c, e, ty2))
-          case _ => emitErrorWithJudgment(rc, "InferUnfoldPositive", g, None)
+          case _ => emitErrorWithJudgment("InferUnfoldPositive", g, None)
         }
       ))
 
@@ -1020,7 +1021,7 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, tpe) :: _ =>
             (true, InferJudgment("InferTypeAbs", c, e, PolyForallType(Bind(a, tpe))))
           case _ =>
-            emitErrorWithJudgment(rc, "InferTypeAbs", g, None)
+            emitErrorWithJudgment("InferTypeAbs", g, None)
         }
       ))
     case g =>
@@ -1037,14 +1038,14 @@ trait TypeCheckerProvenRules {
           case InferJudgment(_, _, _, PolyForallType(Bind(x, tpe))) :: _ =>
             (true, InferJudgment("InferTypeApp", c, e, tpe.replace(x, ty)))
           case InferJudgment(_, _, _, ty) :: _ =>
-            emitErrorWithJudgment(rc, "InferTypeApp", g,
+            emitErrorWithJudgment("InferTypeApp", g,
               Some(
                 "Expected (polymorphic) forall type for: " + t +
                 ", found: " + ty
               )
             )
           case _ =>
-            emitErrorWithJudgment(rc, "InferTypeApp", g, None)
+            emitErrorWithJudgment("InferTypeApp", g, None)
         }
       ))
     case g =>
@@ -1061,7 +1062,7 @@ trait TypeCheckerProvenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckTypeAbs", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckTypeAbs", g, None)
+            emitErrorWithJudgment("CheckTypeAbs", g, None)
         }
       ))
     case g =>
@@ -1081,9 +1082,9 @@ trait TypeCheckerProvenRules {
   })
 
   def unfoldRefinementInContext(c: Context): Context = {
-    c.variables.foldLeft(c) { case (acc, x) =>
-      c.getTypeOf(x) match {
-        case Some(RefinementType(ty, Bind(y, t2))) =>
+    c.termVariables.foldLeft(c) { case (acc, (x, tp)) =>
+      tp match {
+        case RefinementType(ty, Bind(y, t2)) =>
           val t2p = t2.replace(y, Var(x))
           c.copy(
             termVariables = c.termVariables.updated(x, ty)
@@ -1094,7 +1095,7 @@ trait TypeCheckerProvenRules {
   }
 
   val UnfoldRefinementInContext = Rule("UnfoldRefinementInContext", {
-    case g @ EqualityGoal(c, t1, t2) if c.hasRefinementBound =>
+    case g @ EqualityGoal(c, t1, t2) if c.hasRefinement =>
       TypeChecker.debugs(rc, g, "UnfoldRefinementInContext")
       val c1 = unfoldRefinementInContext(c)
       val subgoal = EqualityGoal(c1.incrementLevel, t1, t2)
@@ -1103,7 +1104,7 @@ trait TypeCheckerProvenRules {
           case AreEqualJudgment(_, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, ""))
           case _ =>
-            emitErrorWithJudgment(rc, "UnfoldRefinementInContext", g, None)
+            emitErrorWithJudgment("UnfoldRefinementInContext", g, None)
         }
       ))
     case g =>
@@ -1112,12 +1113,10 @@ trait TypeCheckerProvenRules {
 
   val EqualityInContext = Rule("EqualityInContext", {
     case g @ EqualityGoal(c, t1, t2) if
-      c.variables.exists(v =>
-        c.termVariables.contains(v) && (
-          c.termVariables(v) == EqualityType(t1,t2) ||
-          c.termVariables(v) == EqualityType(t2,t1)
-        )
-      )
+      c.termVariables.exists { case (v, tp) =>
+        tp == EqualityType(t1,t2) ||
+        tp == EqualityType(t2,t1)
+      }
       =>
       TypeChecker.debugs(rc, g, "EqualityInContext")
       Some((List(),

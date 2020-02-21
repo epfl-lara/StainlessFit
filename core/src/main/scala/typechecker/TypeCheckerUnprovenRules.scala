@@ -7,12 +7,14 @@ import core.trees._
 import util.RunContext
 import util.Utils._
 
+import parser.FitParser
+
 import Derivation._
 import TypeOperators._
 
 trait TypeCheckerUnprovenRules {
 
-  val rc: RunContext
+  implicit val rc: RunContext
 
   val InferSize = Rule("InferSize", {
     case g @ InferGoal(c, e @ Size(t)) =>
@@ -23,7 +25,7 @@ trait TypeCheckerUnprovenRules {
           case InferJudgment(_, _, _, tpe) :: _ =>
             (true, InferJudgment("InferSize", c, e, NatType))
           case _ =>
-            emitErrorWithJudgment(rc, "InferSize", g, None)
+            emitErrorWithJudgment("InferSize", g, None)
         }
       ))
     case g =>
@@ -39,7 +41,7 @@ trait TypeCheckerUnprovenRules {
           case InferJudgment(_, _, _, tpe) :: _ =>
             (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType)))
           case _ =>
-            emitErrorWithJudgment(rc, "InferLeft", g, None)
+            emitErrorWithJudgment("InferLeft", g, None)
         }
       ))
     case g =>
@@ -55,7 +57,7 @@ trait TypeCheckerUnprovenRules {
           case InferJudgment(_, _, _, tpe) :: _ =>
             (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe)))
           case _ =>
-            emitErrorWithJudgment(rc, "InferRight", g, None)
+            emitErrorWithJudgment("InferRight", g, None)
         }
       ))
     case g =>
@@ -78,7 +80,7 @@ trait TypeCheckerUnprovenRules {
           case CheckJudgment(_, _, _, _) :: _ =>
             (true, CheckJudgment("CheckSum", c, t, tpe))
           case _ =>
-            emitErrorWithJudgment(rc, "CheckSum", g, None)
+            emitErrorWithJudgment("CheckSum", g, None)
         }
       ))
     case g =>
@@ -101,7 +103,7 @@ trait TypeCheckerUnprovenRules {
             CheckJudgment(_, _, _, _) :: _ =>
             (true, AreEqualJudgment("NatEqualToEqual", c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true), ""))
           case _ =>
-            emitErrorWithJudgment(rc, "NatEqualToEqual", g, None)
+            emitErrorWithJudgment("NatEqualToEqual", g, None)
         }
       ))
     case g =>
@@ -110,14 +112,14 @@ trait TypeCheckerUnprovenRules {
 
   def findEquality(l: List[Identifier], termVariables: Map[Identifier, Tree], id: Identifier): Option[Tree] = l match {
     case Nil => None
-    case v ::  vs if termVariables.contains(v) => termVariables(v) match {
+    case v :: vs if termVariables.contains(v) => termVariables(v) match {
       case EqualityType(Var(id2), t) if id == id2 =>
         Some(t)
       case EqualityType(t, Var(id2)) if id == id2 && !t.isInstanceOf[Var] =>
         Some(t)
       case _ => findEquality(vs, termVariables, id)
     }
-    case v ::  vs => findEquality(vs, termVariables, id)
+    case v :: vs => findEquality(vs, termVariables, id)
   }
 
   // This function expands variables in a tree, but shouldn't go under lambdas
@@ -126,7 +128,7 @@ trait TypeCheckerUnprovenRules {
   // for all substitutions consistent with c, the denotations of ty and ty'
   // are the same.
   def expandVars(c: Context, t: Tree): Option[Tree] = t match {
-    case Var(id) => findEquality(c.variables, c.termVariables, id)
+    case Var(id) => findEquality(c.termVariables.keys.toList, c.termVariables, id)
     case Primitive(op, args) =>
       mapFirst2(args, (arg: Tree) => expandVars(c, arg)).map(newArgs =>
         Primitive(op, newArgs)
@@ -142,14 +144,14 @@ trait TypeCheckerUnprovenRules {
 
   def expandVars(c: Context, l: List[Identifier]): Option[Context] = l match {
     case Nil => None
-    case v ::  vs if c.termVariables.contains(v) =>
-      expandVars(c.copy(variables = l.tail), c.termVariables(v)).map(
+    case v :: vs if c.termVariables.contains(v) =>
+      expandVars(c.copy(termVariables = c.termVariables - v), c.termVariables(v)).map(
         ty => c.copy(termVariables = c.termVariables.updated(v, ty))
       ) orElse expandVars(c, vs)
-    case _ ::  vs => expandVars(c, vs)
+    case _ :: vs => expandVars(c, vs)
   }
 
-  def expandVars(c: Context): Option[Context] = expandVars(c, c.variables)
+  def expandVars(c: Context): Option[Context] = expandVars(c, c.termVariables.keys.toList)
 
   def expandVars(g: Goal): Option[Goal] = g match {
     case InferGoal(c, t) =>
@@ -191,7 +193,7 @@ trait TypeCheckerUnprovenRules {
     l match {
       case Nil => None
       case v ::  vs if c.termVariables.contains(v) =>
-        lift(f, c.copy(variables = vs), c.termVariables(v)).map {
+        lift(f, c.copy(termVariables = c.termVariables - v), c.termVariables(v)).map {
           case (e, a) =>
             (c.copy(termVariables = c.termVariables.updated(v, e)), a)
         } orElse {
@@ -202,7 +204,7 @@ trait TypeCheckerUnprovenRules {
   }
 
   def lift[T](f: (Context, Tree) => Option[(Tree, T)], c: Context): Option[(Context, T)] = {
-    lift(f, c, c.variables)
+    lift(f, c, c.termVariables.keys.toList)
   }
 
   def lift[T](f: (Context, Tree) => Option[(Tree, T)], c: Context, t: Tree): Option[(Tree, T)] = f(c, t) orElse {
@@ -226,7 +228,7 @@ trait TypeCheckerUnprovenRules {
           case AreEqualJudgment(_, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("ExpandVars", c, t1, t2, ""))
           case _ =>
-            emitErrorWithJudgment(rc, "ExpandVars", g, None)
+            emitErrorWithJudgment("ExpandVars", g, None)
         })
       }
     case g =>
@@ -268,7 +270,7 @@ trait TypeCheckerUnprovenRules {
             case _ :: AreEqualJudgment(_, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("InlineApplications", c, t1, t2, ""))
             case _ =>
-              emitErrorWithJudgment(rc, "InlineApplications", g, None)
+              emitErrorWithJudgment("InlineApplications", g, None)
           })
       }
 
@@ -291,7 +293,7 @@ trait TypeCheckerUnprovenRules {
             case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopIf", c, t1, t2, ""))
             case _ =>
-              emitErrorWithJudgment(rc, "TopIf", EqualityGoal(c, t1, t2), None)
+              emitErrorWithJudgment("TopIf", EqualityGoal(c, t1, t2), None)
           }
         ))
       case _ => None
@@ -312,7 +314,7 @@ trait TypeCheckerUnprovenRules {
 
   def topMatch(c: Context, t1: Tree, t2: Tree): Option[(List[List[Judgment] => Goal], List[Judgment] => (Boolean, Judgment))] = {
     t1 match {
-      case Match(tc, t0, Bind(y, tf)) =>
+      case NatMatch(tc, t0, Bind(y, tf)) =>
         val c0 = c.incrementLevel
         val c1 = c0.addEquality(tc, NatLiteral(0))
         val c2 = c0.addEquality(tc, Primitive(Plus, List(Var(y), NatLiteral(1)))).bind(y, NatType)
@@ -325,7 +327,7 @@ trait TypeCheckerUnprovenRules {
             case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopMatch", c, t1, t2, ""))
             case _ =>
-              emitErrorWithJudgment(rc, "TopMatch", EqualityGoal(c, t1, t2), None)
+              emitErrorWithJudgment("TopMatch", EqualityGoal(c, t1, t2), None)
           }
         ))
       case _ => None
@@ -333,10 +335,10 @@ trait TypeCheckerUnprovenRules {
   }
 
   val TopMatch = Rule("TopMath", {
-    case g @ EqualityGoal(c, t1 @ Match(tc, tt, tf), t2) =>
+    case g @ EqualityGoal(c, t1 @ NatMatch(tc, tt, tf), t2) =>
       TypeChecker.debugs(rc, g, "TopMath")
       topEitherMatch(c, t1, t2)
-    case g @ EqualityGoal(c, t1, t2 @ Match(tc, tt, tf)) =>
+    case g @ EqualityGoal(c, t1, t2 @ NatMatch(tc, tt, tf)) =>
       TypeChecker.debugs(rc, g, "TopMatch")
       topEitherMatch(c, t2, t1)
     case g =>
@@ -359,7 +361,7 @@ trait TypeCheckerUnprovenRules {
             case AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopEitherMatch", c, t1, t2, ""))
             case _ =>
-              emitErrorWithJudgment(rc, "TopEitherMatch", EqualityGoal(c, t1, t2), None)
+              emitErrorWithJudgment("TopEitherMatch", EqualityGoal(c, t1, t2), None)
           }
         ))
       case _ => None

@@ -39,7 +39,7 @@ lazy val cli = project
   .enablePlugins(JavaAppPackaging, BuildInfoPlugin)
   .dependsOn(core)
   .settings(
-    name := "stainless-fit-cli",
+    name := "fit",
     libraryDependencies ++= Seq(
       "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     ),
