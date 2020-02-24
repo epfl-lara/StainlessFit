@@ -45,6 +45,9 @@ object ConfigParser {
       opt[Unit]("no-colors")
         .action((_, c) => c.copy(colors = false))
         .text("Disable colors in output"),
+      opt[Unit]("no-info")
+        .action((_, c) => c.copy(info = false))
+        .text("Disable [INFO] prefix in output"),
 
       note(""),
       cmd("eval")
