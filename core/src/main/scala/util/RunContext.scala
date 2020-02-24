@@ -3,7 +3,7 @@ package core
 package util
 
 class RunContext(val config: Config) {
-  val reporter = new Reporter(config.colors)
+  val reporter = new Reporter(config.colors, config.info)
   val bench = new Bench()
   bench.start()
 

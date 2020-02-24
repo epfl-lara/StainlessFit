@@ -18,6 +18,7 @@ case class Config(
   bench: Boolean                   = false,
   colors: Boolean                  = true,
   verbose: Boolean                 = false,
+  info: Boolean                    = true,
   debugSections: Set[DebugSection] = Set.empty,
 )
 

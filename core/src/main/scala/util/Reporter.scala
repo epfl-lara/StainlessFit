@@ -4,7 +4,7 @@ package util
 
 import trees.Position
 
-class Reporter(colors: Boolean) {
+class Reporter(colors: Boolean, info: Boolean) {
 
   def addPrefix(s: String, pre: String): String = {
     pre + s.replaceAll("\n", "\n" + pre)
@@ -42,7 +42,10 @@ class Reporter(colors: Boolean) {
   }
 
   def info(s: String): Unit = {
-    println(addPrefix(s, color(" [INFO] ", Console.BLUE)))
+    if (info)
+      println(addPrefix(s, color(" [INFO] ", Console.BLUE)))
+    else
+      println(s)
   }
 
   def debug(s: String): Unit = {
@@ -51,5 +54,5 @@ class Reporter(colors: Boolean) {
 }
 
 object Reporter {
-  def testReporter = new Reporter(true)
+  def testReporter = new Reporter(true, true)
 }
