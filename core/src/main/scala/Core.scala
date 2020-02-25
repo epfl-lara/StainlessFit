@@ -59,7 +59,7 @@ object Core {
 
       val (t, ((_, max), _)) = extraction.pipeline.transform(src)
 
-      new TypeChecker().infer(t, max) match {
+      rc.bench.time("Type Checking") { new TypeChecker().infer(t, max) } match {
         case None => Left(s"Could not typecheck: $f")
         case Some((success, tree)) =>
           if (rc.config.html)

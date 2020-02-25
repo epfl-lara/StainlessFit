@@ -156,24 +156,30 @@ object Printer {
     }
   }
 
-  def exprAsString(t: Tree)(implicit rc: RunContext): String = {
-    rc.bench.time("PrettyPrinter (expr)") {
+  val asStringMap = new collection.mutable.HashMap[Tree, String]()
+
+  def exprAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr)") {
+    asStringMap.getOrElseUpdate(t, {
       val it = rc.parser.PrettyPrinter(rc.parser.expr, t)
       itToString(t, it)
-    }
+    })
   }
 
   def typeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (type)") {
-    val it = rc.parser.PrettyPrinter(rc.parser.typeExpr, t)
-    itToString(t, it)
+    asStringMap.getOrElseUpdate(t, {
+      val it = rc.parser.PrettyPrinter(rc.parser.typeExpr, t)
+      itToString(t, it)
+    })
   }
 
   def exprOrTypeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
-    val it = rc.parser.PrettyPrinter(rc.parser.expr, t)
-    if (it.isEmpty)
-      typeAsString(t)
-    else
-      tokensToString(it.next())
+    asStringMap.getOrElseUpdate(t, {
+      val it = rc.parser.PrettyPrinter(rc.parser.expr, t)
+      if (it.isEmpty)
+        typeAsString(t)
+      else
+        tokensToString(it.next())
+    })
   }
 
   def asString(ctx: Context)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (context)") {
