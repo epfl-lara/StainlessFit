@@ -490,7 +490,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val argument: Syntax[DefArgument] = untypedArgument | typedArgument | typeArgument | ghostArgument
 
   lazy val defFunction: Syntax[Tree] =
-    (funK.skip ~ termIdentifier ~ many1(argument) ~ opt(retTypeP) ~ equal.skip ~ lbraBlock.skip ~ opt(measureP) ~
+    (funK.skip ~ termIdentifier ~ many(argument) ~ opt(retTypeP) ~ equal.skip ~ lbraBlock.skip ~ opt(measureP) ~
     expr ~ rbraBlock2.skip ~ opt(expr)).map({
       case f ~ args ~ optRet ~ optMeasure ~ e1 ~ e2 =>
         val ids = args.map(_.id)
