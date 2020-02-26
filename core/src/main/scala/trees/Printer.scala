@@ -160,21 +160,21 @@ object Printer {
 
   def exprAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr)") {
     asStringMap.getOrElseUpdate(t, {
-      val it = rc.parser.PrettyPrinter(rc.parser.expr, t)
+      val it = rc.exprPrinter(t)
       itToString(t, it)
     })
   }
 
   def typeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (type)") {
     asStringMap.getOrElseUpdate(t, {
-      val it = rc.parser.PrettyPrinter(rc.parser.typeExpr, t)
+      val it = rc.typePrinter(t)
       itToString(t, it)
     })
   }
 
   def exprOrTypeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
     asStringMap.getOrElseUpdate(t, {
-      val it = rc.parser.PrettyPrinter(rc.parser.expr, t)
+      val it = rc.exprPrinter(t)
       if (it.isEmpty)
         typeAsString(t)
       else
@@ -216,7 +216,7 @@ object Printer {
     )
 
     t.traverse_post { e =>
-      if (syntaxes.forall(s => rc.parser.PrettyPrinter(s, e).isEmpty))
+      if (syntaxes.forall(s => rc.parser.PrettyPrinter(s)(e).isEmpty))
         rc.reporter.fatalError(s"The pretty printer does not handle subtree: $e")
     }
   }
