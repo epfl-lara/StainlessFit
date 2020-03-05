@@ -35,6 +35,7 @@ class App()(implicit rc: RunContext) {
     rc.config.mode match {
       case Mode.Eval      => eval()
       case Mode.TypeCheck => typeCheck()
+      case Mode.Compile   => compile()
     }
   }
 
@@ -62,6 +63,16 @@ class App()(implicit rc: RunContext) {
       case _ =>
         rc.reporter.error(s"There was an error while typechecking file '$file'.")
         false
+    }
+  }
+
+  def compile(): Unit = FileWatcher.watchable(file) {
+    Core.compileFile(file) match {
+      case Left(error) =>
+        rc.reporter.error(s"Error during compilation: $error")
+        false
+      case Right(value) =>
+        true
     }
   }
 }
