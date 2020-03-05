@@ -26,6 +26,8 @@ lazy val core = project
     test in assembly := {},
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.8" % "test",
+      "org.bytedeco" % "javacpp" % "1.5.2",
+      "org.bytedeco" % "llvm-platform" % "9.0.0-1.5.2",
     ),
     Test / fork := true,
     Test / baseDirectory := (ThisBuild / baseDirectory).value,
