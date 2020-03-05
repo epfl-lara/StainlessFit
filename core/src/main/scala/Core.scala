@@ -72,6 +72,17 @@ object Core {
     }
   }
 
+  def compileFile(f: File)(implicit rc: RunContext): Either[String, Boolean] = {
+    parseFile(f) flatMap { src =>
+
+      val (t, _) = extraction.pipeline.transform(src)
+
+      //Either use the transformed tree t or use src directly
+      //Might need to type check the program first (or in parallel)
+      Right(false)
+    }
+  }
+
   def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
     evalFile(new File(s))
 

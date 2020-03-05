@@ -7,6 +7,7 @@ sealed abstract class Mode
 object Mode {
   case object Eval      extends Mode
   case object TypeCheck extends Mode
+  case object Compile   extends Mode
 }
 
 case class Config(
