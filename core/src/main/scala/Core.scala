@@ -46,9 +46,9 @@ object Core {
   def evalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
     parseFile(f) flatMap { src =>
 
-      val (t, _) = extraction.pipeline.transform(src)
+      val (t, _) = extraction.evalPipeline.transform(src)
 
-      Interpreter.evaluate(t.erase()) match {
+      Interpreter.evaluate(t) match {
         case Error(error, _) => Left(error)
         case v => Right(v)
       }
@@ -57,7 +57,7 @@ object Core {
   def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(f) flatMap { src =>
 
-      val (t, ((_, max), _)) = extraction.pipeline.transform(src)
+      val (t, ((_, max), _)) = extraction.typecheckerPipeline.transform(src)
 
       rc.bench.time("Type Checking") { new TypeChecker().infer(t, max) } match {
         case None => Left(s"Could not typecheck: $f")

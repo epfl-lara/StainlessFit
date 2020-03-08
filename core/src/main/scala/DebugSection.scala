@@ -14,10 +14,12 @@ object DebugSection {
   val FixIndexing            = DebugSection("FixIndexing")
   val Namer                  = DebugSection("Namer")
   val BuiltInIdentifiers     = DebugSection("BuiltInIdentifiers")
+  val Erasure                = DebugSection("Erasure")
 
   val available: Set[DebugSection] =
     Set(
       Rule, TypeCheck, Equality, Phases,
-      DefFunctionElimination, FixIndexing, Namer, BuiltInIdentifiers
+      DefFunctionElimination, FixIndexing, Namer, BuiltInIdentifiers,
+      Erasure
     )
 }
