@@ -78,8 +78,8 @@ object PartialEvaluator {
       case RecType(n, bind) => ???
       case PolyForallType(bind) => ???
 
-      case BottomType => e
-      case TopType => e
+      case BottomType => None
+      case TopType => None
       
 
       case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $e (${e.getClass}).")
