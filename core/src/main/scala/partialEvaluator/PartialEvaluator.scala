@@ -27,10 +27,20 @@ object PartialEvaluator {
             IfThenElse(condEval,partEval(t1),partEval(t2))
         }
       case App(t1, t2) => ???
-      case Pair(t1, t2) => ???
+      case First(t) => 
+        val eval = partEval(t)
+        eval match{
+          case Pair(t1,t2) => partEval(t1)
+          case _ => First(eval)
+        }
+      case Second(t) => 
+        val eval = partEval(t)
+        eval match{
+          case Pair(t1,t2) => partEval(t2)
+          case _ => Second(eval)
+        }
+      case Pair(t1, t2) => Pair(partEval(t1),partEval(t2))
       case Size(t) => ???
-      case First(t) => ???
-      case Second(t) => ???
       case LeftTree(t) => ???
       case RightTree(t) => ???
       case Because(t1, t2) => ???
@@ -65,10 +75,10 @@ object PartialEvaluator {
       case RecType(n, bind) => ???
       case PolyForallType(bind) => ???
 
-      case BottomType => ???
-      case TopType => ???
+      case BottomType => t
+      case TopType => t
 
-      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
+      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $t (${t.getClass}).")
     }
   }
 }
