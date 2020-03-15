@@ -6,6 +6,9 @@ import core.interpreter._
 import core.typechecker._
 import core.typechecker.Derivation._
 
+import core.codegen._
+import core.codegen.utils.{Printer => LLVMPrinter}
+
 import parser.FitParser
 import parser.FitLexer
 
@@ -91,9 +94,20 @@ object Core {
 
       val (t, _) = extraction.pipeline.transform(src)
 
+      val vrai = BooleanLiteral(true)
+      val faux = BooleanLiteral(false)
+
+      val or = Primitive(Or, List(faux, vrai))
+      val neg = Primitive(Not, List(faux))
+      val testTree = Primitive(And, List(vrai, neg, or))
+
       //Either use the transformed tree t or use src directly
       //Might need to type check the program first (or in parallel)
-      Right(false)
+      val module = CodeGen.genLLVM(testTree, true)
+
+      LLVMPrinter.run(rc)(module)
+
+      Right(true)
     }
   }
 
