@@ -11,7 +11,7 @@ import parser.FitParser
 import Derivation._
 import TypeOperators._
 
-trait TypeCheckerProvenRules {
+trait ProvenRules {
 
   implicit val rc: RunContext
 

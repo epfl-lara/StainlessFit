@@ -9,7 +9,7 @@ import util.Utils._
 
 import Derivation._
 
-trait TypeCheckerMetaRules {
+trait MetaRules {
 
   implicit val rc: RunContext
 

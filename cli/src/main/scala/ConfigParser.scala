@@ -71,8 +71,19 @@ object ConfigParser {
             .text("The file to typecheck, in `sf` format")
         ),
 
+      note(""),
+      cmd("scaladep")
+        .action((_, c) => c.copy(mode = Mode.ScalaDep))
+        .text("Typecheck the given file using experimental dependent types in Scala algorithm")
+        .children(
+          arg[File]("<file>")
+            .required()
+            .action((f, c) => c.copy(file = f))
+            .text("The file to typecheck, in `sf` format")
+        ),
+
       checkConfig {
-        case c if c.mode == null => failure("Please specify a command: eval, typecheck")
+        case c if c.mode == null => failure("Please specify a command: eval, typecheck, or scaladep")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
         case c =>
           c.debugSections.find(!DebugSection.available(_)) match {

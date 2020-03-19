@@ -22,10 +22,8 @@ lazy val core = project
   .in(file("core"))
   .settings(
     name := "stainless-fit",
-    assemblyJarName in assembly := "fit.jar",
-    test in assembly := {},
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.8" % "test",
+      "org.scalatest" %% "scalatest" % "3.1.1" % "test",
     ),
     Test / fork := true,
     Test / baseDirectory := (ThisBuild / baseDirectory).value,

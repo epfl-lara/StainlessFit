@@ -12,7 +12,7 @@ import parser.FitParser
 import Derivation._
 import TypeOperators._
 
-trait TypeCheckerUnprovenRules {
+trait UnprovenRules {
 
   implicit val rc: RunContext
 

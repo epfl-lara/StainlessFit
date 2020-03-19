@@ -4,7 +4,7 @@ package typechecker
 
 import util.RunContext
 
-trait TypeCheckerSMTRules {
+trait SMTRules {
 
   val rc: RunContext
 

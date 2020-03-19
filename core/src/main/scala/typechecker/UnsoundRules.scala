@@ -9,7 +9,7 @@ import util.RunContext
 
 import Derivation._
 
-trait TypeCheckerUnsoundRules {
+trait UnsoundRules {
 
   val rc: RunContext
 
