@@ -105,6 +105,9 @@ object Printer {
     case _ => false
   }
 
+  def allowNewLine(t: Token): Boolean = t != SeparatorToken(";")
+  def allowNewLine(ts: Seq[Token]): Boolean = ts.isEmpty || allowNewLine(ts(0))
+
   def tokensToString(l: Seq[Token])(implicit rc: RunContext): String = {
 
     val res = new StringBuilder()
@@ -126,8 +129,9 @@ object Printer {
             res.append(" ")
         }
         else {
-          res.append(t.after)
-          if (t.after.last == '\n' && !ts.isEmpty)
+          val after = if (allowNewLine(ts)) t.after else t.after.replace("\n", "")
+          res.append(after)
+          if (!after.isEmpty && after.last == '\n' && !ts.isEmpty)
             res.append(newIndentation)
         }
 
