@@ -19,7 +19,9 @@ class ScalaDep(implicit val rc: RunContext)
     InferNat.t ||
     InferLet1.t ||
     InferLambda.t ||
-    InferApp1.t
+    InferApp1.t ||
+    CheckInfer.t ||
+    SubReflexive.t
 
   val control: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CatchErrorGoal.t ||

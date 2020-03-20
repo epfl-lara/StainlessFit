@@ -198,8 +198,8 @@ object Printer {
     case EmptyGoal(_) => ""
     case ErrorGoal(_, _) => ""
     case InferGoal(c, t) => exprAsString(t) + " ⇑ _"
-    case CheckGoal(c, t, tp) =>
-      exprAsString(t) + " ⇓ " + typeAsString(tp)
+    case CheckGoal(c, t, tp) => exprAsString(t) + " ⇓ " + typeAsString(tp)
+    case SubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <: " + typeAsString(ty2)
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeAsString(tp)}"
     case EqualityGoal(c, t1, t2) =>

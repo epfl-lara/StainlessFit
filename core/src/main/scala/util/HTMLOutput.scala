@@ -33,8 +33,8 @@ object HTMLOutput {
     case EmptyGoal(_) => ""
     case ErrorGoal(_, _) => ""
     case InferGoal(c, t) => termOutput(t) + " ⇑ _"
-    case CheckGoal(c, t, tp) =>
-      termOutput(t) + " ⇓ " + typeOutput(tp)
+    case CheckGoal(c, t, tp) => termOutput(t) + " ⇓ " + typeOutput(tp)
+    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + " <: " + typeOutput(ty2)
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -45,22 +45,25 @@ object HTMLOutput {
     case CheckJudgment(name, context, t, tp) =>
       "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termOutput(t) + " ⇓ " +
-        typeOutput(tp) +
+        termOutput(t) + " ⇓ " + typeOutput(tp) +
+      "</span>"
+
+    case SubtypeJudgment(name, context, ty1, ty2) =>
+      "<span class='check'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        typeOutput(ty1) + " <: " + typeOutput(ty2) +
       "</span>"
 
     case InferJudgment(name, context, t, tp) =>
       "<span class='infer'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termOutput(t) + " ⇑ " +
-        typeOutput(tp) +
+        termOutput(t) + " ⇑ " + typeOutput(tp) +
       "</span>"
 
     case AreEqualJudgment(name, context, t1, t2, _) =>
       "<span class='equal'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termOutput(t1)+ " ≡ " +
-        termOutput(t2) +
+        termOutput(t1) + " ≡ " + termOutput(t2) +
       "</span>"
 
     case SynthesisJudgment(name, context, tp, t) =>

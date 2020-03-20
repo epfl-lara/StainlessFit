@@ -216,13 +216,12 @@ object Tree {
       case IntersectionType(t1, bind) => IntersectionType(replace(id, v, t1), replace(id, v, bind))
       case RefinementType(t1, bind) => RefinementType(replace(id, v, t1), replace(id, v, bind))
       case RefinementByType(t1, bind) => RefinementByType(replace(id, v, t1), replace(id, v, bind))
+      case EqualityType(t1, t2) => EqualityType(replace(id, v, t1), replace(id, v, t2))
       case RecType(n, bind) => RecType(replace(id, v, n), replace(id, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(id, v, bind))
 
       case BottomType => BottomType
       case TopType => TopType
-
-      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
     }
   }
 
