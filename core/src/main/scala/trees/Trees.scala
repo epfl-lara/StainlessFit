@@ -179,7 +179,7 @@ object Tree {
       case Bind(id2, e) =>
         if (id2.isFreeIn(v))
           rc.reporter.fatalError(
-            s"""Replacing ${Printer.asString(id)} by ${Printer.exprOrTypeAsString(v)} in
+            s"""Replacing ${Printer.asString(id)} by ${Printer.asString(v)} in
               |$body would capture variable ${Printer.asString(id2)}""".stripMargin
           )
         Bind(id2, replace(id, v, e))
@@ -215,6 +215,7 @@ object Tree {
       case SigmaType(t1, bind) => SigmaType(replace(id, v, t1), replace(id, v, bind))
       case IntersectionType(t1, bind) => IntersectionType(replace(id, v, t1), replace(id, v, bind))
       case RefinementType(t1, bind) => RefinementType(replace(id, v, t1), replace(id, v, bind))
+      case RefinementByType(t1, bind) => RefinementByType(replace(id, v, t1), replace(id, v, bind))
       case RecType(n, bind) => RecType(replace(id, v, n), replace(id, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(id, v, bind))
 
@@ -341,6 +342,10 @@ object Tree {
         traverse_post(bind, f)
         f(t)
       case RefinementType(t1, bind) =>
+        traverse_post(t1, f)
+        traverse_post(bind, f)
+        f(t)
+      case RefinementByType(t1, bind) =>
         traverse_post(t1, f)
         traverse_post(bind, f)
         f(t)
@@ -553,6 +558,12 @@ object Tree {
           rbind <- replace(p,bind)
         ) yield
           RefinementType(rt1, rbind)
+      case RefinementByType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          RefinementByType(rt1, rbind)
       case RecType(n, bind) =>
         for (
           rn <- replace(p,n);
@@ -620,6 +631,7 @@ object Tree {
       case SigmaType(t1, bind) => SigmaType(replaceMany(p, t1), replaceMany(p, bind))
       case IntersectionType(t1, bind) => IntersectionType(replaceMany(p, t1), replaceMany(p, bind))
       case RefinementType(t1, bind) => RefinementType(replaceMany(p, t1), replaceMany(p, bind))
+      case RefinementByType(t1, bind) => RefinementByType(replaceMany(p, t1), replaceMany(p, bind))
       case RecType(n, bind) => RecType(replaceMany(p, n), replaceMany(p, bind))
       case PolyForallType(bind) => PolyForallType(replaceMany(p, bind))
 
@@ -695,6 +707,7 @@ object Tree {
       case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
       case _ => t1 == t2
@@ -752,6 +765,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case RefinementByType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
       case _ => false
@@ -868,9 +882,9 @@ case class SumType(t1: Tree, t2: Tree) extends Tree
 case class PiType(t1: Tree, t2: Tree) extends Tree
 case class IntersectionType(t1: Tree, t2: Tree) extends Tree
 case class RefinementType(t1: Tree, t2: Tree) extends Tree
+case class RefinementByType(t1: Tree, t2: Tree) extends Tree
 case class RecType(n: Tree, bind: Tree) extends Tree
 case class PolyForallType(t: Tree) extends Tree
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
-case class SingletonType(t: Tree) extends Tree
 case class Because(t1: Tree, t2: Tree) extends Tree

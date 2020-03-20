@@ -12,6 +12,7 @@ import core.trees.TreeBuilders._
 import util.Utils._
 import util.RunContext
 import stainlessfit.core.extraction.BuiltInIdentifiers
+import typechecker.ScalaDepSugar._
 
 sealed abstract class Indentation
 object Indentation {
@@ -105,7 +106,7 @@ object FitLexer extends Lexers with CharRegExps {
       |> { (cs, r) => SeparatorToken(cs.mkString).setPos(r) },
 
     // Separator
-    oneOf("{},|().:;[]") | word("=>")
+    word("{{") | word("}}") | oneOf("{},|().:;[]") | word("=>")
       |> { (cs, r) => SeparatorToken(cs.mkString).setPos(r) },
 
     // Space
@@ -205,13 +206,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   val equal: Syntax[Unit] = elem(EqualityClass).unit(EqualityToken)
-  val dlbra: Syntax[Unit] = elem(SeparatorClass("[|")).unit(SeparatorToken("[|"))
-  val drbra: Syntax[Unit] = elem(SeparatorClass("|]")).unit(SeparatorToken("|]"))
+  val dlsbra: Syntax[Unit] = elem(SeparatorClass("[|")).unit(SeparatorToken("[|"))
+  val drsbra: Syntax[Unit] = elem(SeparatorClass("|]")).unit(SeparatorToken("|]"))
   val lpar: Syntax[Unit] = elem(SeparatorClass("(")).unit(SeparatorToken("("))
   val rpar: Syntax[Unit] = elem(SeparatorClass(")")).unit(SeparatorToken(")"))
   val lbra: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{"))
-  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").printWith("\n").indent())
   val rbra: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}"))
+  val dlbra: Syntax[Unit] = elem(SeparatorClass("{{")).unit(SeparatorToken("{{"))
+  val drbra: Syntax[Unit] = elem(SeparatorClass("}}")).unit(SeparatorToken("}}"))
+  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").printWith("\n").indent())
   val rbraBlock: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n").unindent())
   val rbraBlock2: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n\n").unindent())
   val lsbra: Syntax[Unit] = elem(SeparatorClass("[")).unit(SeparatorToken("["))
@@ -332,11 +335,25 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
   }
 
-  lazy val refinementType: Syntax[Tree] =
-    (lbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ expr ~ rbra.skip).map({
-      case x ~ ty ~ p => RefinementType(ty, Bind(x, p))
+  lazy val refinementOrSingletonType: Syntax[Tree] =
+    (lbra.skip ~ (
+      (termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
+      pipe.skip ~ expr ~ rbra.skip) ||
+      (lsbra.skip ~ typeExpr ~ rsbra.skip ~ expr ~ rbra.skip)
+    )).map({
+      case Right(ty ~ t) => SingletonType(ty, t)
+      case Left(x ~ ty ~ p) => RefinementType(ty, Bind(x, p))
     }, {
-      case RefinementType(ty, Bind(x, p)) => Seq(x ~ ty ~ p)
+      case SingletonType(ty, t) => Seq(Right(ty ~ t))
+      case RefinementType(ty, Bind(x, p)) => Seq(Left(x ~ ty ~ p))
+      case _ => Seq()
+    })
+
+  lazy val refinementByType: Syntax[Tree] =
+    (dlbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ typeExpr ~ drbra.skip).map({
+      case x ~ ty1 ~ ty2 => RefinementByType(ty1, Bind(x, ty2))
+    }, {
+      case RefinementByType(ty1, Bind(x, ty2)) => Seq(x ~ ty1 ~ ty2)
       case _ => Seq()
     })
 
@@ -373,7 +390,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   //   })
 
   lazy val equalityType: Syntax[Tree] =
-    (pipe.skip ~ expr ~ equal.skip ~ expr ~ pipe.skip).map({
+    (lsbra.skip ~ expr ~ equal.skip ~ expr ~ rsbra.skip).map({
       case ty1 ~ ty2 => EqualityType(ty1, ty2)
     }, {
       case EqualityType(ty1, ty2) => Seq(ty1 ~ ty2)
@@ -381,7 +398,8 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val simpleTypeExpr: Syntax[Tree] =
-    primitiveType | parTypeExpr | recType | refinementType |
+    primitiveType | parTypeExpr | recType |
+    refinementOrSingletonType | refinementByType |
     macroTypeInst | equalityType |
     piType | sigmaType | forallType | polyForallType
 
@@ -393,6 +411,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     case BooleanLiteral(value) => Seq(BooleanToken(value))
     case _ => Seq()
   })
+
   val number: Syntax[Tree] = accept(NumberClass)({
     case NumberToken(value) => NatLiteral(value)
   }, {
@@ -479,7 +498,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val ghostArgument: Syntax[DefArgument] = {
-    (dlbra.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ drbra.skip).map({
+    (dlsbra.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ drsbra.skip).map({
       case id ~ ty => ForallArgument(id, ty): DefArgument
     }, {
       case ForallArgument(id, ty) => Seq(id ~ ty)
@@ -629,7 +648,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   lazy val bracketAppArg: Syntax[AppArgument] = {
-    (dlbra.skip ~ expr ~ drbra.skip).map({
+    (dlsbra.skip ~ expr ~ drsbra.skip).map({
       case e => ErasableAppArg(e)
     }, {
       case ErasableAppArg(e) => Seq(e)

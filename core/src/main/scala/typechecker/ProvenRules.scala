@@ -17,7 +17,7 @@ trait ProvenRules {
 
   val InferBool = Rule("InferBool", {
     case g @ InferGoal(c, BooleanLiteral(b)) =>
-      TypeChecker.debugs(rc, g, "InferBool")
+      TypeChecker.debugs(g, "InferBool")
       Some((
         List(),
         _ => (true, InferJudgment("InferBool", c, BooleanLiteral(b), BoolType))
@@ -28,7 +28,7 @@ trait ProvenRules {
 
   val CheckBool = Rule("CheckBool", {
     case g @ CheckGoal(c, BooleanLiteral(b), BoolType) =>
-      TypeChecker.debugs(rc, g, "CheckBool")
+      TypeChecker.debugs(g, "CheckBool")
       Some((
         List(),
         _ => (true, CheckJudgment("CheckBool", c, BooleanLiteral(b), BoolType))
@@ -39,7 +39,7 @@ trait ProvenRules {
 
   val InferNat = Rule("InferNat", {
     case g @ InferGoal(c, NatLiteral(n)) =>
-      TypeChecker.debugs(rc, g, "InferNat")
+      TypeChecker.debugs(g, "InferNat")
       Some((List(), _ => (true, InferJudgment("InferNat", c, NatLiteral(n), NatType))))
     case g =>
       None
@@ -47,7 +47,7 @@ trait ProvenRules {
 
   val CheckNat = Rule("CheckNat", {
     case g @ CheckGoal(c, NatLiteral(n), NatType) =>
-      TypeChecker.debugs(rc, g, "CheckNat")
+      TypeChecker.debugs(g, "CheckNat")
       Some((List(), _ => (true, CheckJudgment("CheckNat", c, NatLiteral(n), NatType))))
     case g =>
       None
@@ -55,7 +55,7 @@ trait ProvenRules {
 
   val InferUnit = Rule("InferUnit", {
     case g @ InferGoal(c, UnitLiteral) =>
-      TypeChecker.debugs(rc, g, "InferUnit")
+      TypeChecker.debugs(g, "InferUnit")
       Some((List(), _ => (true, InferJudgment("InferUnit", c, UnitLiteral, UnitType))))
     case g =>
       None
@@ -63,7 +63,7 @@ trait ProvenRules {
 
   val CheckUnit = Rule("CheckUnit", {
     case g @ CheckGoal(c, UnitLiteral, UnitType) =>
-      TypeChecker.debugs(rc, g, "CheckUnit")
+      TypeChecker.debugs(g, "CheckUnit")
       Some((List(), _ => (true, CheckJudgment("CheckUnit", c, UnitLiteral, UnitType))))
     case g =>
       None
@@ -71,7 +71,7 @@ trait ProvenRules {
 
   val InferVar = Rule("InferVar", {
     case g @ InferGoal(c, Var(id)) =>
-      TypeChecker.debugs(rc, g, "InferVar")
+      TypeChecker.debugs(g, "InferVar")
       Some((List(), _ =>
         c.getTypeOf(id) match {
           case None => emitErrorWithJudgment("InferVar", g, Some(s"$id is not in context"))
@@ -87,7 +87,7 @@ trait ProvenRules {
     case g @ CheckGoal(c, Var(id), ty)
       if c.termVariables.contains(id) && c.termVariables(id).isEqual(ty) =>
 
-      TypeChecker.debugs(rc, g, "CheckVar")
+      TypeChecker.debugs(g, "CheckVar")
       Some((List(), _ => (true, CheckJudgment("CheckVar", c, Var(id), ty))))
     case g =>
       None
@@ -95,7 +95,7 @@ trait ProvenRules {
 
   val InferError = Rule("InferError", {
     case g @ InferGoal(c, e @ Error(_, Some(tp))) =>
-      TypeChecker.debugs(rc, g, "InferError")
+      TypeChecker.debugs(g, "InferError")
       val errorGoal = EqualityGoal(c.incrementLevel, BooleanLiteral(false), BooleanLiteral(true))
       Some((List(_ => errorGoal),
         {
@@ -110,7 +110,7 @@ trait ProvenRules {
 
   val InferLet = Rule("InferLet", {
     case g @ InferGoal(c, e @ LetIn(None, v, Bind(id, body))) =>
-      TypeChecker.debugs(rc, g, "InferLet")
+      TypeChecker.debugs(g, "InferLet")
       val gv = InferGoal(c.incrementLevel, v)
       val fgb: List[Judgment] => Goal =
         {
@@ -131,7 +131,7 @@ trait ProvenRules {
       ))
 
     case g @ InferGoal(c, e @ LetIn(Some(tyv), v, Bind(id, body))) =>
-      TypeChecker.debugs(rc, g, "InferLet")
+      TypeChecker.debugs(g, "InferLet")
       val gv = CheckGoal(c.incrementLevel, v, tyv)
       val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel
       val gb = InferGoal(c1, body)
@@ -151,7 +151,7 @@ trait ProvenRules {
 
   val InferLambda = Rule("InferLambda", {
     case g @ InferGoal(c, e @ Lambda(Some(ty1), Bind(id, body))) =>
-      TypeChecker.debugs(rc, g, "InferLambda")
+      TypeChecker.debugs(g, "InferLambda")
       val c1 = c.bind(id, ty1).incrementLevel
       val gb = InferGoal(c1, body)
       Some((
@@ -172,7 +172,7 @@ trait ProvenRules {
 
   val InferErasableLambda = Rule("InferErasableLambda", {
     case g @ InferGoal(c, e @ ErasableLambda(ty1, Bind(id, body))) if !id.isFreeIn(body.erase) =>
-      TypeChecker.debugs(rc, g, "InferErasableLambda")
+      TypeChecker.debugs(g, "InferErasableLambda")
 
       val c1 = c.bind(id, ty1).incrementLevel
       val gb = InferGoal(c1, body)
@@ -192,7 +192,7 @@ trait ProvenRules {
 
   val InferIf = Rule("InferIf", {
     case g @ InferGoal(c, e @ IfThenElse(tc, t1, t2)) =>
-      TypeChecker.debugs(rc, g, "InferIf")
+      TypeChecker.debugs(g, "InferIf")
       val c0 = c.incrementLevel
       val c1 = c0.addEquality(tc, BooleanLiteral(true))
       val c2 = c0.addEquality(tc, BooleanLiteral(false))
@@ -229,7 +229,7 @@ trait ProvenRules {
 
   val InferBinaryPrimitive = Rule("InferBinaryPrimitive", {
     case g @ InferGoal(c, e @ Primitive(op, n1 ::  n2 ::  Nil)) if op.isBinOp =>
-      TypeChecker.debugs(rc, g, "InferBinaryPrimitive")
+      TypeChecker.debugs(g, "InferBinaryPrimitive")
       val opType = op.operandsType
       val checkN1 = CheckGoal(c.incrementLevel, n1, opType)
       val checkN2 = CheckGoal(c.incrementLevel, n2, opType)
@@ -251,7 +251,7 @@ trait ProvenRules {
 
   val InferUnaryPrimitive = Rule("InferUnaryPrimitive", {
     case g @ InferGoal(c, e @ Primitive(op, n1 ::  Nil)) if op.isUnOp =>
-      TypeChecker.debugs(rc, g, "InferUnaryPrimitive")
+      TypeChecker.debugs(g, "InferUnaryPrimitive")
       val opType = op.operandsType
       val checkN1 = CheckGoal(c.incrementLevel, n1, opType)
       Some((
@@ -269,7 +269,7 @@ trait ProvenRules {
 
   val InferMatch = Rule("InferMatch", {
     case g @ InferGoal(c, e @ NatMatch(t, t0, Bind(id, tn))) =>
-      TypeChecker.debugs(rc, g, "InferMatch")
+      TypeChecker.debugs(g, "InferMatch")
       val c0 = c.incrementLevel
       val checkN = CheckGoal(c0, t, NatType)
       val inferT0 = InferGoal(c0, t0)
@@ -302,7 +302,7 @@ trait ProvenRules {
 
   val InferEitherMatch = Rule("InferEitherMatch", {
     case g @ InferGoal(c, e @ EitherMatch(t, Bind(id1, t1), Bind(id2, t2))) =>
-      TypeChecker.debugs(rc, g, "InferEitherMatch")
+      TypeChecker.debugs(g, "InferEitherMatch")
       val c0 = c.incrementLevel
       val inferScrutinee = InferGoal(c0, t)
 
@@ -349,7 +349,7 @@ trait ProvenRules {
 
   val InferFix = Rule("InferFix", {
     case g @ InferGoal(c, e @ Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))) =>
-      TypeChecker.debugs(rc, g, "InferFix")
+      TypeChecker.debugs(g, "InferFix")
 
       val erased = t.erase
 
@@ -386,7 +386,7 @@ trait ProvenRules {
 
   val InferForallInstantiation = Rule("InferForallInstantiation", {
     case g @ InferGoal(c, e @ ErasableApp(t1, t2)) =>
-      TypeChecker.debugs(rc, g, "InferForallInstantiation")
+      TypeChecker.debugs(g, "InferForallInstantiation")
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, t1)
       val fg2: List[Judgment] => Goal = {
@@ -421,7 +421,7 @@ trait ProvenRules {
 
   val InferApp = Rule("InferApp", {
     case g @ InferGoal(c, e @ App(t1, t2)) =>
-      TypeChecker.debugs(rc, g, "InferApp")
+      TypeChecker.debugs(g, "InferApp")
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, t1)
       val fg2: List[Judgment] => Goal = {
@@ -457,7 +457,7 @@ trait ProvenRules {
 
   val CheckRefinement = Rule("CheckRefinement", {
     case g @ CheckGoal(c, t, tpe @ RefinementType(ty, Bind(id, b))) =>
-      TypeChecker.debugs(rc, g, "CheckRefinement")
+      TypeChecker.debugs(g, "CheckRefinement")
       val checkTy = CheckGoal(c.incrementLevel, t, ty)
       val c1 = c.bind(id, ty).addEquality(Var(id), t)
       val checkRef = EqualityGoal(c1.incrementLevel, b, BooleanLiteral(true))
@@ -475,7 +475,7 @@ trait ProvenRules {
 
   val CheckReflexive = Rule("CheckReflexive", {
     case g @ CheckGoal(c, t, ty) =>
-      TypeChecker.debugs(rc, g, "CheckReflexive")
+      TypeChecker.debugs(g, "CheckReflexive")
       val gInfer = InferGoal(c.incrementLevel, t)
       Some((List(_ => gInfer),
         {
@@ -498,7 +498,7 @@ trait ProvenRules {
 
   val InferPair = Rule("InferPair", {
     case g @ InferGoal(c, e @ Pair(t1, t2)) =>
-      TypeChecker.debugs(rc, g, "InferPair")
+      TypeChecker.debugs(g, "InferPair")
         val inferFirst = InferGoal(c.incrementLevel, t1)
         val inferSecond = InferGoal(c.incrementLevel, t2)
       Some((List(_ => inferFirst, _ => inferSecond),
@@ -516,7 +516,7 @@ trait ProvenRules {
 
   val InferFirst = Rule("InferFirst", {
     case g @ InferGoal(c, e @ First(t)) =>
-      TypeChecker.debugs(rc, g, "InferFirst")
+      TypeChecker.debugs(g, "InferFirst")
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
@@ -532,7 +532,7 @@ trait ProvenRules {
 
   val InferSecond = Rule("InferSecond", {
     case g @ InferGoal(c, e @ Second(t)) =>
-      TypeChecker.debugs(rc, g, "InferSecond")
+      TypeChecker.debugs(g, "InferSecond")
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
@@ -548,7 +548,7 @@ trait ProvenRules {
 
   val CheckLeft = Rule("CheckLeft", {
     case g @ CheckGoal(c, e @ LeftTree(t), tpe @ SumType(ty, _)) =>
-      TypeChecker.debugs(rc, g, "CheckLeft")
+      TypeChecker.debugs(g, "CheckLeft")
       val subgoal = CheckGoal(c.incrementLevel, t, ty)
       Some((List(_ => subgoal),
         {
@@ -564,7 +564,7 @@ trait ProvenRules {
 
   val CheckRight = Rule("CheckRight", {
     case g @ CheckGoal(c, e @ RightTree(t), tpe @ SumType(_, ty)) =>
-      TypeChecker.debugs(rc, g, "CheckRight")
+      TypeChecker.debugs(g, "CheckRight")
       val subgoal = CheckGoal(c.incrementLevel, t, ty)
       Some((List(_ => subgoal),
         {
@@ -580,7 +580,7 @@ trait ProvenRules {
 
   val CheckLambda = Rule("CheckLambda", {
     case g @ CheckGoal(c, e @ Lambda(Some(ty1), Bind(id1, body)), tpe @ PiType(ty2, Bind(id2, ty))) if (ty1.isEqual(ty2)) =>
-      TypeChecker.debugs(rc, g, "CheckLambda")
+      TypeChecker.debugs(g, "CheckLambda")
       val (freshId, c1) = c.bindFresh(id1.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, body.replace(id1, Var(freshId)), ty.replace(id2, Var(freshId)))
       Some((List(_ => subgoal),
@@ -597,7 +597,7 @@ trait ProvenRules {
 
   val CheckPi = Rule("CheckPi", {
     case g @ CheckGoal(c, t, tpe @ PiType(ty1, Bind(id,ty2))) =>
-      TypeChecker.debugs(rc, g, "CheckPi")
+      TypeChecker.debugs(g, "CheckPi")
       val (freshId, c1) = c.bindFresh(id.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2.replace(id, Var(freshId)))
       Some((List(_ => subgoal),
@@ -614,7 +614,7 @@ trait ProvenRules {
 
   val CheckIf = Rule("CheckIf", {
     case g @ CheckGoal(c, e @ IfThenElse(tc, t1, t2), ty) =>
-      TypeChecker.debugs(rc, g, "CheckIf")
+      TypeChecker.debugs(g, "CheckIf")
       val c0 = c.incrementLevel
       val c1 = c0.addEquality(tc, BooleanLiteral(true))
       val c2 = c0.addEquality(tc, BooleanLiteral(false))
@@ -640,7 +640,7 @@ trait ProvenRules {
 
   val CheckMatch = Rule("CheckMatch", {
     case g @ CheckGoal(c, e @ NatMatch(t, t0, Bind(id, tn)), ty) =>
-      TypeChecker.debugs(rc, g, "CheckMatch")
+      TypeChecker.debugs(g, "CheckMatch")
       val c0 = c.incrementLevel
       val checkN = CheckGoal(c0, t, NatType)
       val checkT0 = CheckGoal(c0, t0, ty)
@@ -661,7 +661,7 @@ trait ProvenRules {
 
   val CheckEitherMatch = Rule("CheckEitherMatch", {
     case g @ CheckGoal(c, e @ EitherMatch(t, Bind(id1, t1), Bind(id2, t2)), tpe) =>
-      TypeChecker.debugs(rc, g, "CheckEitherMatch")
+      TypeChecker.debugs(g, "CheckEitherMatch")
       val c0 = c.incrementLevel
       val inferScrutinee = InferGoal(c0, t)
       val fcheckT1: List[Judgment] => Goal = {
@@ -700,7 +700,7 @@ trait ProvenRules {
 
   val CheckPair = Rule("CheckFirst", {
     case g @ CheckGoal(c, e @ Pair(t1, t2), ty @ SigmaType(ty1, Bind(id, ty2))) =>
-      TypeChecker.debugs(rc, g, "CheckFirst")
+      TypeChecker.debugs(g, "CheckFirst")
       val letTy2 = ty2.replace(id, t1)
       val subgoal1 = CheckGoal(c.incrementLevel, t1, ty1)
       val subgoal2 = CheckGoal(c.incrementLevel, t2, letTy2)
@@ -718,7 +718,7 @@ trait ProvenRules {
 
   val CheckSigma = Rule("CheckSigma", {
     case g @ CheckGoal(c, t, tpe @ SigmaType(ty1, Bind(id, ty2))) =>
-      TypeChecker.debugs(rc, g, "CheckSigma")
+      TypeChecker.debugs(g, "CheckSigma")
       val checkFirst = CheckGoal(c.incrementLevel, First(t), ty1)
       val c1 = c.bind(id, ty2).addEquality(Var(id), First(t)).incrementLevel
       val checkSecond = CheckGoal(c1, Second(t), ty2)
@@ -736,7 +736,7 @@ trait ProvenRules {
 
   val CheckIntersection = Rule("CheckIntersection", {
     case g @ CheckGoal(c, t, tpe @ IntersectionType(tyid, Bind(id, ty))) =>
-      TypeChecker.debugs(rc, g, "CheckIntersection")
+      TypeChecker.debugs(g, "CheckIntersection")
       val (freshId, c1) = c.bindFresh(id.name, tyid)
       val subgoal = CheckGoal(c1.incrementLevel, ErasableApp(t, Var(freshId)), ty.replace(id, Var(freshId)))
       Some((List(_ => subgoal),
@@ -753,7 +753,7 @@ trait ProvenRules {
 
   val CheckLet = Rule("CheckLet", {
     case g @ CheckGoal(c, e @ LetIn(None, v, Bind(id, body)), ty) =>
-      TypeChecker.debugs(rc, g, "CheckLet")
+      TypeChecker.debugs(g, "CheckLet")
       val gv = InferGoal(c.incrementLevel, v)
       val fgb: List[Judgment] => Goal =
         {
@@ -774,7 +774,7 @@ trait ProvenRules {
       ))
 
     case g @ CheckGoal(c, e @ LetIn(Some(tyv), v, Bind(id, body)), ty) =>
-      TypeChecker.debugs(rc, g, "CheckLet")
+      TypeChecker.debugs(g, "CheckLet")
       val gv = CheckGoal(c.incrementLevel, v, tyv)
       val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel
       val gb = CheckGoal(c1, body, ty)
@@ -794,7 +794,7 @@ trait ProvenRules {
 
   val InferFold = Rule("InferFold", {
     case g @ InferGoal(c, e @ Fold(tpe @ RecType(n, Bind(a, ty)), t)) =>
-      TypeChecker.debugs(rc, g, "InferFold")
+      TypeChecker.debugs(g, "InferFold")
       val checkN = CheckGoal(c.incrementLevel, n, NatType)
       val c1 = c.addEquality(n, NatLiteral(0))
       val checkBase = CheckGoal(c1.incrementLevel, t, TypeOperators.basetype(a, ty))
@@ -821,7 +821,7 @@ trait ProvenRules {
 
   val InferFoldGen = Rule("InferFoldGen", {
     case g @ InferGoal(c, e @ Fold(tpe @ IntersectionType(NatType, Bind(n, RecType(Var(m), Bind(a, ty)))), t)) if n == m =>
-      TypeChecker.debugs(rc, g, "InferFoldGen")
+      TypeChecker.debugs(g, "InferFoldGen")
       val nTy = IntersectionType(NatType, Bind(n, RecType(Var(n), Bind(a, ty))))
       val check = CheckGoal(c.incrementLevel, t, Tree.replace(a, nTy, ty))
       Some((
@@ -839,7 +839,7 @@ trait ProvenRules {
 
   val CheckRecursive = Rule("CheckRecursive", {
     case g @ CheckGoal(c, t, tpe @ RecType(n1, bind1)) =>
-      TypeChecker.debugs(rc, g, "CheckRecursive")
+      TypeChecker.debugs(g, "CheckRecursive")
       val subgoal = InferGoal(c.incrementLevel, t)
       val fEquality: List[Judgment] => Goal =
         {
@@ -868,7 +868,7 @@ trait ProvenRules {
 
   val CheckTop1 = Rule("CheckTop1", {
     case g @ CheckGoal(c, t, TopType) if t.isValue =>
-      TypeChecker.debugs(rc, g, "CheckTop1")
+      TypeChecker.debugs(g, "CheckTop1")
       Some((List(), _ => (true, CheckJudgment("CheckTop1", c, t, TopType))))
     case g =>
       None
@@ -876,7 +876,7 @@ trait ProvenRules {
 
   val CheckTop2 = Rule("CheckTop2", {
     case g @ CheckGoal(c, t, TopType) =>
-      TypeChecker.debugs(rc, g, "CheckTop2")
+      TypeChecker.debugs(g, "CheckTop2")
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
@@ -892,7 +892,7 @@ trait ProvenRules {
 
   val InferUnfold = Rule("InferUnfold", {
     case g @ InferGoal(c, e @ Unfold(t1, Bind(x, t2))) =>
-      TypeChecker.debugs(rc, g, "InferUnfold")
+      TypeChecker.debugs(g, "InferUnfold")
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, t1)
       val fg2: List[Judgment] => Goal = {
@@ -979,7 +979,7 @@ trait ProvenRules {
 
   val InferUnfoldPositive = Rule("InferUnfoldPositive", {
     case g @ InferGoal(c, e @ UnfoldPositive(t1, Bind(x, t2))) =>
-      TypeChecker.debugs(rc, g, "InferUnfoldPositive")
+      TypeChecker.debugs(g, "InferUnfoldPositive")
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, t1)
       val fg3: List[Judgment] => Goal = {
@@ -1013,7 +1013,7 @@ trait ProvenRules {
 
   val InferTypeAbs = Rule("InferTypeAbs", {
     case g @ InferGoal(c, e @ Abs(Bind(a, t))) =>
-      TypeChecker.debugs(rc, g, "InferTypeAbs")
+      TypeChecker.debugs(g, "InferTypeAbs")
       val c1 = c.addTypeVariable(a).incrementLevel
       val subgoal = InferGoal(c1, t)
       Some((List(_ => subgoal),
@@ -1030,7 +1030,7 @@ trait ProvenRules {
 
   val InferTypeApp = Rule("InferTypeApp", {
     case g @ InferGoal(c, e @ TypeApp(t, ty)) =>
-      TypeChecker.debugs(rc, g, "InferTypeApp")
+      TypeChecker.debugs(g, "InferTypeApp")
       val c1 = c.incrementLevel
       val subgoal = InferGoal(c1, t)
       Some((List(_ => subgoal),
@@ -1054,7 +1054,7 @@ trait ProvenRules {
 
   val CheckTypeAbs = Rule("CheckTypeAbs", {
     case g @ CheckGoal(c, t, tpe @ PolyForallType(Bind(a, ty))) =>
-      TypeChecker.debugs(rc, g, "CheckTypeAbs")
+      TypeChecker.debugs(g, "CheckTypeAbs")
       val c1 = c.addTypeVariable(a).incrementLevel
       val subgoal = CheckGoal(c1, TypeApp(t, Var(a)), ty)
       Some((List(_ => subgoal),
@@ -1071,7 +1071,7 @@ trait ProvenRules {
 
   val Reflexivity = Rule("Reflexivity", {
     case g @ EqualityGoal(c, t1, t2) if t1.isEqual(t2) =>
-      TypeChecker.debugs(rc, g, "Reflexivity")
+      TypeChecker.debugs(g, "Reflexivity")
       Some((List(),
         {
           case _ => (true, AreEqualJudgment("Reflexivity", c, t1, t2, "By Reflexivity"))
@@ -1096,7 +1096,7 @@ trait ProvenRules {
 
   val UnfoldRefinementInContext = Rule("UnfoldRefinementInContext", {
     case g @ EqualityGoal(c, t1, t2) if c.hasRefinement =>
-      TypeChecker.debugs(rc, g, "UnfoldRefinementInContext")
+      TypeChecker.debugs(g, "UnfoldRefinementInContext")
       val c1 = unfoldRefinementInContext(c)
       val subgoal = EqualityGoal(c1.incrementLevel, t1, t2)
       Some((List(_ => subgoal),
@@ -1118,7 +1118,7 @@ trait ProvenRules {
         tp == EqualityType(t2,t1)
       }
       =>
-      TypeChecker.debugs(rc, g, "EqualityInContext")
+      TypeChecker.debugs(g, "EqualityInContext")
       Some((List(),
         {
           case _ => (true, AreEqualJudgment("EqualityInContext", c, t1, t2, "By Assumption"))

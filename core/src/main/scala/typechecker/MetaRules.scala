@@ -53,7 +53,7 @@ trait MetaRules {
 
   val InferMacroTypeDecl = Rule("InferMacroTypeDecl", {
     case g @ InferGoal(c, t @ MacroTypeDecl(tp, Bind(id, rest))) =>
-      TypeChecker.debugs(rc, g, "InferMacroTypeDecl")
+      TypeChecker.debugs(g, "InferMacroTypeDecl")
       inlineMacro(tp, id, rest) match {
         case Left(error) =>
           Some((

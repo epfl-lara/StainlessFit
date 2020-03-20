@@ -34,7 +34,7 @@ trait SMTRules {
   // 
   // val Z3ArithmeticSolver: Rule = Rule("Z3ArithmeticSolver", {
   //   case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, t1 ::  t2 ::  Nil)) =>
-  //     TypeChecker.debugs(rc, g, "Z3ArithmeticSolver")
+  //     TypeChecker.debugs(g, "Z3ArithmeticSolver")
   //     TypeChecker.z3Debug("Current goal:\n" + g)
   //     TypeChecker.z3Debug("Current context:\n" + c)
   //     TypeChecker.z3Debug("\nInvoking Z3\n")

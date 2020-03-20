@@ -18,7 +18,7 @@ class Reporter(colors: Boolean, info: Boolean) {
   }
 
   def fatalError[T](s: String): T = {
-    error(s)
+    println(addPrefix(s, color("[FATAL] ", Console.RED)))
     System.exit(1)
     ???
   }

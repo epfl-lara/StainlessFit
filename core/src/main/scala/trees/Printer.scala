@@ -122,20 +122,21 @@ object Printer {
 
         res.append(tokenToString(t))
 
-        if (t.after.isEmpty) {
-          if (ts.isEmpty)
-            res.append("\n" + newIndentation)
-          else if (insertSpace(t, ts.head))
-            res.append(" ")
-        }
-        else {
-          val after = if (allowNewLine(ts)) t.after else t.after.replace("\n", "")
-          res.append(after)
-          if (!after.isEmpty && after.last == '\n' && !ts.isEmpty)
-            res.append(newIndentation)
-        }
+        if (!ts.isEmpty) {
 
-        loop(newIndentation, ts)
+          if (t.after.isEmpty) {
+            if (insertSpace(t, ts.head))
+              res.append(" ")
+          }
+          else {
+            val after = if (allowNewLine(ts)) t.after else t.after.replace("\n", "")
+            res.append(after)
+            if (!after.isEmpty && after.last == '\n' && !ts.isEmpty)
+              res.append(newIndentation)
+          }
+
+          loop(newIndentation, ts)
+        }
     }
 
     rc.bench.time("tokensToString"){ loop("", l) }
@@ -176,7 +177,7 @@ object Printer {
     })
   }
 
-  def exprOrTypeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
+  def asString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
     asStringMap.getOrElseUpdate(t, {
       val it = rc.exprPrinter(t)
       if (it.isEmpty)
@@ -210,7 +211,8 @@ object Printer {
 
     val syntaxes: Seq[Syntax[Tree]] = Seq(
       primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType,
-      recType, refinementType, sums, arrows, equalityType, simpleTypeExpr,
+      recType, refinementOrSingletonType, refinementByType, sums, arrows,
+      equalityType, simpleTypeExpr,
       typeExpr, boolean, number, termVariable, typeVariable, unit, literal,
       defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,

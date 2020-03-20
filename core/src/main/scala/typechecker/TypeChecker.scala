@@ -67,24 +67,24 @@ class TypeChecker(implicit val rc: RunContext)
 }
 
 object TypeChecker {
-  def debugs(rc: RunContext, g: Goal, ruleName: String) = {
-    ruleNameDebug(rc, s"${"   " * g.c.level}$ruleName")
-    typeCheckDebug(rc, s"${"   " * g.c.level}Current goal ${g} $ruleName : ${g.c.toString.replaceAll("\n", s"\n${"   " * g.c.level}")}\n")
+  def debugs(g: Goal, ruleName: String)(implicit rc: RunContext) = {
+    ruleNameDebug(s"${"   " * g.c.level}$ruleName")
+    typeCheckDebug(s"${"   " * g.c.level}Current goal ${g} $ruleName : ${g.c.toString.replaceAll("\n", s"\n${"   " * g.c.level}")}\n")
   }
 
-  def ruleNameDebug(rc: RunContext, s: => String): Unit = {
+  def ruleNameDebug(s: => String)(implicit rc: RunContext): Unit = {
     if (rc.debugEnabled(DebugSection.Rule)) {
       rc.reporter.debug(s)
     }
   }
 
-  def typeCheckDebug(rc: RunContext, s: => String): Unit = {
+  def typeCheckDebug(s: => String)(implicit rc: RunContext): Unit = {
     if (rc.debugEnabled(DebugSection.TypeCheck)) {
       rc.reporter.debug(s)
     }
   }
 
-  def equalityDebug(rc: RunContext, s: => String): Unit = {
+  def equalityDebug(s: => String)(implicit rc: RunContext): Unit = {
     if (rc.debugEnabled(DebugSection.Equality)) {
       rc.reporter.debug(s)
     }
