@@ -71,7 +71,7 @@ trait ScalaDepRules {
           case  InferJudgment(_, _, _, ty) ::
                 CheckJudgment(_, _, _, _) :: _ =>
             val PiType(_, Bind(x, tyb)) = widen(ty)
-            (true, InferJudgment("InferApp1", c, e, SingletonType(tyb.replace(x, t2), e)))
+            (true, InferJudgment("InferApp1", c, e, tyb.replace(x, t2)))
 
           case _ =>
             emitErrorWithJudgment("InferApp1", g, None)
