@@ -14,7 +14,6 @@ object Printer {
     case SeparatorToken(s) => s
     case KeywordToken("funof") => "fun of"
     case KeywordToken("[unfoldpositive]") => "[unfold positive]"
-    case KeywordToken("{case") => "{\ncase"
     case KeywordToken(s) => s
     case TypeIdentifierToken(content) => content
     case TermIdentifierToken(content) => content
@@ -24,6 +23,7 @@ object Printer {
     case UnitToken => "()"
     case NumberToken(value) => value.toString
     case BooleanToken(value) => value.toString
+    case StringToken(value) => value
     case _ => throw new Exception(s"Token $t is not supported by the pretty printer")
   }
 
@@ -66,6 +66,12 @@ object Printer {
     case (KeywordToken("else"), _) => true
     case (KeywordToken("keep"), _) => true
     case (KeywordToken("funof"), _) => true
+    case (KeywordToken("case"), _) => true
+    case (_, KeywordToken("case")) => true
+    case (KeywordToken("cons"), _) => true
+    case (KeywordToken("match"), _) => true
+    case (KeywordToken("nat_match"), _) => true
+    case (KeywordToken("list_match"), _) => true
     case (KeywordToken("[returns"), _) => true
     case (_, KeywordToken("[returns")) => true
 
@@ -213,7 +219,7 @@ object Printer {
       primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType,
       recType, refinementOrSingletonType, refinementByType, sums, arrows,
       equalityType, simpleTypeExpr,
-      typeExpr, boolean, number, termVariable, typeVariable, unit, literal,
+      typeExpr, boolean, number, termVariable, unit, literal,
       defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,
       eitherMatch, natMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,

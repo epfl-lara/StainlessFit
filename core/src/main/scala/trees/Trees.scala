@@ -572,6 +572,13 @@ object Tree {
       case PolyForallType(bind) =>
         replace(p, bind).map(PolyForallType(_))
 
+      case EqualityType(t1, t2) =>
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          EqualityType(rt1, rt2)
+
       case BottomType => Right(body)
       case TopType => Right(body)
 
@@ -633,6 +640,7 @@ object Tree {
       case RefinementByType(t1, bind) => RefinementByType(replaceMany(p, t1), replaceMany(p, bind))
       case RecType(n, bind) => RecType(replaceMany(p, n), replaceMany(p, bind))
       case PolyForallType(bind) => PolyForallType(replaceMany(p, bind))
+      case EqualityType(t1, t2) => EqualityType(replaceMany(p, t1), replaceMany(p, t2))
 
       case BottomType => BottomType
       case TopType => TopType

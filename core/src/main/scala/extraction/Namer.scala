@@ -15,7 +15,9 @@ class Namer(implicit val rc: RunContext) extends Phase[Int] {
 }
 
 object Namer {
-  val builtInMap = BuiltInIdentifiers.builtInIdentifiers.map(id => Identifier(0, id) -> Identifier(0, id)).toMap
+  val builtInMap =
+    (BuiltInIdentifiers.builtInIdentifiers ++ BuiltInIdentifiers.builtInTypeIdentifiers)
+      .map(id => Identifier(0, id) -> Identifier(0, id)).toMap
 
   def namer(t: Tree, m: Map[Identifier, Identifier], max: Int): (Tree, Int) = {
     t match {
@@ -25,6 +27,8 @@ object Namer {
       case UnitType => (t, max)
       case NatType => (t, max)
       case BoolType => (t, max)
+      case TopType => (t, max)
+      case BottomType => (t, max)
       case Error(s, Some(t)) =>
         val (newT, max1) = namer(t, m, max)
         (Error(s, Some(newT)), max1)
@@ -167,6 +171,10 @@ object Namer {
         val (newT1, max1) = namer(t1, m, max)
         val (newBind, max2) = namer(bind, m, max1)
         (RefinementType(newT1, newBind), max2)
+      case RefinementByType(t1, bind) =>
+        val (newT1, max1) = namer(t1, m, max)
+        val (newBind, max2) = namer(bind, m, max1)
+        (RefinementByType(newT1, newBind), max2)
       case RecType(n, bind) =>
         val (newN, max1) = namer(n, m, max)
         val (newBind, max2) = namer(bind, m, max1)
@@ -174,6 +182,10 @@ object Namer {
       case PolyForallType(bind) =>
         val (newBind, max1) = namer(bind, m, max)
         (PolyForallType(newBind), max1)
+      case EqualityType(t1, t2) =>
+        val (newT1, max1) = namer(t1, m, max)
+        val (newT2, max2) = namer(t2, m, max1)
+        (EqualityType(newT1, newT2), max2)
 
       case _ => throw new java.lang.Exception(s"Function `namer` is not defined on tree: $t")
     }

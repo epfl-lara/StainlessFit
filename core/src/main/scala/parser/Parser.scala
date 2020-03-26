@@ -91,7 +91,9 @@ object FitLexer extends Lexers with CharRegExps {
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ elem(']')) |
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ word("positive") ~ elem(']')) |
     word("as") | word("fun of") | word("keep") |
-    word("if") | word("else") | word("case") | word("match") |
+    word("if") | word("else") | word("case") |
+    word("match") | word("nat_match") | word("list_match") |
+    word("nil") | word("cons") | word("List") |
     word("fix") | word("fun") | word("val") |
     word("error") |
     word("zero") | word("succ") |
@@ -233,12 +235,16 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val funK: Syntax[Unit] = elem(KeywordClass("fun")).unit(KeywordToken("fun"))
   val funOfK: Syntax[Unit] = elem(KeywordClass("funof")).unit(KeywordToken("funof"))
   val matchK: Syntax[Unit] = elem(KeywordClass("match")).unit(KeywordToken("match"))
+  val natMatchK: Syntax[Unit] = elem(KeywordClass("nat_match")).unit(KeywordToken("nat_match"))
+  val listMatchK: Syntax[Unit] = elem(KeywordClass("list_match")).unit(KeywordToken("list_match"))
   val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
   val caseK: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case"))
   val valK: Syntax[Unit] = elem(KeywordClass("val")).unit(KeywordToken("val"))
   val keepK: Syntax[Unit] = elem(KeywordClass("keep")).unit(KeywordToken("keep"))
   val errorK: Syntax[Unit] = elem(KeywordClass("error")).unit(KeywordToken("error"))
   val foldK: Syntax[Unit] = elem(KeywordClass("[fold")).unit(KeywordToken("[fold"))
+  val nilK: Syntax[Unit] = elem(KeywordClass("nil")).unit(KeywordToken("nil"))
+  val consK: Syntax[Unit] = elem(KeywordClass("cons")).unit(KeywordToken("cons"))
   val asK: Syntax[Unit] = elem(KeywordClass("as")).unit(KeywordToken("as"))
   val unfoldK: Syntax[Unit] = elem(KeywordClass("[unfold]")).unit(KeywordToken("[unfold]"))
   val unfoldPositiveK: Syntax[Unit] = elem(KeywordClass("[unfoldpositive]")).unit(KeywordToken("[unfoldpositive]"))
@@ -443,7 +449,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     userIdentifier |
     BuiltInIdentifiers.builtInIdentifiers.map(s => builtinIdentifier(s)).reduce(_ | _)
 
-  lazy val typeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass)({
+  lazy val userTypeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass)({
     case t@TypeIdentifierToken(content) => Identifier(0, content).setPos(t)
   }, {
     case Identifier(id, name) if (!name.isEmpty && name(0).isUpper) =>
@@ -454,13 +460,14 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     case _ => Seq()
   })
 
+  lazy val typeIdentifier =
+    userIdentifier |
+    BuiltInIdentifiers.builtInTypeIdentifiers.map(s => builtinIdentifier(s)).reduce(_ | _)
+
   lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
     case Var(id) => Seq(id)
-    case _ => Seq()
-  })
-
-  lazy val typeVariable: Syntax[Tree] = typeIdentifier.map(Var(_), {
-    case Var(id) => Seq(id)
+    case t if t == typechecker.ScalaDepSugar.LNil  => Seq(Identifier(0, "nil"))
+    case t if t == typechecker.ScalaDepSugar.LCons => Seq(Identifier(0, "cons"))
     case _ => Seq()
   })
 
@@ -699,6 +706,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case id ~ args => MacroTypeInst(Var(id), args)
     }, {
       case Var(id) => Seq(id ~ Nil)
+      case t if t == typechecker.ScalaDepSugar.LList => Seq(Identifier(0, "List") ~ Nil)
       case MacroTypeInst(Var(id), args) => Seq(id ~ args)
       case _ => Seq()
     })
@@ -717,7 +725,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val natMatch: Syntax[Tree] =
-    (matchK.skip ~ expr ~ lbra.skip ~
+    (natMatchK.skip ~ expr ~ lbra.skip ~
       caseK.skip ~ leftK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
       caseK.skip ~ rightK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
     rbra.skip
@@ -726,6 +734,20 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case _ => sys.error("Unreachable")
     }, {
       case NatMatch(e, e1, Bind(id2, e2)) => Seq(e ~ e1 ~ id2 ~ e2)
+      case _ => Seq()
+    })
+
+  lazy val listMatch: Syntax[Tree] =
+    (listMatchK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ nilK.unit(KeywordToken("nil")).skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ consK.unit(KeywordToken("cons")).skip ~ termIdentifier ~ termIdentifier ~
+        arrow.skip ~ optBracketExpr ~
+    rbra.skip
+    ).map({
+      case (e ~ e1 ~ idHead ~ idTail ~ e2) => ListMatch(e, e1, Bind(idHead, Bind(idTail, e2)))
+      case _ => sys.error("Unreachable")
+    }, {
+      case ListMatch(e, e1, Bind(idHead, Bind(idTail, e2))) => Seq(e ~ e1 ~ idHead ~ idTail ~ e2)
       case _ => Seq()
     })
 
@@ -808,7 +830,9 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   lazy val expr: Syntax[Tree] = recursive {
-    termOrEquality | condition | eitherMatch | letIn | unfoldIn | unfoldPositiveIn |
+    termOrEquality | condition | eitherMatch |
+    natMatch | listMatch |
+    letIn | unfoldIn | unfoldPositiveIn |
     defFunction | macroTypeDeclaration
   }
 

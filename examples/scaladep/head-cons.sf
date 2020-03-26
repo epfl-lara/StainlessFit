@@ -1,0 +1,7 @@
+fun example
+  (f [Unit => List])
+  (headOrElse [ List => Top => Top])
+  (default [Top])  [returns { [Top] 1 }] = {
+
+  headOrElse (cons 1 (f ())) default
+}
