@@ -1,7 +1,10 @@
-fun example
-  (f [Unit => List])
-  (headOrElse [ List => Top => Top])
-  (default [Top])  [returns { [Top] 1 }] = {
+fun headOrElse(l [List])(default [Top])  [returns Top] = {
+  list_match l {
+    case nil => default
+    case cons x xs => x
+  }
+}
 
-  headOrElse (cons 1 (f ())) default
+fun example (l [List]) (default [Top])  [returns { [Top] 1 }] = {
+  headOrElse (cons 1 l) default
 }

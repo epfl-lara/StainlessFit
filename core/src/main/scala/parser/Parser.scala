@@ -76,7 +76,7 @@ object FitLexer extends Lexers with CharRegExps {
 
   val lexer = Lexer(
     // Operators
-    oneOf("-+/*!<>") | word("&&") |  word("||") |
+    oneOf("-+/*!<>∪") | word("&&") |  word("||") |
     word("==") | word("!=") | word("<=") | word(">=")
     |> { (cs, r) => OperatorToken(Operator.fromString(cs.mkString).get).setPos(r) },
 
@@ -276,6 +276,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   def opParser(op: Operator): Syntax[Token] = elem(OperatorClass(op))
 
+  val cup = opParser(Cup)
   val plus = opParser(Plus)
   val minus = opParser(Minus)
   val mul = opParser(Mul)
@@ -363,13 +364,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case _ => Seq()
     })
 
-  lazy val sums: Syntax[Tree] = infixLeft(simpleTypeExpr, plus)({
-    case (ty1, _, ty2) => SumType(ty1, ty2)
+  lazy val sumsAndUnions: Syntax[Tree] = infixLeft(simpleTypeExpr, plus | cup)({
+    case (ty1, `plus`, ty2) => SumType(ty1, ty2)
+    case (ty1, `cup`,  ty2) => UnionType(ty1, ty2)
   }, {
-    case SumType(ty1, ty2) => (ty1, OperatorToken(Plus), ty2)
+    case SumType(ty1, ty2)    => (ty1, OperatorToken(Plus), ty2)
+    case UnionType(ty1, ty2)  => (ty1, OperatorToken(Cup), ty2)
   })
 
-  lazy val arrows: Syntax[Tree] = infixRight(sums, arrow)({
+  lazy val arrows: Syntax[Tree] = infixRight(sumsAndUnions, arrow)({
     case (ty1, _, ty2) => PiType(ty1, Bind(Identifier.fresh("X"), ty2))
   }, {
     case PiType(ty1, Bind(id, ty2)) if !id.isFreeIn(ty2) => (ty1, OperatorToken(Plus), ty2)

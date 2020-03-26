@@ -217,7 +217,7 @@ object Printer {
 
     val syntaxes: Seq[Syntax[Tree]] = Seq(
       primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType,
-      recType, refinementOrSingletonType, refinementByType, sums, arrows,
+      recType, refinementOrSingletonType, refinementByType, sumsAndUnions, arrows,
       equalityType, simpleTypeExpr,
       typeExpr, boolean, number, termVariable, unit, literal,
       defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fold,
@@ -227,7 +227,7 @@ object Printer {
       macroTypeDeclaration, expr
     )
 
-    t.traverse_post { e =>
+    t.traversePost { e =>
       if (syntaxes.forall(s => rc.parser.PrettyPrinter(s)(e).isEmpty))
         rc.reporter.fatalError(s"The pretty printer does not handle subtree: $e")
     }

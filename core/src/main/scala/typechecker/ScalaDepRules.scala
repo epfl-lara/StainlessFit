@@ -201,7 +201,9 @@ trait ScalaDepRules {
       // if (v1 == v2)
         Some((List(_ => SubtypeGoal(c0, ty1, ty2)), {
           case SubtypeJudgment(_, _, _, _) :: _ =>
-          (true, SubtypeJudgment("SubEval", c, tya, tyb))
+            (true, SubtypeJudgment("SubEval", c, tya, tyb))
+          case _ =>
+            emitErrorWithJudgment("SubEval", g, None)
         }))
       // else
       //   Some(
@@ -213,52 +215,30 @@ trait ScalaDepRules {
   })
 
   val InferListMatch = Rule("InferListMatch", {
-    case g @ InferGoal(c, e @ EitherMatch(t, Bind(id1, t1), Bind(id2, t2))) =>
-      Some((List(), _ =>
-        (true, ErrorJudgment("InferListMatch", g, Some("list_match not handled")))
-      ))
-      // // Rule of either_match below
-      // TypeChecker.debugs(g, "InferListMatch")
-      // val c0 = c.incrementLevel
-      // val inferScrutinee = InferGoal(c0, t)
-
-      // val finferT1: List[Judgment] => Goal = {
-      //   case InferJudgment(_, _, _, ty) :: _ =>
-      //     dropRefinements(ty) match {
-      //       case SumType(ty1, ty2) =>
-      //         val c1 = c0.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
-      //         InferGoal(c1, t1)
-      //       case _ => ErrorGoal(c, None)
-      //     }
-      //   case _ => ErrorGoal(c, None)
-      // }
-
-      // val finferT2: List[Judgment] => Goal = {
-      //   case InferJudgment(_, _, _, ty) :: _ =>
-      //     dropRefinements(ty) match {
-      //       case SumType(ty1, ty2) =>
-      //         val c2 = c0.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
-      //         InferGoal(c2, t2)
-      //       case _ => ErrorGoal(c, None)
-      //     }
-      //   case _ => ErrorGoal(c, None)
-      // }
-
-      // Some((
-      //   List(_ => inferScrutinee, finferT1, finferT2), {
-      //     case InferJudgment(_, _, _, _) ::
-      //       InferJudgment(_, _, _, ty1) ::
-      //       InferJudgment(_, _, _, ty2) :: _ =>
-      //         TypeOperators.eitherMatch(t, id1, ty1, id2, ty2) match {
-      //           case None => emitErrorWithJudgment("InferListMatch", g,
-      //             Some(s"Cannot unify types $ty1 and $ty2")
-      //           )
-      //           case Some(ty) => (true, InferJudgment("InferListMatch", c, e, ty))
-      //         }
-
-      //     case _ => emitErrorWithJudgment("InferListMatch", g, None)
-      //   }
+    case g @ InferGoal(c, e @ ListMatch(t, t1, Bind(idHead, Bind(idTail, t2)))) =>
+      // Some((List(), _ =>
+      //   (true, ErrorJudgment("InferListMatch", g, Some("list_match not handled")))
       // ))
+      TypeChecker.debugs(g, "InferListMatch")
+      val c0 = c.incrementLevel
+      val inferScrutinee = CheckGoal(c0, t, LList)
+
+      val inferT1 = InferGoal(c0, t1)
+
+      val c1 = c0.bind(idHead, TopType).bind(idTail, LList)
+      val inferT2 = InferGoal(c1, t2)
+
+      Some((
+        List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
+          case CheckJudgment(_, _, _, _) ::
+            InferJudgment(_, _, _, ty1) ::
+            InferJudgment(_, _, _, ty2) :: _ =>
+              (true, InferJudgment("InferListMatch", c, e,
+                SingletonType(UnionType(ty1, ty2), e)))
+
+          case _ => emitErrorWithJudgment("InferListMatch", g, None)
+        }
+      ))
 
     case _ => None
   })
