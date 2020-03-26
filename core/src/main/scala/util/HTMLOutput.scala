@@ -49,7 +49,7 @@ object HTMLOutput {
       "</span>"
 
     case SubtypeJudgment(name, context, ty1, ty2) =>
-      "<span class='check'>" +
+      "<span class='sub'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         typeOutput(ty1) + " <: " + typeOutput(ty2) +
       "</span>"
@@ -137,6 +137,14 @@ object HTMLOutput {
                 |
                 |.equal:hover {
                 |  background-color: #dadba7
+                |}
+                |
+                |.sub {
+                |  background-color: #fff6eb
+                |}
+                |
+                |.sub:hover {
+                |  background-color: #ffe9cf
                 |}
                 |
                 |.error {
