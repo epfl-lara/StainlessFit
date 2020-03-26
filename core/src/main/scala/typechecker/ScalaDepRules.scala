@@ -201,7 +201,7 @@ trait ScalaDepRules {
       // if (v1 == v2)
         Some((List(_ => SubtypeGoal(c0, ty1, ty2)), {
           case SubtypeJudgment(_, _, _, _) :: _ =>
-          (true, SubtypeJudgment("SubEval", c0, tya, tyb))
+          (true, SubtypeJudgment("SubEval", c, tya, tyb))
         }))
       // else
       //   Some(
