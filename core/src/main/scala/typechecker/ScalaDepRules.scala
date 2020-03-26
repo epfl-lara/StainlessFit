@@ -216,9 +216,6 @@ trait ScalaDepRules {
 
   val InferListMatch = Rule("InferListMatch", {
     case g @ InferGoal(c, e @ ListMatch(t, t1, Bind(idHead, Bind(idTail, t2)))) =>
-      // Some((List(), _ =>
-      //   (true, ErrorJudgment("InferListMatch", g, Some("list_match not handled")))
-      // ))
       TypeChecker.debugs(g, "InferListMatch")
       val c0 = c.incrementLevel
       val inferScrutinee = CheckGoal(c0, t, LList)
@@ -234,7 +231,7 @@ trait ScalaDepRules {
             InferJudgment(_, _, _, ty1) ::
             InferJudgment(_, _, _, ty2) :: _ =>
               (true, InferJudgment("InferListMatch", c, e,
-                SingletonType(UnionType(ty1, ty2), e)))
+                ListMatchType(t, ty1, Bind(idHead, Bind(idTail, ty2)))))
 
           case _ => emitErrorWithJudgment("InferListMatch", g, None)
         }

@@ -218,11 +218,13 @@ object Tree {
       case PiType(t1, bind) => PiType(replace(id, v, t1), replace(id, v, bind))
       case SigmaType(t1, bind) => SigmaType(replace(id, v, t1), replace(id, v, bind))
       case IntersectionType(t1, bind) => IntersectionType(replace(id, v, t1), replace(id, v, bind))
+      case ExistsType(t1, bind) => ExistsType(replace(id, v, t1), replace(id, v, bind))
       case RefinementType(t1, bind) => RefinementType(replace(id, v, t1), replace(id, v, bind))
       case RefinementByType(t1, bind) => RefinementByType(replace(id, v, t1), replace(id, v, bind))
       case EqualityType(t1, t2) => EqualityType(replace(id, v, t1), replace(id, v, t2))
       case RecType(n, bind) => RecType(replace(id, v, n), replace(id, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(id, v, bind))
+      case Node(name, children) => Node(name, children.map(replace(id, v, _)))
 
       case BottomType => BottomType
       case TopType => TopType
@@ -348,6 +350,10 @@ object Tree {
         traversePost(t1, f)
         traversePost(bind, f)
         f(t)
+      case ExistsType(t1, bind) =>
+        traversePost(t1, f)
+        traversePost(bind, f)
+        f(t)
       case RefinementType(t1, bind) =>
         traversePost(t1, f)
         traversePost(bind, f)
@@ -366,6 +372,9 @@ object Tree {
       case EqualityType(t1, t2) =>
         traversePost(t1, f)
         traversePost(t2, f)
+        f(t)
+      case Node(name, args) =>
+        args.foreach(arg => traversePost(arg, f))
         f(t)
 
       case BottomType =>
@@ -496,6 +505,16 @@ object Tree {
           }
         ) yield
           Primitive(op, rargs)
+      case Node(name, children) =>
+        val eithers = children.map(arg => replace(p, arg));
+        for(
+          rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
+            case (acc @ Left(_), _) => acc
+            case (_, Left(error)) => Left(error)
+            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
+          }
+        ) yield
+          Node(name, rargs)
       case ErasableApp(t1, t2) =>
         for (
           rt1 <- replace(p,t1);
@@ -559,6 +578,12 @@ object Tree {
           rbind <- replace(p,bind)
         ) yield
           IntersectionType(rt1, rbind)
+      case ExistsType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          ExistsType(rt1, rbind)
       case RefinementType(t1, bind) =>
         for (
           rt1 <- replace(p,t1);
@@ -644,11 +669,13 @@ object Tree {
       case PiType(t1, bind) => PiType(replaceMany(p, t1), replaceMany(p, bind))
       case SigmaType(t1, bind) => SigmaType(replaceMany(p, t1), replaceMany(p, bind))
       case IntersectionType(t1, bind) => IntersectionType(replaceMany(p, t1), replaceMany(p, bind))
+      case ExistsType(t1, bind) => ExistsType(replaceMany(p, t1), replaceMany(p, bind))
       case RefinementType(t1, bind) => RefinementType(replaceMany(p, t1), replaceMany(p, bind))
       case RefinementByType(t1, bind) => RefinementByType(replaceMany(p, t1), replaceMany(p, bind))
       case RecType(n, bind) => RecType(replaceMany(p, n), replaceMany(p, bind))
       case PolyForallType(bind) => PolyForallType(replaceMany(p, bind))
       case EqualityType(t1, t2) => EqualityType(replaceMany(p, t1), replaceMany(p, t2))
+      case Node(name, children) => Node(name, children.map(replaceMany(p, _)))
 
       case BottomType => BottomType
       case TopType => TopType
@@ -721,6 +748,7 @@ object Tree {
       case (PiType(t1, bind1), PiType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (ExistsType(t1, bind1), ExistsType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
@@ -779,6 +807,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case ExistsType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RefinementByType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
@@ -896,6 +925,7 @@ case class SigmaType(t1: Tree, t2: Tree) extends Tree
 case class SumType(t1: Tree, t2: Tree) extends Tree
 case class PiType(t1: Tree, t2: Tree) extends Tree
 case class IntersectionType(t1: Tree, t2: Tree) extends Tree
+case class ExistsType(t1: Tree, t2: Tree) extends Tree
 case class RefinementType(t1: Tree, t2: Tree) extends Tree
 case class RefinementByType(t1: Tree, t2: Tree) extends Tree
 case class RecType(n: Tree, bind: Tree) extends Tree
@@ -903,3 +933,4 @@ case class PolyForallType(t: Tree) extends Tree
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
 case class Because(t1: Tree, t2: Tree) extends Tree
+case class Node(s: String, children: Seq[Tree]) extends Tree

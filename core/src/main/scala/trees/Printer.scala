@@ -72,6 +72,7 @@ object Printer {
     case (KeywordToken("match"), _) => true
     case (KeywordToken("nat_match"), _) => true
     case (KeywordToken("list_match"), _) => true
+    case (KeywordToken("List_Match"), _) => true
     case (KeywordToken("[returns"), _) => true
     case (_, KeywordToken("[returns")) => true
 

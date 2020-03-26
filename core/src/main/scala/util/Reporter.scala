@@ -19,7 +19,7 @@ class Reporter(colors: Boolean, info: Boolean) {
 
   def fatalError[T](s: String): T = {
     println(addPrefix(s, color("[FATAL] ", Console.RED)))
-    System.exit(1)
+    throw new Exception(s)
     ???
   }
 
