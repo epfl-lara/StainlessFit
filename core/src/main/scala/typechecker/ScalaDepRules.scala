@@ -193,13 +193,15 @@ trait ScalaDepRules {
       tyb @ SingletonType(ty2, t2)) =>
       TypeChecker.debugs(g, "SubEval")
 
+      val c0 = c.incrementLevel
+
       // val v1 = interpreter.Interpreter.evaluate(t1)
       // val v2 = interpreter.Interpreter.evaluate(t2)
 
       // if (v1 == v2)
-        Some((List(_ => SubtypeGoal(c, ty1, ty2)), {
+        Some((List(_ => SubtypeGoal(c0, ty1, ty2)), {
           case SubtypeJudgment(_, _, _, _) :: _ =>
-          (true, SubtypeJudgment("SubEval", c, tya, tyb))
+          (true, SubtypeJudgment("SubEval", c0, tya, tyb))
         }))
       // else
       //   Some(
