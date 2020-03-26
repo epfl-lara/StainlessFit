@@ -4,10 +4,3 @@ fun isEmpty(l [List])  [returns Bool] = {
     case cons x xs => false
   }
 }
-
-fun head(l [{l [List] | !(isEmpty l)}])  [returns Top] = {
-  list_match l {
-    case nil => error[Top]("Head of an empty list")
-    case cons x xs => x
-  }
-}

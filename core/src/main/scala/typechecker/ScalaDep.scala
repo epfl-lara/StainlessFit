@@ -18,13 +18,15 @@ class ScalaDep(implicit val rc: RunContext)
     InferVar1.t ||
     InferNat.t ||
     InferUnit.t ||
+    InferBool.t ||
     InferLet1.t ||
     InferLet2.t ||
-    InferLambda.t ||
+    InferLambda1.t ||
     InferApp1.t ||
     InferCons.t ||
     InferListMatch.t ||
     CheckInfer.t ||
+    SubListMatch.t ||
     SubEval.t ||
     SubPi.t ||
     SubReflexive.t ||

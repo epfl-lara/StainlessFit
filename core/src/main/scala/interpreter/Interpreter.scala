@@ -5,10 +5,82 @@ package interpreter
 import trees._
 import util.RunContext
 import parser.FitParser
+import typechecker.Context
+import typechecker.ScalaDepSugar._
 
 object Interpreter {
 
   val zero = BigInt(0)
+
+  def evaluateWithContext(c: Context, e: Tree)(implicit rc: RunContext): Tree = {
+    e match {
+      // case IfThenElse(BooleanLiteral(true), t1, t2) => t1
+      // case IfThenElse(BooleanLiteral(false), t1, t2) => t2
+      // case IfThenElse(t, tt, tf) => IfThenElse(evaluateWithContext(c, t), tt, tf)
+
+      case Var(id) => c.termVariables(id) match {
+        case SingletonType(_, t) => evaluateWithContext(c, t)
+        case _ => e
+      }
+
+      case Pair(t1, t2) => Pair(evaluateWithContext(c, t1), evaluateWithContext(c, t2))
+
+      case First(t) => evaluateWithContext(c, t) match {
+        case Pair(t1, t2) => t1
+        case e => e
+      }
+
+      case Second(t) => evaluateWithContext(c, t) match {
+        case Pair(t1, t2) => t2
+        case e => e
+      }
+
+      case App(f, t) =>
+        val nt = evaluateWithContext(c, t)
+        evaluateWithContext(c, f) match {
+          case Lambda(_, Bind(id, body)) => evaluateWithContext(c, body.replace(id, nt))
+          case nf => App(nf, nt)
+        }
+
+      // case Fix(_, Bind(id, bind)) if bind.isBind => Tree.replaceBind(bind, e)
+
+      // case NatMatch(NatLiteral(`zero`), t0, _) => t0
+      // case NatMatch(NatLiteral(n), _, bind) if bind.isBind => Tree.replaceBind(bind, NatLiteral(n - 1))
+      // case NatMatch(t, t0, bind) => NatMatch(evaluateWithContext(c, t), t0, bind)
+
+      case EitherMatch(t, b1@Bind(id1, t1), b2@Bind(id2, t2)) =>
+        evaluateWithContext(c, t) match {
+          case LeftTree(e1) => evaluateWithContext(c, t1.replace(id1, e1))
+          case RightTree(e2) => evaluateWithContext(c, t2.replace(id2, e2))
+          case nt => EitherMatch(nt, b1, b2)
+        }
+
+      // case Primitive(Not, BooleanLiteral(b) :: Nil) => BooleanLiteral(!b)
+      // case Primitive(And, BooleanLiteral(b1) :: BooleanLiteral(b2) :: Nil) => BooleanLiteral(b1 && b2)
+      // case Primitive(Or, BooleanLiteral(b1) :: BooleanLiteral(b2) :: Nil) => BooleanLiteral(b1 || b2)
+
+      // case Primitive(Neq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 != n2)
+      // case Primitive(Eq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 == n2)
+      // case Primitive(Lt, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 < n2)
+      // case Primitive(Gt, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 > n2)
+      // case Primitive(Leq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 <= n2)
+      // case Primitive(Geq, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => BooleanLiteral(n1 >= n2)
+
+      // case Primitive(Plus, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => NatLiteral(n1 + n2)
+      // case Primitive(Minus, NatLiteral(n1) :: NatLiteral(n2) :: Nil) if n1 >= n2 => NatLiteral(n1 - n2)
+      // case Primitive(Mul, NatLiteral(n1) :: NatLiteral(n2) :: Nil) => NatLiteral(n1 * n2)
+      // case Primitive(Div, NatLiteral(n1) :: NatLiteral(n2) :: Nil) if n2 != 0 => NatLiteral(n1 / n2)
+
+      // case Primitive(p, x :: Nil) if !x.isValue => Primitive(p, evaluateWithContext(c, x) :: Nil)
+      // case Primitive(p, x :: y :: Nil) if !x.isValue => Primitive(p, evaluateWithContext(c, x) :: y :: Nil)
+      // case Primitive(p, x :: y :: Nil) if !y.isValue => Primitive(p, x :: evaluateWithContext(c, y) :: Nil)
+
+      case LeftTree(e) => LeftTree(evaluateWithContext(c, e))
+      case RightTree(e) => RightTree(evaluateWithContext(c, e))
+
+      case _ => e
+    }
+  }
 
   def smallStep(e: Tree)(implicit rc: RunContext): Tree = {
     e match {

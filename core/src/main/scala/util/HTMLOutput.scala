@@ -17,7 +17,7 @@ object HTMLOutput {
   def headerColor(s: String) = color("#002875", s)
   def bold(s: String) = s"<b>$s</b>"
 
-  def shortString(s: String, maxWidth: Int = 90): String = {
+  def shortString(s: String, maxWidth: Int = 900): String = {
     val r = s.replaceAll("\n", " ")
     if (r.length > maxWidth) r.take(maxWidth - 3) + "..."
     else r

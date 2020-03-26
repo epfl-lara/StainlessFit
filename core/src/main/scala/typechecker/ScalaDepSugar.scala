@@ -34,19 +34,22 @@ object ScalaDepSugar {
   val nList = Identifier.fresh("n")
   val alpha = Identifier.fresh("alpha")
   val unused = Identifier.fresh("h")
-  val LList = IntersectionType(NatType, Bind(nList,
-    RecType(Var(nList), Bind(alpha,
-      SumType(UnitType, SigmaType(TopType, Bind(unused, Var(alpha))))
-    ))
-  ))
+  val LList = Node("List", Seq())
+  // IntersectionType(NatType, Bind(nList,
+  //   RecType(Var(nList), Bind(alpha,
+  //     SumType(UnitType, SigmaType(TopType, Bind(unused, Var(alpha))))
+  //   ))
+  // ))
 
   val idHead2 = Identifier.fresh("x")
   val idTail2 = Identifier.fresh("xs")
+  // cons :  (head: Top) => (tail: List) => { [List] cons head tail }
   val LConsType: Tree = PiType(TopType, Bind(idHead2,
     PiType(LList, Bind(idTail2,
       SingletonType(LList, App(App(LCons, Var(idHead2)), Var(idTail2)))
     ))
   ))
+
 
   object ListMatch {
 
@@ -57,6 +60,9 @@ object ScalaDepSugar {
       EitherMatch(l,
         Bind(unused, eNil),
         Bind(pair,
+          // let idHead = fst pair
+          // let idTail = snd pair
+          // e
           App(App(
             Lambda(None, Bind(idHead, Lambda(None, Bind(idTail, e )))),
             First(Var(pair))),

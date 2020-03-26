@@ -34,7 +34,7 @@ trait ScalaDepRules {
       Some((
         List(_ => gv, fgb),
         {
-          case _ :: InferJudgment(_, _, _, tyb) :: _ =>
+          case _ :: InferJudgment(_, _, _, tyb) :: Nil =>
             (true, InferJudgment("InferLet1", c, e, tyb))
           case _ =>
             emitErrorWithJudgment("InferLet1", g, None)
@@ -44,13 +44,35 @@ trait ScalaDepRules {
     case _ => None
   })
 
+  val InferLambda1 = Rule("InferLambda1", {
+    case g @ InferGoal(c, e @ Lambda(Some(ty1), Bind(id, body))) =>
+      TypeChecker.debugs(g, "InferLambda1")
+      val c1 = c.bind(id, ty1).incrementLevel
+      val gb = InferGoal(c1, body)
+      Some((
+        List(_ => gb),
+        {
+          case InferJudgment(_, _, _, tyb) :: _ =>
+            (true, InferJudgment("InferLambda1", c, e,
+              SingletonType(PiType(ty1, Bind(id, tyb)), e)))
+          case _ =>
+            // Returning Top is sound but a bit misleading
+            // (true, InferJudgment(c, e, TopType))
+            emitErrorWithJudgment("InferLambda1", g, None)
+        }
+      ))
+
+    case g =>
+      None
+  })
+
   val InferLet2 = Rule("InferLet2", {
     case g @ InferGoal(c, e @ LetIn(Some(ty), v, Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLet2")
       val c0 = c.incrementLevel
       val gv = CheckGoal(c0, v, ty)
 
-      val c1 = c0.bind(id, ty)
+      val c1 = c0.bind(id, SingletonType(ty, v))
       val g2: Goal = InferGoal(c1, body)
 
       Some((
@@ -69,7 +91,10 @@ trait ScalaDepRules {
   def widen(t: Tree): Tree = t match {
     case SingletonType(PiType(ty1, Bind(id, ty2)), f) =>
       PiType(ty1, Bind(id, SingletonType(ty2, App(f, Var(id)))))
-    case _ => t
+    case SingletonType(ty, f) =>
+      widen(ty)
+    case _ =>
+      t
   }
 
   val InferApp1 = Rule("InferApp1", {
@@ -81,12 +106,12 @@ trait ScalaDepRules {
         case InferJudgment(_, _, _, ty) :: _ =>
           widen(ty) match {
             case PiType(ty2, Bind(_, _)) => CheckGoal(c0, t2, ty2)
-            case _ => ErrorGoal(c,
-              Some(s"Expected a Pi-type for ${asString(t1)}, found ${asString(ty)} instead")
+            case wty => ErrorGoal(c0,
+              Some(s"Expected a Pi-type for ${asString(t1)}, found ${asString(ty)} instead (widened as ${asString(wty)}")
             )
           }
         case _ =>
-          ErrorGoal(c, None)
+          ErrorGoal(c0, None)
       }
       Some((
         List(_ => g1, fg2), {
@@ -135,7 +160,7 @@ trait ScalaDepRules {
         case InferJudgment(_, _, _, ty2) :: _ =>
           SubtypeGoal(c0, ty2, ty)
         case _ =>
-          ErrorGoal(c, None)
+          ErrorGoal(c0, None)
       }
       Some((List(_ => gInfer, fgsub),
         {
@@ -166,9 +191,16 @@ trait ScalaDepRules {
   })
 
   val SubSingletonLeft = Rule("SubSingletonLeft", {
-    case g @ SubtypeGoal(c, ty @ SingletonType(ty1, _), ty2) if ty1 == ty2 =>
+    case g @ SubtypeGoal(c, ty @ SingletonType(ty1, _), ty2) =>
       TypeChecker.debugs(g, "SubSingletonLeft")
-      Some((List(), _ => (true, SubtypeJudgment("SubSingletonLeft", c, ty, ty2))))
+
+      val subgoal = SubtypeGoal(c.incrementLevel, ty1, ty2)
+      Some((List(_ => subgoal), {
+        case SubtypeJudgment(_, _, _, _) :: _ =>
+          (true, SubtypeJudgment("SubSingletonLeft", c, ty, ty2))
+        case _ =>
+          (false, ErrorJudgment("SubSingletonLeft", g, None))
+      }))
     case g =>
       None
   })
@@ -182,7 +214,33 @@ trait ScalaDepRules {
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, tyb1, tya1)
       val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
-      Some((List(_ => g1, _ => g2), _ => (true, SubtypeJudgment("SubArrow", c, tya, tyb))))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubArrow", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubArrow", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubListMatch = Rule("SubListMatch", {
+    case g @ SubtypeGoal(c,
+      tya @ ListMatchType(t, tyNil, Bind(idHead, Bind(idTail, tyCons))),
+      tyb
+    ) =>
+      TypeChecker.debugs(g, "SubListMatch")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tyNil, tyb)
+      val g2 = SubtypeGoal(c0.bind(idHead, TopType).bind(idTail, LList), tyCons, tyb)
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubListMatch", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubListMatch", g, None)
+      }))
+
     case g =>
       None
   })
@@ -195,21 +253,21 @@ trait ScalaDepRules {
 
       val c0 = c.incrementLevel
 
-      // val v1 = interpreter.Interpreter.evaluate(t1)
-      // val v2 = interpreter.Interpreter.evaluate(t2)
+      val v1 = interpreter.Interpreter.evaluateWithContext(c, t1)
+      val v2 = interpreter.Interpreter.evaluateWithContext(c, t2)
 
-      // if (v1 == v2)
-        Some((List(_ => SubtypeGoal(c0, ty1, ty2)), {
+      if (v1 == v2)
+        Some((List(_ => SubtypeGoal(c0, tya, ty2)), {
           case SubtypeJudgment(_, _, _, _) :: _ =>
             (true, SubtypeJudgment("SubEval", c, tya, tyb))
           case _ =>
             emitErrorWithJudgment("SubEval", g, None)
         }))
-      // else
-      //   Some(
-      //     List(), _ =>
-      //     (false, ErrorJudgment("SubEval", g, Some(s"${asString(t1)} and ${asString(t2)} do not evaluate the same value (resp ${asString(v1)} and ${asString(v2)})")))
-      //   )
+      else
+        Some(
+          List(), _ =>
+          (false, ErrorJudgment("SubEval", g, Some(s"${asString(t1)} and ${asString(t2)} do not evaluate the same expression (resp. ${asString(v1)} and ${asString(v2)})")))
+        )
     case g =>
       None
   })
