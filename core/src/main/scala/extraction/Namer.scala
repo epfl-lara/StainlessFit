@@ -5,6 +5,7 @@ package extraction
 import util.RunContext
 import trees._
 import parser.FitParser
+import typechecker.ScalaDepSugar._
 
 import Namer._
 
@@ -186,6 +187,11 @@ object Namer {
         val (newT1, max1) = namer(t1, m, max)
         val (newT2, max2) = namer(t2, m, max1)
         (EqualityType(newT1, newT2), max2)
+      case FixWithDefault(tp, t, td) =>
+        val (newTp, max1) = namer(tp, m, max)
+        val (newT: Bind, max2) = namer(t, m, max1)
+        val (newTd, max3) = namer(td, m, max2)
+        (FixWithDefault(newTp, newT, newTd), max3)
 
       case _ => throw new java.lang.Exception(s"Function `namer` is not defined on tree: $t")
     }

@@ -95,7 +95,7 @@ object FitLexer extends Lexers with CharRegExps {
     word("match") | word("nat_match") |
     word("list_match") | word("List_Match") |
     word("nil") | word("cons") | word("List") |
-    word("fix") | word("fun") | word("val") |
+    word("fix") | word("fixD") | word("fun") | word("val") |
     word("error") |
     word("zero") | word("succ") |
     word("left") | word("right") | word("size") |
@@ -233,6 +233,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val ifK: Syntax[Unit] = elem(KeywordClass("if")).unit(KeywordToken("if"))
   val elseK: Syntax[Unit] = elem(KeywordClass("else")).unit(KeywordToken("else"))
   val fixK: Syntax[Unit] = elem(KeywordClass("fix")).unit(KeywordToken("fix"))
+  val fixDK: Syntax[Unit] = elem(KeywordClass("fixD")).unit(KeywordToken("fixD"))
   val funK: Syntax[Unit] = elem(KeywordClass("fun")).unit(KeywordToken("fun"))
   val funOfK: Syntax[Unit] = elem(KeywordClass("funof")).unit(KeywordToken("funof"))
   val matchK: Syntax[Unit] = elem(KeywordClass("match")).unit(KeywordToken("match"))
@@ -608,6 +609,20 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case _ => Seq()
     })
 
+  // `fixD(x [T] => t, td)`
+  lazy val fixpointWithDefault: Syntax[Tree] =
+    (fixDK.skip ~ lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
+      arrow.skip ~ expr ~ comma.skip ~ expr ~ rpar.skip).map({
+      case x ~ tp ~ e ~ ed =>
+        FixWithDefault(tp, Bind(x, e), ed)
+      case _ =>
+        sys.error("Unreachable")
+    }, {
+      case FixWithDefault(tp, Bind(x, e), ed) =>
+        Seq(x ~ tp ~ e ~ ed)
+      case _ => Seq()
+    })
+
   lazy val fold: Syntax[Tree] =
     (foldK.skip ~ asK.skip ~ typeExpr ~ rsbra.skip ~
     lpar.skip ~ expr ~ rpar.skip).map({
@@ -834,7 +849,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val bracketExpr: Syntax[Tree] = lbraBlock.skip ~ expr ~ rbraBlock.skip
 
   lazy val simpleExpr: Syntax[Tree] =
-    literal | parExpr | fixpoint |
+    fixpointWithDefault | literal | parExpr | fixpoint |
     lambda | keep | error | fold
 
   lazy val macroTypeDeclaration: Syntax[Tree] = {

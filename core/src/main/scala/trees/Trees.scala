@@ -753,6 +753,7 @@ object Tree {
       case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
+      case (Node(name1, args1), Node(name2, args2)) => ???; name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
       case _ => t1 == t2
     }
   }
@@ -812,6 +813,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case RefinementByType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
+      case Node(name, args) => ???; args.exists(isFreeIn)
       case _ => false
     }
   }

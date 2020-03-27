@@ -307,4 +307,20 @@ trait ScalaDepRules {
     case _ => None
   })
 
+  val InferFixWithDefault = Rule("InferFixWithDefault", {
+    case g @ InferGoal(c, e @ FixWithDefault(ty, t @ Bind(fIn, tBody), td)) =>
+      TypeChecker.debugs(g, "InferFixWithDefault")
+
+      val c0 = c.incrementLevel
+      val c1 = c0.bind(fIn, ty)
+      val g1 = CheckGoal(c1, tBody, ty)
+      val g2 = CheckGoal(c0, td, ty)
+
+      Some((
+        List(_ => g1, _ => g2),
+        _ =>
+          (true, InferJudgment("InferFixWithDefault", c, e, ty))))
+
+    case _ => None
+  })
 }

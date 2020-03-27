@@ -224,7 +224,7 @@ object Printer {
       recType, refinementOrSingletonType, refinementByType, sumsAndUnions, arrows,
       equalityType, simpleTypeExpr,
       typeExpr, boolean, number, termVariable, unit, literal,
-      defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fold,
+      defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fixpointWithDefault, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,
       eitherMatch, natMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,
       termOrEquality, condition, optBracketExpr, bracketExpr, simpleExpr,

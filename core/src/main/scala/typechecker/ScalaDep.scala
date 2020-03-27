@@ -19,6 +19,7 @@ class ScalaDep(implicit val rc: RunContext)
     InferNat.t ||
     InferUnit.t ||
     InferBool.t ||
+    InferFixWithDefault.t ||
     InferLet1.t ||
     InferLet2.t ||
     InferLambda1.t ||

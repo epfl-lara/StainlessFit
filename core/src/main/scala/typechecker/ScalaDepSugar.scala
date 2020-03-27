@@ -136,4 +136,34 @@ object ScalaDepSugar {
       case _ => None
     }
   }
+
+  object FixWithDefault {
+    val globalFuel = NatLiteral(123)
+
+    def apply(ty: Tree, t: Bind, td: Tree): Tree =
+      Node("FixWithDefault", Seq(ty, t, td))
+    def unapply(t: Tree): Option[(Tree, Bind, Tree)] = t match {
+      case Node("FixWithDefault", Seq(ty, t: Bind, td)) =>
+        Some((ty, t, td))
+      case _ =>
+        None
+    }
+
+    def lower(t: Bind, td: Tree)(implicit rc: RunContext): Tree = {
+      val Bind(fIn, tBody) = t
+      val fOut = Identifier.fresh("fOut")
+      val fIn2 = Identifier.fresh("fIn2")
+      val unused = Identifier.fresh("unused")
+      val fuel = Identifier.fresh("fuel")
+      val newFuel = Identifier.fresh("newFuel")
+      val body = Lambda(Some(NatType), Bind(fuel,
+        NatMatch(
+          Var(fuel),
+          td,
+          Bind(newFuel,
+            tBody.replace(fIn, App(Var(fIn2), Var(newFuel)))))))
+      val fix = Fix(None, Bind(unused, Bind(fIn2, body)))
+      LetIn(None, fix, Bind(fOut, App(Var(fOut), globalFuel)))
+    }
+  }
 }

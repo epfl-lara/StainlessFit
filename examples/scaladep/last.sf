@@ -1,0 +1,15 @@
+val last =
+  fixD(
+    last_ [List => Top] =>
+      fun of (xs [List]) = {
+        list_match xs {
+          case nil => 1
+          case cons x ys =>
+            list_match ys {
+              case nil => x
+              case cons y zs => last_ ys
+            }
+        }
+      },
+    fun of (xs [List]) = { 0 });
+last (cons 2 nil)
