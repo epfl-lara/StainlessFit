@@ -813,7 +813,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case RefinementByType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
-      case Node(name, args) => ???; args.exists(isFreeIn)
+      case Node(name, args) => args.exists(isFreeIn)
       case _ => false
     }
   }
