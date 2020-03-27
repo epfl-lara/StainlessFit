@@ -258,6 +258,8 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val recK: Syntax[Unit] = elem(KeywordClass("Rec")).unit(KeywordToken("Rec"))
   val typeK: Syntax[Unit] = elem(KeywordClass("type")).unit(KeywordToken("type"))
 
+  val zeroK: Syntax[Token] = elem(KeywordClass("zero"))
+  val succK: Syntax[Token] = elem(KeywordClass("succ"))
   val leftK: Syntax[Token] = elem(KeywordClass("left"))
   val rightK: Syntax[Token] = elem(KeywordClass("right"))
   val sizeK: Syntax[Token] = elem(KeywordClass("size"))
@@ -732,8 +734,8 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val natMatch: Syntax[Tree] =
     (natMatchK.skip ~ expr ~ lbra.skip ~
-      caseK.skip ~ leftK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
-      caseK.skip ~ rightK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ zeroK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ succK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
     rbra.skip
     ).map({
       case (e ~ e1 ~ id2 ~ e2) => NatMatch(e, e1, Bind(id2, e2))
