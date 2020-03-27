@@ -41,6 +41,8 @@ object ScalaDepSugar {
   //   ))
   // ))
 
+  val LNilType: Tree = SingletonType(LList, LNil)
+
   val idHead2 = Identifier.fresh("x")
   val idTail2 = Identifier.fresh("xs")
   // cons :  (head: Top) => (tail: List) => { [List] cons head tail }

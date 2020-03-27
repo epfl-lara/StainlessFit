@@ -142,6 +142,15 @@ trait ScalaDepRules {
       None
   })
 
+  val InferNil = Rule("InferNil", {
+    case g @ InferGoal(c, e @ `LNil`) =>
+      TypeChecker.debugs(g, "InferNil")
+      Some((List(), _ => (true, InferJudgment("InferNil", c, e, LNilType))))
+
+    case g =>
+      None
+  })
+
   val InferCons = Rule("InferCons", {
     case g @ InferGoal(c, e @ `LCons`) =>
       TypeChecker.debugs(g, "InferCons")
