@@ -68,6 +68,9 @@ object Printer {
     case (KeywordToken("funof"), _) => true
     case (KeywordToken("case"), _) => true
     case (_, KeywordToken("case")) => true
+    case (KeywordToken("left"), _) => true
+    case (KeywordToken("right"), _) => true
+    case (KeywordToken("succ"), _) => true
     case (KeywordToken("cons"), _) => true
     case (KeywordToken("match"), _) => true
     case (KeywordToken("nat_match"), _) => true
@@ -164,7 +167,7 @@ object Printer {
     else {
       asStringDebug(t)
       // Should be unreachable code:
-      rc.reporter.fatalError(s"The pretty printer does not handle expression: $t")
+      throw new IllegalStateException("unreachable")
     }
   }
 
