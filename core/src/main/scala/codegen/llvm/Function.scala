@@ -6,6 +6,6 @@ import core.codegen.utils._
 
 class Function {
   def print(): Document = {
-    Raw("TODO")
+    Raw("Function") //TODO
   }
 }

@@ -16,4 +16,10 @@ package object extraction {
     DebugPhase(new Namer(), "Namer") andThen
     DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
     DebugPhase(new Erasure(), "Erasure")
+
+  def compilePipeline(implicit rc: RunContext) =
+    DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+    DebugPhase(new Namer(), "Namer") andThen
+    DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+    DebugPhase(new Erasure(), "Erasure")
 }
