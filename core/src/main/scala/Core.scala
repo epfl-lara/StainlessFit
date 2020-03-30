@@ -92,20 +92,20 @@ object Core {
   def compileFile(f: File)(implicit rc: RunContext): Either[String, Boolean] = {
     parseFile(f) flatMap { src =>
 
-      val (t, _) = extraction.pipeline.transform(src)
+      val (t, _) = extraction.compilePipeline.transform(src)
 
-      val vrai = BooleanLiteral(true)
-      val faux = BooleanLiteral(false)
-
-      val or = Primitive(Or, List(faux, vrai))
-      val neg = Primitive(Not, List(faux))
-      val testTree = Primitive(And, List(vrai, neg, or))
-
-      //Either use the transformed tree t or use src directly
-      //Might need to type check the program first (or in parallel)
-      val module = CodeGen.genLLVM(testTree, true)
+      // val vrai = BooleanLiteral(true)
+      // val faux = BooleanLiteral(false)
+      //
+      // val or = Primitive(Or, List(faux, vrai))
+      // val neg = Primitive(Not, List(faux))
+      // val testTree = Primitive(And, List(vrai, neg, or))
+      //
+      val module = CodeGen.genLLVM(t, true)
 
       LLVMPrinter.run(rc)(module)
+
+      //println(s"Printing the AST:\n$t")
 
       Right(true)
     }

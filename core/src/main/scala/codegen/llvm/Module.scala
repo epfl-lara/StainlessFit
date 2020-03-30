@@ -41,7 +41,7 @@ case class Module(name: String, main: Code, functions: List[Function]) {
   }
 
   def printCode(code: Code): List[Document] = {
-    code.blocks.map(b => printBlock(b)) :+ printBlock(code.current)
+    code.merge.map(b => printBlock(b))
   }
 
   def printBlock(block: Block): Document = {
@@ -53,11 +53,33 @@ case class Module(name: String, main: Code, functions: List[Function]) {
 
   def printInstr(instr: Instruction): Document = {
     instr match {
-      case Primitive(op, args) => op match {
-        case Or => Lined(args.map(printInstr(_)), " || ")
-        case And => Lined(args.map(printInstr(_)), " && ")
-        case Not => Lined(List("!", printInstr(args.head)))
+      // case Primitive(op, args) => op match {
+      //   case Or => Lined(args.map(printInstr(_)), " || ")
+      //   case And => Lined(args.map(printInstr(_)), " && ")
+      //   case Not => Lined(List("!", printInstr(args.head)))
+      // }
+
+      // case BinaryOp(op, res, lhs, rhs) => op match {
+      //   case And => Lined(List(printInstr(res), " = ", printInstr(lhs), " && ", printInstr(rhs)))
+      //   case Or => Lined(List(printInstr(res), " = ", printInstr(lhs), " || ", printInstr(rhs)))
+      // }
+      // case UnaryOp(op, res, operand) => op match {
+      //   case Not => Lined(List(printInstr(res), " = !", printInstr(operand)))
+      // }
+      // case Assigne(res, from) => Lined(List(printInstr(res), " = ", printInstr(from)))
+
+      case BinaryOp(op, res, lhs, rhs) => op match {
+        case And => Raw(s"$res = and $lhs, $rhs")
+        case Or => Raw(s"$res = or $lhs, $rhs")
       }
+      case UnaryOp(op, res, operand) => op match {
+        case Not => Raw(s"$res = fneg $operand")
+      }
+
+      case Variable(local) => Raw(s"$local")
+      case Assign(res, from) =>// Raw(s"$res = $from")
+      Lined(List(s"$res = ", printInstr(from)))
+
       case BooleanLiteral(b) => s"$b"
       case _ => Raw("PLACEHOLDER")
     }
@@ -65,5 +87,5 @@ case class Module(name: String, main: Code, functions: List[Function]) {
 }
 
 class TargetTriple {
-
+  //TODO
 }

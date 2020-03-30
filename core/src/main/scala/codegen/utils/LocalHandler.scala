@@ -5,7 +5,7 @@ package codegen.utils
 import util.RunContext
 import codegen.llvm._
 import scala.collection.mutable
-import codegen.utils.{Identifier => LLVMIdentifier, _}
+//import codegen.utils.{Identifier => LLVMIdentifier, _}
 
 class LocalHandler(val rc : RunContext) {
 
@@ -34,4 +34,6 @@ class LocalHandler(val rc : RunContext) {
   def freshLabel(id: Identifier) = {
     new Label(id.toString)
   }
+
+  def fresh() = freshLocal("")
 }
