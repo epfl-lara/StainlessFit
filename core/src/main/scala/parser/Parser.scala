@@ -353,8 +353,8 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       pipe.skip ~ expr ~ rbra.skip) ||
       (lsbra.skip ~ typeExpr ~ rsbra.skip ~ expr ~ rbra.skip)
     )).map({
-      case Right(ty ~ t) => SingletonType(ty, t)
       case Left(x ~ ty ~ p) => RefinementType(ty, Bind(x, p))
+      case Right(ty ~ t) => SingletonType(ty, t)
     }, {
       case SingletonType(ty, t) => Seq(Right(ty ~ t))
       case RefinementType(ty, Bind(x, p)) => Seq(Left(x ~ ty ~ p))

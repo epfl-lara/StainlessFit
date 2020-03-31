@@ -72,7 +72,7 @@ trait ScalaDepRules {
       val c0 = c.incrementLevel
       val gv = CheckGoal(c0, v, ty)
 
-      val c1 = c0.bind(id, SingletonType(ty, v))
+      val c1 = c0.bind(id, ty)
       val g2: Goal = InferGoal(c1, body)
 
       Some((
