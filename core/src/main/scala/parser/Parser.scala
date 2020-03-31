@@ -370,8 +370,8 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val sumsAndUnions: Syntax[Tree] = infixLeft(simpleTypeExpr, plus | cup)({
-    case (ty1, `plus`, ty2) => SumType(ty1, ty2)
-    case (ty1, `cup`,  ty2) => UnionType(ty1, ty2)
+    case (ty1, OperatorToken(`Plus`), ty2) => SumType(ty1, ty2)
+    case (ty1, OperatorToken(`Cup`),  ty2) => UnionType(ty1, ty2)
   }, {
     case SumType(ty1, ty2)    => (ty1, OperatorToken(Plus), ty2)
     case UnionType(ty1, ty2)  => (ty1, OperatorToken(Cup), ty2)
