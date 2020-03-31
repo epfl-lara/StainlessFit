@@ -470,7 +470,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   })
 
   lazy val typeIdentifier =
-    userIdentifier |
+    userTypeIdentifier |
     BuiltInIdentifiers.builtInTypeIdentifiers.map(s => builtinIdentifier(s)).reduce(_ | _)
 
   lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
