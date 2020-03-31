@@ -753,7 +753,7 @@ object Tree {
       case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
-      case (Node(name1, args1), Node(name2, args2)) => ???; name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
+      case (Node(name1, args1), Node(name2, args2)) => name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
       case _ => t1 == t2
     }
   }
