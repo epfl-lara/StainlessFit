@@ -112,7 +112,8 @@ object HTMLOutput {
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
     fw.write("""|<style>
                 |body {
-                |  font-family: "Fira Code", Menlo, Monaco, monospace
+                |  font-family: "Fira Code", Menlo, Monaco, monospace;
+                |  background-color: white;
                 |}
                 |
                 |.infer {
