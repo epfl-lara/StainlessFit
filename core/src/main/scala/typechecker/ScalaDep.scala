@@ -22,10 +22,10 @@ class ScalaDep(implicit val rc: RunContext)
     InferFixWithDefault.t ||
     InferLet1.t ||
     InferLet2.t ||
-    InferLambda1.t ||
-    InferApp1.t ||
     InferNil.t ||
     InferCons.t ||
+    InferLambda1.t ||
+    InferApp1.t ||
     InferListMatch.t ||
     CheckInfer.t ||
     SubListMatch.t ||

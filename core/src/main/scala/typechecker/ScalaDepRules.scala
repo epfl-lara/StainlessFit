@@ -13,6 +13,7 @@ import Printer.asString
 import Derivation._
 import TypeOperators._
 import ScalaDepSugar._
+import interpreter.Interpreter
 
 trait ScalaDepRules {
 
@@ -148,7 +149,7 @@ trait ScalaDepRules {
   })
 
   val InferNil = Rule("InferNil", {
-    case g @ InferGoal(c, e @ `LNil`) =>
+    case g @ InferGoal(c, e) if e == LNil() =>
       TypeChecker.debugs(g, "InferNil")
       Some((List(), _ => (true, InferJudgment("InferNil", c, e, LNilType))))
 
@@ -157,7 +158,7 @@ trait ScalaDepRules {
   })
 
   val InferCons = Rule("InferCons", {
-    case g @ InferGoal(c, e @ `LCons`) =>
+    case g @ InferGoal(c, e) if e == LCons() =>
       TypeChecker.debugs(g, "InferCons")
       Some((List(), _ => (true, InferJudgment("InferCons", c, e, LConsType))))
 
@@ -204,7 +205,7 @@ trait ScalaDepRules {
               // TODO: Check (or assert?) `tyUnderlyingN <: c.termVariables(id)`?
               tyUnderlyingN
             case _ =>
-              val v = interpreter.Interpreter.evaluateWithContext(c, t)
+              val v = Interpreter.evaluateWithContext(c, t)
               SingletonType(tyUnderlyingN, v)
           }
         case ExistsType(ty1 @ SingletonType(_, _), Bind(id, ty2)) =>
@@ -212,6 +213,20 @@ trait ScalaDepRules {
           rec(c.bind(id, ty1n), ty2, linearExistsVars, inPositive)
         case ExistsType(ty1, Bind(id, ty2)) if Tree.linearVarsOf(ty2).contains(id) =>
           rec(c, ty2, linearExistsVars + id, inPositive)
+
+        case ListMatchType(tScrut, tyNil, tyConsBind @ Bind(idHead, Bind(idTail, tyCons))) =>
+          val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
+          tScrutN match {
+            case LNil() =>
+              recSimple(tyNil, inPositive)
+            case LCons(tHead, tTail) =>
+              val c0 = c
+                .bind(idHead, SingletonType(TopType, tHead))
+                .bind(idTail, SingletonType(LList, tTail))
+              rec(c0, tyCons, linearExistsVars, inPositive)
+            case _ =>
+              ListMatchType(tScrutN, tyNil, tyConsBind)
+          }
 
         case SumType(ty1, ty2) => SumType(recSimple(ty1, inPositive), recSimple(ty2, inPositive))
         case PiType(ty1, bind) => PiType(recSimple(ty1, false), recSimple(bind, inPositive))

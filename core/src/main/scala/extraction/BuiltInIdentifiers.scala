@@ -17,8 +17,8 @@ class BuiltInIdentifiers(implicit val rc: RunContext) extends Phase[Unit] {
       case App(Var(Identifier(0, "right")), e)  => Some(RightTree(e))
       case App(Var(Identifier(0, "first")), e)  => Some(First(e))
       case App(Var(Identifier(0, "second")), e) => Some(Second(e))
-      case Var(Identifier(0, "nil"))            => Some(LNil)
-      case Var(Identifier(0, "cons"))           => Some(LCons)
+      case Var(Identifier(0, "nil"))            => Some(LNil())
+      case Var(Identifier(0, "cons"))           => Some(LCons())
       case Var(Identifier(0, "List"))           => Some(LList)
       case _ => None
     }), ())

@@ -23,32 +23,45 @@ object ScalaDepSugar {
     }
   }
 
-  val LNil: Tree = LeftTree(UnitLiteral)
+  object LNil {
+    def apply(): Tree = LeftTree(UnitLiteral)
+
+    def unapply(t: Tree): Boolean =
+      t match {
+        case LeftTree(UnitLiteral) => true
+        case _ => false
+      }
+  }
 
   val idHead = Identifier.fresh("x")
   val idTail = Identifier.fresh("xs")
-  val LCons: Tree = Lambda(None, Bind(idHead, Lambda(None, Bind(idTail,
-    RightTree(Pair(Var(idHead), Var(idTail)))
-  ))))
+  object LCons {
+    def apply(): Tree =
+      Lambda(Some(TopType), Bind(idHead,
+        Lambda(Some(LList), Bind(idTail,
+          RightTree(Pair(Var(idHead), Var(idTail)))
+      ))))
+
+    def unapply(t: Tree): Option[(Tree, Tree)] =
+      t match {
+        case RightTree(Pair(tHead, tTail)) => Some((tHead, tTail))
+        case _ => None
+      }
+  }
 
   val nList = Identifier.fresh("n")
   val alpha = Identifier.fresh("alpha")
   val unused = Identifier.fresh("h")
   val LList = Node("List", Seq())
-  // IntersectionType(NatType, Bind(nList,
-  //   RecType(Var(nList), Bind(alpha,
-  //     SumType(UnitType, SigmaType(TopType, Bind(unused, Var(alpha))))
-  //   ))
-  // ))
 
-  val LNilType: Tree = SingletonType(LList, LNil)
+  val LNilType: Tree = SingletonType(LList, LNil())
 
   val idHead2 = Identifier.fresh("x")
   val idTail2 = Identifier.fresh("xs")
   // cons :  (head: Top) => (tail: List) => { [List] cons head tail }
   val LConsType: Tree = PiType(TopType, Bind(idHead2,
     PiType(LList, Bind(idTail2,
-      SingletonType(LList, App(App(LCons, Var(idHead2)), Var(idTail2)))
+      SingletonType(LList, App(App(LCons(), Var(idHead2)), Var(idTail2)))
     ))
   ))
 
@@ -90,38 +103,6 @@ object ScalaDepSugar {
       case _ => None
     }
   }
-
-  // object ListMatchType {
-  //   def apply(l: Tree, tyNil: Tree, tyCons: Tree): Tree = {
-  //     val Bind(idHead, Bind(idTail, ty)) = tyCons
-  //     val unused = Identifier.fresh("u")
-  //     UnionType(
-  //       RefinementByType(tyNil, Bind(unused, EqualityType(l, LNil))),
-  //       ExistsType(TopType, Bind(idHead, ExistsType(LList, Bind(idTail,
-  //         SigmaType(
-  //           EqualityType(l, App(App(LCons, Var(idHead)), Var(idTail))),
-  //           Bind(unused, tyCons)
-  //         )
-  //       ))))
-  //     )
-  //   }
-
-  //   def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
-  //     case
-  //       UnionType(
-  //         RefinementByType(tyNil, Bind(_, EqualityType(l, LNil))),
-  //         ExistsType(TopType, Bind(idHead, ExistsType(LList, Bind(idTail,
-  //           SigmaType(
-  //             EqualityType(l2, App(App(LCons, Var(idHead2)), Var(idTail2))),
-  //             Bind(_, tyCons)
-  //           )
-  //         ))))
-  //       )
-  //     if idHead2 == idHead && idTail2 == idTail && l == l2 =>
-  //       Some((l, tyNil, Bind(idHead, Bind(idTail, tyCons))))
-  //     case _ => None
-  //   }
-  // }
 
   object ListMatchType {
     def apply(l: Tree, tyNil: Tree, tyCons: Tree)(implicit rc: RunContext): Tree = tyCons match {

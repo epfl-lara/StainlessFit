@@ -485,8 +485,8 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
     case Var(id) => Seq(id)
-    case t if t == typechecker.ScalaDepSugar.LNil  => Seq(Identifier(0, "nil"))
-    case t if t == typechecker.ScalaDepSugar.LCons => Seq(Identifier(0, "cons"))
+    case t if t == typechecker.ScalaDepSugar.LNil()  => Seq(Identifier(0, "nil"))
+    case t if t == typechecker.ScalaDepSugar.LCons() => Seq(Identifier(0, "cons"))
     case _ => Seq()
   })
 

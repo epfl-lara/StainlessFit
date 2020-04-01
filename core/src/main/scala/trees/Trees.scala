@@ -780,7 +780,7 @@ object Tree {
         case MacroTypeInst(v, args) => ???
         case NatMatch(t, t0, bind) => merge(merge(rec(t), rec(t0)), rec(bind))
         case EitherMatch(t, bind1, bind2) => merge(merge(rec(t), rec(bind1)), rec(bind2))
-        case Primitive(op, args) => args.map(rec).reduce(merge)
+        case Primitive(op, args) => args.map(rec).foldLeft(Set.empty[Identifier])(merge)
         case Fold(tp, t) => merge(rec(tp), rec(t))
         case Unfold(t, bind) => merge(rec(t), rec(bind))
         case UnfoldPositive(t, bind) => merge(rec(t), rec(bind))
@@ -797,7 +797,7 @@ object Tree {
         case RefinementByType(t1, bind) => merge(rec(t1), rec(bind))
         case RecType(n, bind) => merge(rec(n), rec(bind))
         case PolyForallType(bind) => rec(bind)
-        case Node(name, args) => args.map(rec).reduce(merge)
+        case Node(name, args) => args.map(rec).foldLeft(Set.empty[Identifier])(merge)
         case EqualityType(t1, t2) => merge(rec(t1), rec(t2))
 
         case BottomType => Set.empty
@@ -857,6 +857,12 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case Abs(bind) => isFreeIn(bind)
       case ErasableApp(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
+      case Error(_, t) => t.map(isFreeIn).getOrElse(false)
+      case DefFunction(args, optRet, optMeasure, body, rest) =>
+        // FIXME: Actually traverse?
+        false
+      case ErasableLambda(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
+
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
