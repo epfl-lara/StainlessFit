@@ -29,9 +29,9 @@ class ScalaDep(implicit val rc: RunContext)
     InferListMatch.t ||
     CheckInfer.t ||
     SubListMatch.t ||
-    SubEval.t ||
     SubPi.t ||
     SubReflexive.t ||
+    SubSingletonReflexive.t ||
     SubSingletonLeft.t ||
     SubTop.t
 

@@ -100,7 +100,7 @@ object FitLexer extends Lexers with CharRegExps {
     word("zero") | word("succ") |
     word("left") | word("right") | word("size") |
     word("Rec") | word("Pi") | word("Sigma") |
-    word("Forall") | word("PolyForall") |
+    word("Forall") | word("PolyForall") | word("Exists") |
     word("type")
       |> { (cs, r) => KeywordToken(cs.mkString.replaceAll("""[ \n]""", "")).setPos(r) },
 
@@ -256,6 +256,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val sigmaK: Syntax[Unit] = elem(KeywordClass("Sigma")).unit(KeywordToken("Sigma"))
   val forallK: Syntax[Unit] = elem(KeywordClass("Forall")).unit(KeywordToken("Forall"))
   val polyForallK: Syntax[Unit] = elem(KeywordClass("PolyForall")).unit(KeywordToken("PolyForall"))
+  val existsK: Syntax[Unit] = elem(KeywordClass("Exists")).unit(KeywordToken("Exists"))
   val recK: Syntax[Unit] = elem(KeywordClass("Rec")).unit(KeywordToken("Rec"))
   val typeK: Syntax[Unit] = elem(KeywordClass("type")).unit(KeywordToken("type"))
 
@@ -338,6 +339,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
   }
 
+  lazy val existsType: Syntax[Tree] = {
+    (existsK.skip ~ lpar.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rpar.skip).map({
+      case id ~ ty1 ~ ty2 => ExistsType(ty1, Bind(id, ty2))
+    }, {
+      case ExistsType(ty1, Bind(id, ty2)) => Seq(id ~ ty1 ~ ty2)
+      case _ => Seq()
+    })
+  }
+
   lazy val recType: Syntax[Tree] = {
     (recK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ lpar.skip ~ typeIdentifier ~ arrow.skip ~ typeExpr ~ rpar.skip).map({
       case y ~ alpha ~ ty => RecType(y, Bind(alpha, ty))
@@ -416,7 +426,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     refinementOrSingletonType | refinementByType |
     macroTypeInst | equalityType |
     piType | sigmaType | forallType | polyForallType |
-    listMatchType
+    existsType | listMatchType
 
   lazy val typeExpr: Syntax[Tree] = recursive { arrows }
 

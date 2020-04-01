@@ -42,6 +42,10 @@ object Interpreter {
           case nf => App(nf, nt)
         }
 
+      case LetIn(_, value, Bind(id, body)) =>
+        val nvalue = evaluateWithContext(c, value)
+        evaluateWithContext(c.bind(id, SingletonType(TopType, nvalue)), body)
+
       // case Fix(_, Bind(id, bind)) if bind.isBind => Tree.replaceBind(bind, e)
 
       // case NatMatch(NatLiteral(`zero`), t0, _) => t0

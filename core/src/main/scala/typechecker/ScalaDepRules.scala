@@ -18,6 +18,9 @@ trait ScalaDepRules {
 
   implicit val rc: RunContext
 
+  def withExistsIfFree(id: Identifier, tpe: Tree, t: Tree): Tree =
+    if (id.isFreeIn(t)) ExistsType(tpe, Bind(id, t)) else t
+
   val InferLet1 = Rule("InferLet1", {
     case g @ InferGoal(c, e @ LetIn(None, v, Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLet1")
@@ -25,7 +28,7 @@ trait ScalaDepRules {
       val gv = InferGoal(c0, v)
       val fgb: List[Judgment] => Goal =
         {
-          case InferJudgment(_, _, _, tyv) :: _ =>
+          case InferJudgment(_, _, _, tyv) :: Nil =>
             val c1 = c0.bind(id, tyv)
             InferGoal(c1, body)
           case _ =>
@@ -34,10 +37,34 @@ trait ScalaDepRules {
       Some((
         List(_ => gv, fgb),
         {
-          case _ :: InferJudgment(_, _, _, tyb) :: Nil =>
-            (true, InferJudgment("InferLet1", c, e, tyb))
+          case InferJudgment(_, _, _, tyv) :: InferJudgment(_, _, _, tyb) :: Nil =>
+            val ty = withExistsIfFree(id, tyv, tyb)
+            (true, InferJudgment("InferLet1", c, e, ty))
           case _ =>
             emitErrorWithJudgment("InferLet1", g, None)
+        }
+      ))
+
+    case _ => None
+  })
+
+  val InferLet2 = Rule("InferLet2", {
+    case g @ InferGoal(c, e @ LetIn(Some(tyv), v, Bind(id, body))) =>
+      TypeChecker.debugs(g, "InferLet2")
+      val c0 = c.incrementLevel
+      val gv = CheckGoal(c0, v, tyv)
+
+      val c1 = c0.bind(id, SingletonType(tyv, v))
+      val g2: Goal = InferGoal(c1, body)
+
+      Some((
+        List(_ => gv, _ => g2),
+        {
+          case _ :: InferJudgment(_, _, _, tyb) :: _ =>
+            val ty = withExistsIfFree(id, tyv, tyb)
+            (true, InferJudgment("InferLet2", c, e, ty))
+          case _ =>
+            emitErrorWithJudgment("InferLet2", g, None)
         }
       ))
 
@@ -64,28 +91,6 @@ trait ScalaDepRules {
 
     case g =>
       None
-  })
-
-  val InferLet2 = Rule("InferLet2", {
-    case g @ InferGoal(c, e @ LetIn(Some(ty), v, Bind(id, body))) =>
-      TypeChecker.debugs(g, "InferLet2")
-      val c0 = c.incrementLevel
-      val gv = CheckGoal(c0, v, ty)
-
-      val c1 = c0.bind(id, ty)
-      val g2: Goal = InferGoal(c1, body)
-
-      Some((
-        List(_ => gv, _ => g2),
-        {
-          case _ :: InferJudgment(_, _, _, tyb) :: _ =>
-            (true, InferJudgment("InferLet2", c, e, tyb))
-          case _ =>
-            emitErrorWithJudgment("InferLet2", g, None)
-        }
-      ))
-
-    case _ => None
   })
 
   def widen(t: Tree): Tree = t match {
@@ -167,7 +172,7 @@ trait ScalaDepRules {
       val gInfer = InferGoal(c0, t)
       val fgsub: List[Judgment] => Goal = {
         case InferJudgment(_, _, _, ty2) :: _ =>
-          SubtypeGoal(c0, ty2, ty)
+          NormalSubtypeGoal(c0, ty2, ty)
         case _ =>
           ErrorGoal(c0, None)
       }
@@ -183,8 +188,52 @@ trait ScalaDepRules {
       None
   })
 
+  def normalized(c: Context, ty: Tree): Tree = {
+    def rec(
+        c: Context,
+        ty: Tree,
+        linearExistsVars: Set[Identifier],
+        inPositive: Boolean): Tree = {
+      def recSimple(ty: Tree, inPositive: Boolean) =
+        rec(c, ty, linearExistsVars, inPositive)
+      ty match {
+        case SingletonType(tyUnderlying, t) =>
+          val tyUnderlyingN = recSimple(tyUnderlying, inPositive)
+          t match {
+            case Var(id) if linearExistsVars.contains(id) && inPositive =>
+              // TODO: Check (or assert?) `tyUnderlyingN <: c.termVariables(id)`?
+              tyUnderlyingN
+            case _ =>
+              val v = interpreter.Interpreter.evaluateWithContext(c, t)
+              SingletonType(tyUnderlyingN, v)
+          }
+        case ExistsType(ty1 @ SingletonType(_, _), Bind(id, ty2)) =>
+          val ty1n = recSimple(ty1, inPositive)
+          rec(c.bind(id, ty1n), ty2, linearExistsVars, inPositive)
+        case ExistsType(ty1, Bind(id, ty2)) if Tree.linearVarsOf(ty2).contains(id) =>
+          rec(c, ty2, linearExistsVars + id, inPositive)
+
+        case SumType(ty1, ty2) => SumType(recSimple(ty1, inPositive), recSimple(ty2, inPositive))
+        case PiType(ty1, bind) => PiType(recSimple(ty1, false), recSimple(bind, inPositive))
+        case SigmaType(ty1, bind) => SigmaType(recSimple(ty1, false), recSimple(bind, inPositive))
+        case IntersectionType(ty1, bind) => IntersectionType(recSimple(ty1, false), recSimple(bind, inPositive))
+        case RefinementType(ty1, bind) => RefinementType(recSimple(ty1, inPositive), recSimple(bind, inPositive))
+        case RefinementByType(ty1, bind) => RefinementByType(recSimple(ty1, inPositive), recSimple(bind, inPositive))
+        case RecType(n, bind) => ??? // RecType(recSimple(n), recSimple(bind))
+        case PolyForallType(bind) => PolyForallType(recSimple(bind, inPositive))
+        case Node(name, args) => Node(name, args.map(arg => recSimple(arg, inPositive)))
+        case EqualityType(ty1, ty2) => ??? // EqualityType(recSimple(ty1), recSimple(ty2))
+        case _ => ty
+      }
+    }
+    rec(c, ty, Set.empty, true)
+  }
+
+  def NormalSubtypeGoal(c: Context, tya: Tree, tyb: Tree): SubtypeGoal =
+    SubtypeGoal(c, normalized(c, tya), normalized(c, tyb))
+
   val SubReflexive = Rule("SubReflexive", {
-    case g @ SubtypeGoal(c, ty1, ty2) if ty1 == ty2 =>
+    case g @ SubtypeGoal(c, ty1, ty2) if Tree.areEqual(ty1, ty2) =>
       TypeChecker.debugs(g, "SubReflexive")
       Some((List(), _ => (true, SubtypeJudgment("SubReflexive", c, ty1, ty2))))
     case g =>
@@ -222,7 +271,7 @@ trait ScalaDepRules {
 
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, tyb1, tya1)
-      val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      val g2 = NormalSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
         case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubArrow", c, tya, tyb))
@@ -254,29 +303,26 @@ trait ScalaDepRules {
       None
   })
 
-  val SubEval = Rule("SubEval", {
+  val SubSingletonReflexive = Rule("SubSingletonReflexive", {
     case g @ SubtypeGoal(c,
       tya @ SingletonType(ty1, t1),
       tyb @ SingletonType(ty2, t2)) =>
-      TypeChecker.debugs(g, "SubEval")
+      TypeChecker.debugs(g, "SubSingletonReflexive")
 
       val c0 = c.incrementLevel
 
-      val v1 = interpreter.Interpreter.evaluateWithContext(c, t1)
-      val v2 = interpreter.Interpreter.evaluateWithContext(c, t2)
-
-      if (v1 == v2)
+      if (t1 == t2)
         Some((List(_ => SubtypeGoal(c0, tya, ty2)), {
           case SubtypeJudgment(_, _, _, _) :: _ =>
-            (true, SubtypeJudgment("SubEval", c, tya, tyb))
+            (true, SubtypeJudgment("SubSingletonReflexive", c, tya, tyb))
           case _ =>
-            emitErrorWithJudgment("SubEval", g, None)
+            emitErrorWithJudgment("SubSingletonReflexive", g, None)
         }))
       else
-        Some(
+        Some((
           List(), _ =>
-          (false, ErrorJudgment("SubEval", g, Some(s"${asString(t1)} and ${asString(t2)} do not evaluate the same expression (resp. ${asString(v1)} and ${asString(v2)})")))
-        )
+          (false, ErrorJudgment("SubSingletonReflexive", g, Some(s"${asString(t1)} and ${asString(t2)} are not the same")))
+        ))
     case g =>
       None
   })

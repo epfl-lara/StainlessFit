@@ -220,7 +220,7 @@ object Printer {
     import rc.parser._
 
     val syntaxes: Seq[Syntax[Tree]] = Seq(
-      primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType,
+      primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType, existsType,
       recType, refinementOrSingletonType, refinementByType, sumsAndUnions, arrows,
       equalityType, simpleTypeExpr,
       typeExpr, boolean, number, termVariable, unit, literal,

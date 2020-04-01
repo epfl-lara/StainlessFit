@@ -757,6 +757,59 @@ object Tree {
       case _ => t1 == t2
     }
   }
+
+  def linearVarsOf(t: Tree): Set[Identifier] = {
+    def merge(ids1: Set[Identifier], ids2: Set[Identifier]) =
+      (ids1 union ids2) diff (ids1 intersect ids2)
+    def rec(t: Tree): Set[Identifier] =
+      t match {
+        case Var(id) => Set(id)
+        case IfThenElse(cond, t1, t2) => merge(merge(rec(cond), rec(t1)), rec(t2))
+        case App(t1, t2) => merge(rec(t1), rec(t2))
+        case Pair(t1, t2) => merge(rec(t1), rec(t2))
+        case Size(t) => rec(t)
+        case First(t) => rec(t)
+        case Second(t) => rec(t)
+        case LeftTree(t) => rec(t)
+        case RightTree(t) => rec(t)
+        case Bind(id, t) => rec(t) - id
+        case Lambda(tp, bind) => merge(tp.toSet.flatMap(rec), rec(bind))
+        case Fix(tp, Bind(_, bind)) => merge(tp.toSet.flatMap(rec), rec(bind))
+        case LetIn(tp, v, bind) => merge(merge(tp.toSet.flatMap(rec), rec(v)), rec(bind))
+        case MacroTypeDecl(tp, bind) => ???
+        case MacroTypeInst(v, args) => ???
+        case NatMatch(t, t0, bind) => merge(merge(rec(t), rec(t0)), rec(bind))
+        case EitherMatch(t, bind1, bind2) => merge(merge(rec(t), rec(bind1)), rec(bind2))
+        case Primitive(op, args) => args.map(rec).reduce(merge)
+        case Fold(tp, t) => merge(rec(tp), rec(t))
+        case Unfold(t, bind) => merge(rec(t), rec(bind))
+        case UnfoldPositive(t, bind) => merge(rec(t), rec(bind))
+        case Abs(bind) => rec(bind)
+        case ErasableApp(t1, t2) => merge(rec(t1), rec(t2))
+        case TypeApp(abs, tp) => merge(rec(abs), rec(tp))
+
+        case SumType(t1, t2) => merge(rec(t1), rec(t2))
+        case PiType(t1, bind) => merge(rec(t1), rec(bind))
+        case SigmaType(t1, bind) => merge(rec(t1), rec(bind))
+        case IntersectionType(t1, bind) => merge(rec(t1), rec(bind))
+        case ExistsType(t1, bind) => merge(rec(t1), rec(bind))
+        case RefinementType(t1, bind) => merge(rec(t1), rec(bind))
+        case RefinementByType(t1, bind) => merge(rec(t1), rec(bind))
+        case RecType(n, bind) => merge(rec(n), rec(bind))
+        case PolyForallType(bind) => rec(bind)
+        case Node(name, args) => args.map(rec).reduce(merge)
+        case EqualityType(t1, t2) => merge(rec(t1), rec(t2))
+
+        case BottomType => Set.empty
+        case TopType => Set.empty
+        case UnitType => Set.empty
+        case BoolType => Set.empty
+        case NatType => Set.empty
+        case UnitLiteral => Set.empty
+        case NatLiteral(_) => Set.empty
+      }
+    rec(t)
+  }
 }
 
 case class Identifier(id: Int, name: String) extends Positioned {
@@ -773,7 +826,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
 
   def isFreeIn(e: Tree): Boolean = {
     e match {
-      case Var(id2) if id2 == this => true
+      case Var(id2) => id2 == this
       case IfThenElse(cond, t1, t2) =>
         isFreeIn(t1) || isFreeIn(t2) ||
         isFreeIn(cond)
@@ -814,7 +867,16 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
       case Node(name, args) => args.exists(isFreeIn)
-      case _ => false
+      case EqualityType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+
+      case BottomType => false
+      case TopType => false
+      case UnitType => false
+      case BoolType => false
+      case NatType => false
+      case UnitLiteral => false
+      case NatLiteral(_) => false
+      case BooleanLiteral(_) => false
     }
   }
 }
