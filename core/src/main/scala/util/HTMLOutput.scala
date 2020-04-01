@@ -114,6 +114,7 @@ object HTMLOutput {
                 |body {
                 |  font-family: "Fira Code", Menlo, Monaco, monospace;
                 |  background-color: white;
+                |  color: black;
                 |}
                 |
                 |.infer {
