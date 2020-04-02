@@ -44,13 +44,15 @@ object Interpreter {
 
       case LetIn(_, value, Bind(id, body)) =>
         val nvalue = evaluateWithContext(c, value)
-        evaluateWithContext(c.bind(id, SingletonType(TopType, nvalue)), body)
+        val nbody = body.replace(id, nvalue)
+        evaluateWithContext(c, nbody)
 
-      // case Fix(_, Bind(id, bind)) if bind.isBind => Tree.replaceBind(bind, e)
-
-      // case NatMatch(NatLiteral(`zero`), t0, _) => t0
-      // case NatMatch(NatLiteral(n), _, bind) if bind.isBind => Tree.replaceBind(bind, NatLiteral(n - 1))
-      // case NatMatch(t, t0, bind) => NatMatch(evaluateWithContext(c, t), t0, bind)
+      case NatMatch(t, t1, b2 @ Bind(id2, t2)) =>
+        evaluateWithContext(c, t) match {
+          case NatLiteral(`zero`) => evaluateWithContext(c, t1)
+          case NatLiteral(n) => evaluateWithContext(c, t2.replace(id2, NatLiteral(n - 1)))
+          case nt => NatMatch(nt, t1, b2)
+        }
 
       case EitherMatch(t, b1@Bind(id1, t1), b2@Bind(id2, t2)) =>
         evaluateWithContext(c, t) match {
@@ -81,6 +83,11 @@ object Interpreter {
 
       case LeftTree(e) => LeftTree(evaluateWithContext(c, e))
       case RightTree(e) => RightTree(evaluateWithContext(c, e))
+
+      case Fix(_, Bind(_, Bind(id, tBody))) =>
+        evaluateWithContext(c, tBody.replace(id, e))
+      case FixWithDefault(_, t, td) =>
+        evaluateWithContext(c, FixWithDefault.lower(t, td))
 
       case _ => e
     }

@@ -380,7 +380,7 @@ trait ScalaDepRules {
       Some((
         List(_ => g1, _ => g2),
         _ =>
-          (true, InferJudgment("InferFixWithDefault", c, e, ty))))
+          (true, InferJudgment("InferFixWithDefault", c, e, SingletonType(ty, e)))))
 
     case _ => None
   })
