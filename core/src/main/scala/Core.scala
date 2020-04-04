@@ -9,6 +9,8 @@ import core.typechecker.Derivation._
 import parser.FitParser
 import parser.FitLexer
 
+import extraction._
+
 import java.io.File
 
 import core.util.RunContext
@@ -46,7 +48,13 @@ object Core {
   def evalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
     parseFile(f) flatMap { src =>
 
-      val (t, _) = extraction.evalPipeline.transform(src)
+      val pipeline =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new Erasure(), "Erasure")
+
+      val (t, _) = pipeline.transform(src)
 
       Interpreter.evaluate(t) match {
         case Error(error, _) => Left(error)
@@ -57,7 +65,13 @@ object Core {
   def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(f) flatMap { src =>
 
-      val (t, ((_, max), _)) = extraction.typecheckerPipeline.transform(src)
+      val pipeline =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new FixIndexing(), "FixIndexing") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers")
+
+      val (t, ((_, max), _)) = pipeline.transform(src)
 
       rc.bench.time("Type Checking") { new TypeChecker().infer(t, max) } match {
         case None => Left(s"Could not typecheck: $f")
@@ -71,11 +85,4 @@ object Core {
       }
     }
   }
-
-  def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
-    evalFile(new File(s))
-
-  def typeCheckFile(s: String)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
-    typeCheckFile(new File(s))
-
 }
