@@ -3,6 +3,7 @@ package core
 
 import util.RunContext
 import parser.FitParser
+import codegen.CodeGen
 
 package object extraction {
   def typecheckerPipeline(implicit rc: RunContext) =
@@ -21,5 +22,6 @@ package object extraction {
     DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
     DebugPhase(new Namer(), "Namer") andThen
     DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
-    DebugPhase(new Erasure(), "Erasure")
+    DebugPhase(new Erasure(), "Erasure") //andThen
+    //DebugPhase(new CodeGen(), "Codegen")
 }
