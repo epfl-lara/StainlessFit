@@ -24,6 +24,11 @@ class LocalHandler(val rc : RunContext) {
     Block(blockIndex, freshLabel(name), Nil)
   }
 
+  def newBlock(label: Label): Block = {
+    blockIndex += 1
+    Block(blockIndex, label, Nil)
+  }
+
 
   def get(id: Identifier) = variables.get(id).orElse(rc.reporter.fatalError(s"Unkown variable $id"))
 
@@ -35,7 +40,7 @@ class LocalHandler(val rc : RunContext) {
     new Local(id.toString)
   }
 
-  def freshLocal(): Local = freshLocal("")
+  def freshLocal(): Local = freshLocal("local")
 
   def freshLabel(name: String): Label = {
     new Label(name + counter.next(name))

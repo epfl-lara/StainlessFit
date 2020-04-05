@@ -33,8 +33,6 @@ object IR {
 
   //case object NoCode extends Code
 
-  case class Const(n: Int) extends Instruction
-
   //Boolean operations
   case object And extends Instruction
   case object Or extends Instruction
@@ -52,16 +50,25 @@ object IR {
   case object Mul extends Instruction
   case object Div extends Instruction
 
-  case class BinaryOp(op: Instruction, result: Local, lhs: Local, rhs: Local) extends Instruction
+  abstract class Literal extends Instruction
+  case class BooleanLiteral(b: Boolean) extends Literal
+  case class Const(n: BigInt) extends Literal
+  case object UnitLiteral extends Literal
+
+  class Value(val v: Either[Local, Literal])
+  object Value {
+    def apply(local: Local): Value = new Value(Left(local))
+    def apply(literal: Literal): Value = new Value(Right(literal))
+  }
+
+  case class BinaryOp(op: Instruction, result: Local, lhs: Value, rhs: Value) extends Instruction
   case class UnaryOp(op: Instruction, result: Local, operand: Local) extends Instruction
 
-  case class BooleanLiteral(b: Boolean) extends Instruction
-
-  case class Assign(result: Local, from: Instruction) extends Instruction
+  case class Assign(result: Local, from: Value) extends Instruction
   case class Variable(local: Local) extends Instruction
   //Terminator instructions
   //case class Ret()
-  case class Branch(condition: Local, ifTrue: Label, ifFalse: Label) extends Instruction
+  case class Branch(condition: Value, ifTrue: Label, ifFalse: Label) extends Instruction
   case class Jump(destination: Label) extends Instruction
   case class Return(result : Either[Local, Instruction]) extends Instruction
   case class Phi(res: Local, candidates: List[(Local, Label)]) extends Instruction
@@ -78,7 +85,7 @@ class Label (val label: String){
   }
 }
 
-class Local (val name: String) {
+class Local (val name: String){
   override def toString: String = s"%$name"
   def dot(s: String): Local = {
     new Local(name + "." + s)
