@@ -19,4 +19,8 @@ object Function {
   def main(tpe: Type) = {
     Function(tpe, new Global("main"), Nil, ArrayBuffer.empty[Block])
   }
+
+  def apply(tpe: Type, name: Global, params: List[ParamDef]): Function = {
+    Function(tpe, name, params, ArrayBuffer.empty[Block])
+  }
 }

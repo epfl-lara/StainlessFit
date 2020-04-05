@@ -7,7 +7,7 @@ import codegen.llvm.IR._
 import codegen.llvm._
 import scala.collection.mutable
 //import codegen.utils.{Identifier => LLVMIdentifier, _}
- 
+
 class LocalHandler(val rc : RunContext) {
 
   private val counter = new codegen.utils.UniqueCounter[String]
@@ -51,4 +51,14 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def freshLabel(): Label = freshLabel("")
+
+  def freshGlobal(name: String): Global = {
+    new Global(name + counter.next(name))
+  }
+
+  def freshGlobal(id: Identifier): Global = {
+    new Global(id.toString)
+  }
+
+  def freshGlobal(): Global = freshGlobal("global")
 }
