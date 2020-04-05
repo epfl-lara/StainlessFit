@@ -16,27 +16,28 @@ object ModulePrinter {
   private implicit def s2d(s: String) = Raw(s)
 
   def apply(mod: Module) = printModule(mod).print
+  def apply(fun: Function) = printFunction(fun).print
+
+  def printFunction(fun: Function): Document = {
+    val Function(returnType, name, params, blocks) = fun
+    val paramList = Lined(params.map(param => s"${param.tpe} ${param.name}"), ", ")
+    Stacked(
+      Lined(List(s"define $returnType ${name}(", paramList, ") {")),
+      Indented(Stacked(blocks.toList.sortBy(_.index) map printBlock, true)),
+      "}"
+    )
+  }
 
   private def printModule(module: Module): Document = {
       var toPrint = new ListBuffer[Document]()
 
       if(!module.functions.isEmpty)
-        toPrint += Stacked(module.functions.toList.map(_.print()), true)
+        toPrint += Stacked(module.functions.toList map printFunction, true)
 
-      toPrint += Stacked("; Main function",
-        Stacked(
-          "define i1 @main(i32 %arg, i8** %arg1){", //TODO handle type correctly
-            Indented(Stacked(module.blocks.toList.sortBy(_.index) map printBlock, true)),
-            //Indented(s"ret i32 0"),
-          "}"
-        ))
+      toPrint += printFunction(module.main)
 
-        Stacked(toPrint.toList, emptyLines = true)
+      Stacked(toPrint.toList, emptyLines = true)
   }
-
-  // private def printCode(code: Code): List[Document] = {
-  //   code.merge.map(b => printBlock(b))
-  // }
 
   private def printBlock(block: Block): Document = {
     Stacked(
@@ -47,44 +48,44 @@ object ModulePrinter {
 
   private def printInstr(instr: Instruction): Document = {
     instr match {
-      // case Primitive(op, args) => op match {
-      //   case Or => Lined(args.map(printInstr(_)), " || ")
-      //   case And => Lined(args.map(printInstr(_)), " && ")
-      //   case Not => Lined(List("!", printInstr(args.head)))
-      // }
 
-      // case BinaryOp(op, res, lhs, rhs) => op match {
-      //   case And => Lined(List(printInstr(res), " = ", printInstr(lhs), " && ", printInstr(rhs)))
-      //   case Or => Lined(List(printInstr(res), " = ", printInstr(lhs), " || ", printInstr(rhs)))
-      // }
-      // case UnaryOp(op, res, operand) => op match {
-      //   case Not => Lined(List(printInstr(res), " = !", printInstr(operand)))
-      // }
-      // case Assigne(res, from) => Lined(List(printInstr(res), " = ", printInstr(from)))
+      case BinaryOp(op, res, lhs, rhs) => {
+        val tpe = op match {
+          case compOp: ComparisonOperator =>  "i32"
+          case _ => s"${op.returnType}"
+        }
 
-      case BinaryOp(op, res, lhs, rhs) => op match {
-
-        case And => Lined(List(s"$res = and ", printValue(lhs), ", ", printValue(rhs))) //Raw(s"$res = and $lhs, $rhs")
-        case Or => Lined(List(s"$res = or ", printValue(lhs), ", ", printValue(rhs))) //Raw(s"$res = or $lhs, $rhs")
+        Lined(List(s"$res = $op $tpe ", printValue(lhs), ", ", printValue(rhs)))
       }
+
       case UnaryOp(op, res, operand) => op match {
-        case Not => Raw(s"$res = fneg $operand")
+        case Not => Raw(s"$res = $op ${op.returnType} $operand")
       }
 
       case Variable(local) => Raw(s"$local")
-      case Assign(res, from) => Lined(List(s"$res = or i1 0, ", printValue(from))) //TODO add type and op
 
-      //case BooleanLiteral(b) => s"$b"
-      case Branch(condition, trueLocal, falseLocal) => Lined(List(s"br i1 ", printValue(condition), s", label $trueLocal, label $falseLocal"))
+      case Assign(res, tpe, from) => {
+        val op = tpe match {
+          case NatType => "add"
+          case _ => "or"
+        }
+
+        Lined(List(s"$res = $op $tpe 0, ", printValue(from)))
+      }
+
+      case Branch(condition, trueLocal, falseLocal) =>
+        Lined(List(s"br i1 ", printValue(condition), s", label $trueLocal, label $falseLocal"))
 
       case Jump(dest) => Raw(s"br label $dest")
 
-      case Phi(res, choices) => Raw(s"$res = phi i1 ") <:> Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ",") //TODO add type
+      case Phi(res, tpe, choices) => Raw(s"$res = phi $tpe ") <:>
+        Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ",") //TODO add type
 
-      case Return(result) => result match {
-        case Left(local) => Raw(s"ret i1 $local")
-        case Right(instr) => Raw("ret i1 ") <:> printInstr(instr)
+      case Return(result, tpe) => result.v match {
+        case Left(local) => Raw(s"ret $tpe $local")
+        case Right(instr) => Raw(s"ret $tpe ") <:> printInstr(instr)
       }
+
       case other => Raw(s"PLACEHOLDER: $other")
     }
   }
@@ -93,6 +94,6 @@ object ModulePrinter {
     case Left(local) => s"$local"
     case Right(UnitLiteral) => "0"
     case Right(BooleanLiteral(b)) => s"$b"
-    case Right(Const(n)) => s"$n"
+    case Right(Nat(n)) => s"$n"
   }
 }

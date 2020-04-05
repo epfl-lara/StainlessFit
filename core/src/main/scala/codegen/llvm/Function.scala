@@ -3,9 +3,20 @@ package core
 package codegen.llvm
 
 import core.codegen.utils._
+import core.codegen.llvm.IR._
+import scala.collection.mutable.ArrayBuffer
 
-class Function {
-  def print(): Document = {
-    Raw("Function") //TODO
+case class Function(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) {
+
+  def add(block: Block): Unit = blocks += block
+
+  override def toString(): String = {
+    ModulePrinter(this)
+  }
+}
+
+object Function {
+  def main(tpe: Type) = {
+    Function(tpe, new Global("main"), Nil, ArrayBuffer.empty[Block])
   }
 }
