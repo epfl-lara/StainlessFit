@@ -10,7 +10,7 @@ import core.codegen.utils._
 import scala.language.implicitConversions
 import scala.collection.mutable.ArrayBuffer
 
-case class Module(name: String, main: Function, functions: ArrayBuffer[Function]) {
+case class Module(name: String, main: Function, functions: List[Function]) {
   //TODO add external functions
   import java.io.{File, FileWriter}
 
@@ -21,13 +21,13 @@ case class Module(name: String, main: Function, functions: ArrayBuffer[Function]
   }
 
   def add(block: Block): Unit = main.add(block)
-  def add(fun: Function): Unit = functions += fun
 }
 
-object Module {
-  def apply(name: String, tpe: Type): Module =
-    Module(name, Function.main(tpe), ArrayBuffer.empty[Function])
-}
+// object Module {
+//   def apply(name: String): Module =
+//     //Module(name, Function.main(tpe), ArrayBuffer.empty[Function])
+//     Module(name, Function.main(tpe), Nil)
+// }
 
 class TargetTriple {
   //TODO

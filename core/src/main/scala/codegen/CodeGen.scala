@@ -12,7 +12,7 @@ import codegen.llvm.IR.{And => IRAnd, Or => IROr, Not => IRNot, Neq => IRNeq,
   NatType => IRNatType, UnitType => IRUnitType, _}
 
 import codegen.llvm._
-import codegen.utils._
+import codegen.utils.{Identifier => _, _}
 
 // General stuff
 import org.bytedeco.javacpp._;
@@ -28,26 +28,76 @@ class CodeGen(implicit val rc: RunContext) extends Phase[Module] {
 object CodeGen {
     def genLLVM(tree: Tree, isMain: Boolean)(implicit rc: RunContext): Module = {
 
-        def cgFunction(funDef: DefFunction)(implicit rc: RunContext) = {
-          ???
+        def cgDefFunction(defFun: DefFunction)(implicit rc: RunContext): Function = {
+          val DefFunction(args, returnType, _, bind, _) = defFun
+
+          val params = args.map{
+            case TypedArgument(id, tpe) => ParamDef(translateType(tpe), new Local(id.toString))
+          }
+
+          val (fname, body) = extractBody(bind)
+
+          cgFunction(new Global(fname.toString), params.toList, body)
         }
 
-        def cgModule(moduleTree: Tree)(implicit rc: RunContext): Module = {
+        def cgFunction(name: Global, params: List[ParamDef], body: Tree): Function = {
           val lh = new LocalHandler(rc)
-
-          val module = Module(rc.config.file.getName(), resultType(tree))
+          val function = Function(resultType(body), name, params)
 
           val initBlock = lh.newBlock("entry")
 
           val end = lh.freshLabel("End")
           val result = lh.freshLocal("result")
 
-          val (entryBlock, phi) = codegen(tree, initBlock, Some(end), Some(result))(lh, module)
-          module.add(entryBlock)
+          val (entryBlock, phi) = codegen(body, initBlock, Some(end), Some(result))(lh, function)
+          function.add(entryBlock)
 
           val endBlock = lh.newBlock(end)
-          module.add(endBlock <:> phi <:> Return(Value(result), resultType(tree)))
+          function.add(endBlock <:> phi <:> Return(Value(result), resultType(tree)))
+          function
+        }
+
+        def extractBody(bind: Tree): (Identifier, Tree) = bind match {
+          case Bind(id, rec: Bind) => extractBody(rec)
+          case Bind(id, body) => (id, body)
+          case _ => rc.reporter.fatalError(s"Couldn't find the body in $bind")
+        }
+
+        def extractDefFun(t: Tree): (List[DefFunction], Tree) = t match {
+          case defFun @ DefFunction(_, _, _, _, otherDefs: DefFunction) => {
+            val (defs, rest) = extractDefFun(otherDefs)
+            (defFun +: defs, rest)
+          }
+          case DefFunction(_, _, _, _, rest) => (Nil, rest)
+          case _ => rc.reporter.fatalError(s"Couldn't find the body in $t")
+        }
+
+        def cgModule(inputTree: Tree)(implicit rc: RunContext): Module = {
+          val lh = new LocalHandler(rc)
+
+          val (functions, bind) = extractDefFun(inputTree)
+          val (id, body) = extractBody(bind)
+
+          val main = cgFunction(new Global("main"), Nil, body)  //Might be a function call
+
+          val module = Module(
+            rc.config.file.getName(),
+            main,
+            functions map cgDefFunction
+          )
+
           module
+          // val initBlock = lh.newBlock("entry")
+          //
+          // val end = lh.freshLabel("End")
+          // val result = lh.freshLocal("result")
+          //
+          // val (entryBlock, phi) = codegen(tree, initBlock, Some(end), Some(result))(lh, module)
+          // module.add(entryBlock)
+          //
+          // val endBlock = lh.newBlock(end)
+          // module.add(endBlock <:> phi <:> Return(Value(result), resultType(tree)))
+          // module
         }
 
         def filterErasable(t: Tree): Tree = t match {
@@ -103,6 +153,13 @@ object CodeGen {
           case _ => rc.reporter.fatalError(s"flatten is not defined for $t")
         }
 
+        def translateType(tpe: Tree) = tpe match {
+          case BoolType => BooleanType
+          case NatType => IRNatType
+          case UnitType => IRUnitType
+          case _ => rc.reporter.fatalError(s"Unkown type $tpe")
+        }
+
         def resultType(t: Tree): Type = t match {
           case BooleanLiteral(_) => BooleanType
           case NatLiteral(_) => IRNatType
@@ -110,11 +167,11 @@ object CodeGen {
 
           case Primitive(op, _) => translateOp(op).returnType
           case IfThenElse(_, thenn, _) => resultType(thenn)
-          case _ => rc.reporter.fatalError("Not implemented yet")
+          case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
         }
 
         def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
-          (implicit lh: LocalHandler, m: Module): (Block, List[Instruction]) =
+          (implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) =
           filterErasable(inputTree) match {
             case IfThenElse(cond, thenn, elze) => {
 
@@ -132,17 +189,17 @@ object CodeGen {
               val (condPrep, condPhi) = codegen(cond, block, None, Some(condLocal))
 
               val (trueBlock, truePhi) = codegen(thenn, tBlock, Some(afterBlock.label), Some(trueLocal))
-              m.add(trueBlock)
+              f.add(trueBlock)
 
               val (falseBlock, falsePhi) = codegen(elze, fBlock, Some(afterBlock.label), Some(falseLocal))
-              m.add(falseBlock)
+              f.add(falseBlock)
 
               val parentBlock =
                 condPrep <:>
                 condPhi <:>
                 Branch(Value(condLocal), tBlock.label, fBlock.label)
 
-              m.add(parentBlock)
+              f.add(parentBlock)
 
               val nextPhi =
                 truePhi ++
@@ -196,10 +253,10 @@ object CodeGen {
                   val afterLabel = lh.freshLabel("afterBlock")
                   val afterBlock = lh.newBlock(afterLabel)
 
-                  m.add(currentBlock <:> Jump(tempLabel)) //Todo can I do this?
+                  f.add(currentBlock <:> Jump(tempLabel)) //Todo can I do this?
 
                   val (otherBlock, phi) = codegen(arg, tempBlock, Some(afterLabel), Some(local))
-                  m.add(otherBlock)
+                  f.add(otherBlock)
                   (afterBlock <:> phi, values :+ Value(local))
                 }
               }
