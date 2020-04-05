@@ -92,20 +92,15 @@ object Core {
   def compileFile(f: File)(implicit rc: RunContext): Either[String, Boolean] = {
     parseFile(f) flatMap { src =>
 
+      println(s"Printing the AST before the pipeline:\n$src")
+
       val (t, _) = extraction.compilePipeline.transform(src)
 
-      // val vrai = BooleanLiteral(true)
-      // val faux = BooleanLiteral(false)
-      //
-      // val or = Primitive(Or, List(faux, vrai))
-      // val neg = Primitive(Not, List(faux))
-      // val testTree = Primitive(And, List(vrai, neg, or))
-      //
+      println(s"Printing the AST after the pipeline:\n$t")
+
       val module = CodeGen.genLLVM(t, true)
 
       LLVMPrinter.run(rc)(module)
-
-      //println(s"Printing the AST:\n$t")
 
       Right(true)
     }

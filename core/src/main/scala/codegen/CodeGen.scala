@@ -8,7 +8,8 @@ import extraction._
 import codegen.llvm.IR.{And => IRAnd, Or => IROr, Not => IRNot, Neq => IRNeq,
   Eq => IREq, Lt => IRLt, Gt => IRGt, Leq => IRLeq, Geq => IRGeq, Nop => IRNop,
   Plus => IRPlus, Minus => IRMinus, Mul => IRMul, Div => IRDiv,
-  BooleanLiteral => IRBooleanLiteral, UnitLiteral => IRUnitLiteral, _}
+  BooleanLiteral => IRBooleanLiteral, UnitLiteral => IRUnitLiteral,
+  NatType => IRNatType, UnitType => IRUnitType, _}
 
 import codegen.llvm._
 import codegen.utils._
@@ -27,7 +28,27 @@ class CodeGen(implicit val rc: RunContext) extends Phase[Module] {
 object CodeGen {
     def genLLVM(tree: Tree, isMain: Boolean)(implicit rc: RunContext): Module = {
 
-        def erasedTreeError(t: Tree) = rc.reporter.fatalError(s"This tree should have been erased: $t")
+        def cgFunction(funDef: DefFunction)(implicit rc: RunContext) = {
+          ???
+        }
+
+        def cgModule(moduleTree: Tree)(implicit rc: RunContext): Module = {
+          val lh = new LocalHandler(rc)
+
+          val module = Module(rc.config.file.getName(), resultType(tree))
+
+          val initBlock = lh.newBlock("entry")
+
+          val end = lh.freshLabel("End")
+          val result = lh.freshLocal("result")
+
+          val (entryBlock, phi) = codegen(tree, initBlock, Some(end), Some(result))(lh, module)
+          module.add(entryBlock)
+
+          val endBlock = lh.newBlock(end)
+          module.add(endBlock <:> phi <:> Return(Value(result), resultType(tree)))
+          module
+        }
 
         def filterErasable(t: Tree): Tree = t match {
           case LetIn(_, _, _) |
@@ -38,32 +59,26 @@ object CodeGen {
             Fold(_, _) |
             Unfold(_, _) |
             UnfoldPositive(_, _) |
-            DefFunction(_, _, _, _, _) |  // TODO:
+            DefFunction(_, _, _, _, _) |
             ErasableLambda(_, _) |
             Abs(_) |
             TypeApp(_, _) |
-            Because(_, _) => erasedTreeError(t)
+            Because(_, _) => rc.reporter.fatalError(s"This tree should have been erased: $t")
 
           case _ => t
         }
 
-        def translateOp(op: Operator): Instruction = op match {
-          // case Not => acc <:> IRPrim(IRNot, args.map(cgLiteral(_)))
-          // case And => acc <:> IRPrim(IRAnd, args.map(cgLiteral(_)))
-          // case Or => acc <:> IRPrim(IROr, args.map(cgLiteral(_)))
+        def translateOp(op: Operator): Op = op match {
           case Not => IRNot
           case And => IRAnd
           case Or => IROr
-
           case Neq => IRNeq
           case Eq => IREq
           case Lt => IRLt
           case Gt => IRGt
           case Leq => IRLeq
           case Geq => IRGeq
-
           case Nop => IRNop
-
           case Plus => IRPlus
           case Minus => IRMinus
           case Mul => IRMul
@@ -74,12 +89,32 @@ object CodeGen {
 
         def cgLiteral(t: Tree): Literal = t match {
           case BooleanLiteral(b) => IRBooleanLiteral(b)
-          case NatLiteral(n) => Const(n)
-          case UnitLiteral => Const(0)
+          case NatLiteral(n) => Nat(n)
+          case UnitLiteral => Nat(0)
           case _ => rc.reporter.fatalError(s"This tree isn't a literal: $t")
         }
 
-        def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local])(implicit lh: LocalHandler, m: Module): (Block, List[Instruction]) =
+        def flattenArgs(t: Tree): List[Tree] = t match {
+          case Primitive(op, args) => args.flatMap{
+            case Primitive(op2, args2) if op2 == op => flattenArgs(Primitive(op2, args2))
+            case other => List(other)
+          }
+
+          case _ => rc.reporter.fatalError(s"flatten is not defined for $t")
+        }
+
+        def resultType(t: Tree): Type = t match {
+          case BooleanLiteral(_) => BooleanType
+          case NatLiteral(_) => IRNatType
+          case UnitLiteral => IRUnitType
+
+          case Primitive(op, _) => translateOp(op).returnType
+          case IfThenElse(_, thenn, _) => resultType(thenn)
+          case _ => rc.reporter.fatalError("Not implemented yet")
+        }
+
+        def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
+          (implicit lh: LocalHandler, m: Module): (Block, List[Instruction]) =
           filterErasable(inputTree) match {
             case IfThenElse(cond, thenn, elze) => {
 
@@ -97,7 +132,7 @@ object CodeGen {
               val (condPrep, condPhi) = codegen(cond, block, None, Some(condLocal))
 
               val (trueBlock, truePhi) = codegen(thenn, tBlock, Some(afterBlock.label), Some(trueLocal))
-              m.add(trueBlock) //trueBlock already contains a jump if it contains a nested if-then-else
+              m.add(trueBlock)
 
               val (falseBlock, falsePhi) = codegen(elze, fBlock, Some(afterBlock.label), Some(falseLocal))
               m.add(falseBlock)
@@ -113,49 +148,48 @@ object CodeGen {
                 truePhi ++
                 falsePhi ++
                 toAssign.toList.map{
-                  case local => Phi(local, List((trueLocal, trueBlock.label), (falseLocal, falseBlock.label)))
+                  case local => Phi(local, resultType(thenn), List((trueLocal, trueBlock.label), (falseLocal, falseBlock.label)))
                 }
 
               (afterBlock <:> nextPhi <:> Jump(next.get), Nil)
             }
 
-            case BooleanLiteral(b) => if(toAssign.isDefined) {
-              if(next.isDefined){
-                (block <:> Assign(toAssign.get, Value(IRBooleanLiteral(b))) <:> Jump(next.get), Nil)
-              } else {
-                (block <:> Assign(toAssign.get, Value(IRBooleanLiteral(b))), Nil)
-              }
-            } else {
-              (block, List(IRBooleanLiteral(b)))
+            case BooleanLiteral(b) => {
+              val assign = toAssign.toList.map(local => Assign(local, BooleanType, Value(IRBooleanLiteral(b))))
+              val jump = next.toList.map(label => Jump(label))
+
+              if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
+
+              (block <:> assign <:> jump, Nil)
+            }
+
+            case NatLiteral(n) => {
+              val assign = toAssign.toList.map(local => Assign(local, IRNatType, Value(Nat(n))))
+              val jump = next.toList.map(label => Jump(label))
+
+              if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
+
+              (block <:> assign <:> jump, Nil)
             }
 
             case Primitive(op, args) => {
-              // val argLocals = args.map{
-              //   case BooleanLiteral(b) => Left(BooleanLiteral(b))
-              //   case NatLiteral(n) => Left(NatLiteral(n))
-              //   case Var(v) => Left(Var(v))
-              //   case _ => Right(lh.freshLocal())
-              // }
-              //
-              // argLocals.zip(args).map{
-              //   case (Left(local), arg) => Left(codegen(arg, block, next, Some(local)))
-              //   case (Right(lit), arg) => Right(lit)
-              // }
 
-              val argLocals = args.map{
+              val flatArgs = flattenArgs(inputTree)
+
+              val argLocals = flatArgs.map{
                 case BooleanLiteral(_) | NatLiteral(_) | UnitLiteral => None  //Todo replace by isLiteral
                 case arg => Some(lh.freshLocal())
               }
 
               val init: (Block, List[Value]) = (block, Nil)
 
-              val (cB, valueList: List[Value]) = argLocals.zip(args).foldLeft(init) {
+              val (cB, valueList: List[Value]) = argLocals.zip(flatArgs).foldLeft(init) {
                 case ((currentBlock, values), (None, arg)) => {
                   (currentBlock, values :+ Value(cgLiteral(arg)))
                 }
 
                 case ((currentBlock, values), (Some(local), arg)) => {
-
+                  //TODO check if an intermediate block is necessary
                   val tempLabel = lh.freshLabel("tempBlock")
                   val tempBlock = lh.newBlock(tempLabel)
 
@@ -170,155 +204,37 @@ object CodeGen {
                 }
               }
 
-              val (resultBlock, result) = valueList.tail.foldLeft((cB, valueList.head)){
-                case ((cBlock, lhs), rhs) => {
-                  val temp = lh.freshLocal()
+              val last = valueList.size - 1
+              val (resultBlock, result) = valueList.zipWithIndex.tail.foldLeft((cB, valueList.head)){
+                case ((cBlock, lhs), (rhs, index)) => {
+                  val temp = if(index == last && toAssign.isDefined){
+                    toAssign.get
+                  } else {
+                    lh.freshLocal("temp")
+                  }
                   (cBlock <:> BinaryOp(translateOp(op), temp, lhs, rhs), Value(temp))
                 }
               }
 
-              val assign = if(toAssign.isDefined){
-                List(Assign(toAssign.get, result))
-              } else {
-                Nil
-              }
-
-              val jump = if(next.isDefined){
-                List(Jump(next.get))
-              } else {
-                Nil
-              }
-
-              (resultBlock <:> assign <:> jump, Nil)
+              val jump = next.toList.map(label => Jump(label))
+              (resultBlock <:> jump, Nil)
+              // val assign = if(toAssign.isDefined){
+              //   //List(Assign(toAssign.get, result))
+              // } else {
+              //   Nil
+              // }
             }
+
+            // case DefFunction(args, optRet, _, body, rest) => {
+            //   if(optFun.isDefined){
+            //
+            //   } else {
+            //
+            //   }
+            // }
+            case _ => rc.reporter.fatalError(s"codegen not implemented for $inputTree")
           }
 
-
-        //
-        // def cgTree(inputTree: Tree, acc: Code, result: Local)(implicit lh: LocalHandler): Code = filterErasable(inputTree) match {
-        //     //VariableHandler
-        //     case Var(id) => ???
-        //     case NatLiteral(n) => ???  //BigInt
-        //
-        //     case Succ(tree) => ???
-        //
-        //     case UnitLiteral => ???
-        //     case BooleanLiteral(b) => acc <:> Assign(result, IRBooleanLiteral(b))
-        //
-        //
-        //     case IfThenElse(cond, thenn, elze) => {
-        //       val conditionLocal = lh.freshLocal("cond")
-        //       val condition = cgTree(cond, acc, conditionLocal)
-        //       //
-        //       // val thenLabel = lh.freshLabel("then") //Should append the name (parentBlock.then)
-        //       // val thenLocal = lh.freshLocal("thenLocal")
-        //       // val thenBlock = Block.create(thenLabel)
-        //       //
-        //       // val elseLabel = lh.freshLabel("else")
-        //       // val elseLocal = lh.freshLocal("elseLocal")
-        //       // val elseBlock = Block.create(elseLabel)
-        //       //
-        //       // val afterLabel = lh.freshLabel("after")
-        //       // val afterBlock = Block.create(elseLabel)
-        //       //
-        //       // val phi = Phi(result, List((thenLocal, thenLabel), (elseLocal, elseLabel))) //Label should be printed as %label
-        //       //
-        //       // condition <:> Branch(conditionLocal, thenLabel, elseLabel) <:>
-        //       // cgTree(thenn, Code.first(thenBlock), thenLocal) <:> Jump(afterLabel) <:>
-        //       // cgTree(elze, Code.first(elseBlock), elseLocal) <:> Jump(afterLabel) <:>
-        //       // afterBlock <:> phi
-        //
-        //       ???
-        //     }
-        //
-        //     //fun of $id = {...}
-        //     case Lambda(None, Bind(id, body)) => {
-        //       ???
-        //     }
-        //     case Bind(id, body) => ???
-        //
-        //     case Lambda(_, _) => rc.reporter.fatalError(s"Unexpected lambda $tree")
-        //
-        //     //t1.apply(t2)
-        //     case App(t1, t2) => ???
-        //     case Pair(t1, t2) => ???
-        //     case Size(tree) => ???
-        //     case First(tree) => ???
-        //     case Second(tree) => ???
-        //     case Fix(tp, bind) => ???
-        //     case NatMatch(t, t1, t2) => ??? //Why only t1 and t2? Recursion? NatMatch(scrut, t1, NatMatch...)
-        //     case EitherMatch(t, t1, t2) => ???
-        //     case LeftTree(tree) => ???
-        //     case RightTree(tree) => ???
-        //
-        //     case Error(s, tree) => ???
-        //
-        //     case Primitive(op, args) => {
-        //
-        //       val locals: List[Local] = args.map(_ => lh.freshLocal())
-        //
-        //       // val prep = args.zip(locals).map{
-        //       //   case (arg, local) => cgTree(arg, acc, local)
-        //       // }.reduce(_ <:> _)
-        //
-        //       val prep = args.zip(locals).foldLeft(acc){
-        //         case (prevAcc, (arg, local)) => cgTree(arg, prevAcc, local)
-        //       }
-        //
-        //       val (folding, res) = locals.tail.foldLeft((prep, locals.head)) {
-        //         case ((code, lhs), rhs) => {
-        //           val temp = lh.freshLocal()
-        //           (code <:> BinaryOp(translateOp(op), temp, lhs, rhs), temp)
-        //         }
-        //       }
-        //
-        //        folding <:> Assign(result, Variable(res))
-        //     }
-        //
-        //     case BottomType => ???
-        //     case TopType => ???
-        //     case UnitType => ???
-        //     case BoolType => ???
-        //     case NatType => ???
-        //     case SigmaType(t1, t2) => ???
-        //     case SumType(t1, t2) => ???
-        //     case PiType(t1, t2) => ???
-        //     case IntersectionType(ty, t2) => ???
-        //     case RefinementType(t1, t2) => ???
-        //     case RecType(n, bind) => ???
-        //     case PolyForallType(tree) => ???
-        //     case UnionType(t1, t2) => ???
-        //     case EqualityType(t1, t2) => ???
-        //     case SingletonType(tree) => ???
-        //
-        //     case _ => rc.reporter.fatalError(s"Code generation not yet implemented for $tree")
-        // }
-
-        // def cgLiteral(tree: Tree): Instruction = tree match {
-        //   case BooleanLiteral(b) => IRBoolean(b)
-        //   case Primitive(op, args) => op match {
-        //     case Not => IRPrim(IRNot, args.map(cgLiteral(_)))
-        //     case And => IRPrim(IRAnd, args.map(cgLiteral(_)))
-        //     case Or => IRPrim(IROr, args.map(cgLiteral(_)))
-        //     case _ => rc.reporter.fatalError("Not yet implemented")
-        //   }
-        // }
-
-        val lh = new LocalHandler(rc)
-        // val entryBlock = Block.create(lh.freshLabel("entry"))
-        // val entry = Code.first(entryBlock)
-        // val body = cgTree(tree, entry, lh.freshLocal("result"))(lh)
-        //
-        // Module(rc.config.file.getName(), body, Nil)
-        val entryBlock = lh.newBlock("entry")
-        val module = Module(rc.config.file.getName())
-        val end = lh.freshLabel("End")
-        val result = lh.freshLocal("result")
-        val (block, phi) = codegen(tree, entryBlock, Some(end), Some(result))(lh, module)
-        val endBlock = lh.newBlock(end)
-        val b = endBlock <:> phi <:> Return(Left(result))
-        module.add(block)
-        module.add(b)
-        module
+        cgModule(tree)
     }
 }
