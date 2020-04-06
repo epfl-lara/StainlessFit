@@ -20,7 +20,7 @@ object ModulePrinter {
 
   def printFunction(fun: Function): Document = {
     val Function(returnType, name, params, blocks) = fun
-    val paramList = Lined(params.map(param => s"${param.tpe} ${param.name}"), ", ")
+    val paramList = Lined(params.map(param => s"${param.tpe} ${param.local}"), ", ")
     Stacked(
       Lined(List(s"define $returnType ${name}(", paramList, ") {")),
       Indented(Stacked(blocks.toList.sortBy(_.index) map printBlock, true)),
@@ -86,14 +86,23 @@ object ModulePrinter {
         case Right(instr) => Raw(s"ret $tpe ") <:> printInstr(instr)
       }
 
+      //Todo void functions?
+      case Call(result, funName, args) =>
+        Raw(s"$result = call RETURNTYPE $funName(") <:>
+        Lined(args.map(arg => Raw(s"VALUETYPE ") <:> printValue(arg)), ", ") <:>
+        Raw(")")
+        //Lined(params.map(param => s"${param.tpe} ${param.local}"), ", ")
       case other => Raw(s"PLACEHOLDER: $other")
     }
   }
 
   private def printValue(value: Value): Document = value.v match {
     case Left(local) => s"$local"
-    case Right(UnitLiteral) => "0"
-    case Right(BooleanLiteral(b)) => s"$b"
-    case Right(Nat(n)) => s"$n"
+    case Right(literal) => literal match {
+      case UnitLiteral => "0"
+      case BooleanLiteral(b) => s"$b"
+      case Nat(n) => s"$n"
+    }
+    case other => Raw(s"PLACEHOLDER: $other")
   }
 }
