@@ -94,7 +94,10 @@ object Core {
         DebugPhase(new FixIndexing(), "FixIndexing") andThen
         DebugPhase(new Namer(), "Namer") andThen
         DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers")
+        // andThen
+        // DebugPhase(new ChooseEncoding(), "ChooseEncoding")
 
+      // val (t, (((_, max), _), _)) = pipeline.transform(src)
       val (t, ((_, max), _)) = pipeline.transform(src)
 
       rc.bench.time("ScalaDep") { new ScalaDep().infer(t, max) } match {

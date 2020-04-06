@@ -16,9 +16,10 @@ class ScalaDep(implicit val rc: RunContext)
 
   val typeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     InferVar1.t ||
-    InferNat.t ||
+    InferNat1.t ||
     InferUnit.t ||
     InferBool.t ||
+    InferChoose.t ||
     InferFixWithDefault.t ||
     InferLet1.t ||
     InferLet2.t ||

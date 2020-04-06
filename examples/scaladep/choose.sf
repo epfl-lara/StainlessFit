@@ -1,0 +1,7 @@
+fixD(
+  listOfLength [Nat => List] => fun of (n [Nat]) = { nat_match n {
+    case zero => nil
+    case succ n1 => cons (choose[Nat]) (listOfLength n1)
+  } },
+  fun of (n [Nat]) = { nil }
+)

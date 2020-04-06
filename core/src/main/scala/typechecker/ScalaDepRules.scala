@@ -22,6 +22,15 @@ trait ScalaDepRules {
   def withExistsIfFree(id: Identifier, tpe: Tree, t: Tree): Tree =
     if (id.isFreeIn(t)) ExistsType(tpe, Bind(id, t)) else t
 
+  val InferNat1 = Rule("InferNat1", {
+    case g @ InferGoal(c, e @ NatLiteral(n)) =>
+      TypeChecker.debugs(g, "InferNat1")
+      Some((List(), _ =>
+        (true, InferJudgment("InferNat1", c, NatLiteral(n), SingletonType(NatType, e)))))
+    case g =>
+      None
+  })
+
   val InferLet1 = Rule("InferLet1", {
     case g @ InferGoal(c, e @ LetIn(None, v, Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLet1")
@@ -158,9 +167,26 @@ trait ScalaDepRules {
   })
 
   val InferCons = Rule("InferCons", {
-    case g @ InferGoal(c, e) if e == LCons() =>
+    case g @ InferGoal(c, e @ LCons(x, xs)) =>
       TypeChecker.debugs(g, "InferCons")
-      Some((List(), _ => (true, InferJudgment("InferCons", c, e, LConsType))))
+      val c0 = c.incrementLevel
+      val g1 = InferGoal(c0, x)
+      val g2 = CheckGoal(c0, xs, LList)
+      Some((List(_ => g1, _ => g2), {
+        case InferJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: Nil =>
+          (true, InferJudgment("InferCons", c, e, SingletonType(LList, e)))
+        case _ =>
+          emitErrorWithJudgment("InferCons", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+  val InferChoose = Rule("InferChoose", {
+    case g @ InferGoal(c, e @ Choose(ty)) =>
+      TypeChecker.debugs(g, "InferChoose")
+      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, ty))))
 
     case g =>
       None

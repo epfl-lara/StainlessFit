@@ -36,11 +36,13 @@ object ScalaDepSugar {
   val idHead = Identifier.fresh("x")
   val idTail = Identifier.fresh("xs")
   object LCons {
-    def apply(): Tree =
-      Lambda(Some(TopType), Bind(idHead,
-        Lambda(Some(LList), Bind(idTail,
-          RightTree(Pair(Var(idHead), Var(idTail)))
-      ))))
+    // def apply(): Tree =
+    //   Lambda(Some(TopType), Bind(idHead,
+    //     Lambda(Some(LList), Bind(idTail,
+    //       RightTree(Pair(Var(idHead), Var(idTail)))
+    //   ))))
+
+    def apply(x: Tree, xs: Tree): Tree = RightTree(Pair(x, xs))
 
     def unapply(t: Tree): Option[(Tree, Tree)] =
       t match {
@@ -59,11 +61,11 @@ object ScalaDepSugar {
   val idHead2 = Identifier.fresh("x")
   val idTail2 = Identifier.fresh("xs")
   // cons :  (head: Top) => (tail: List) => { [List] cons head tail }
-  val LConsType: Tree = PiType(TopType, Bind(idHead2,
-    PiType(LList, Bind(idTail2,
-      SingletonType(LList, App(App(LCons(), Var(idHead2)), Var(idTail2)))
-    ))
-  ))
+  // val LConsType: Tree = PiType(TopType, Bind(idHead2,
+  //   PiType(LList, Bind(idTail2,
+  //     SingletonType(LList, App(App(LCons(), Var(idHead2)), Var(idTail2)))
+  //   ))
+  // ))
 
 
   object ListMatch {
@@ -114,6 +116,15 @@ object ScalaDepSugar {
 
     def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
       case Node("ListMatchType", Seq(t, tyNil, tyCons)) => Some((t, tyNil, tyCons))
+      case _ => None
+    }
+  }
+
+  object Choose {
+    def apply(ty: Tree)(implicit rc: RunContext): Tree = Node("Choose", Seq(ty))
+
+    def unapply(t: Tree): Option[Tree] = t match {
+      case Node("Choose", Seq(ty)) => Some(ty)
       case _ => None
     }
   }
