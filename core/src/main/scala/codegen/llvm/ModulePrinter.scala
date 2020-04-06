@@ -12,7 +12,6 @@ import scala.collection.mutable.ListBuffer
 
 object ModulePrinter {
 
-
   private implicit def s2d(s: String) = Raw(s)
 
   def apply(mod: Module) = printModule(mod).print
