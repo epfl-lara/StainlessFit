@@ -33,7 +33,7 @@ object IR {
 
   //case object NoCode extends Code
 
-  class Label (val label: String){
+  case class Label (val label: String){
     override def toString: String = s"%$label"
     def printLabel: String = s"$label:"
     def dot(s: String): Label = {
@@ -41,14 +41,14 @@ object IR {
     }
   }
 
-  class Local (val name: String){
+  case class Local (val name: String){
     override def toString: String = s"%$name"
     def dot(s: String): Local = {
       new Local(name + "." + s)
     }
   }
 
-  class Global (val name: String){
+  case class Global (val name: String){
     override def toString: String = s"@$name"
   }
 
@@ -63,6 +63,14 @@ object IR {
   case object NatType extends Type {
     override def toString(): String =  "i32"
   }
+
+  case class FunctionReturnType(funName: Global) extends Type
+
+  // case object Union {
+  //   def apply(left: Type, right: Type): Type = (left, right) match {
+  //     case (FunctionResult(f), Fun)
+  //   }
+  // }
 
   case class ParamDef(tpe: Type, local: Local)
 

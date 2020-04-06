@@ -10,9 +10,9 @@ case class Function(returnType: Type, name: Global, params: List[ParamDef], bloc
 
   def add(block: Block): Unit = blocks += block
 
-  override def toString(): String = {
-    ModulePrinter(this)
-  }
+  // override def toString(): String = {
+  //   ModulePrinter(this)
+  // }
 }
 
 object Function {
