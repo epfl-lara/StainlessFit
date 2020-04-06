@@ -8,6 +8,7 @@ import parser.FitParser
 import stainlessfit.core.util.Utils
 
 object PartialEvaluator {
+  val BigZero = BigInt(0)
 
   //see erasure
   //see utils mapFirst
@@ -69,6 +70,7 @@ object PartialEvaluator {
           case (Not, BooleanLiteral(a), None) => Some(BooleanLiteral(!a))
           case (And, BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a && b))
           case (Or,  BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a || b))
+          case (Div, _, Some(NatLiteral(BigZero))) => rc.reporter.fatalError(s"Attempt to divide by zero")
           case (_,NatLiteral(a),Some(NatLiteral(b))) => Some(
             op match {
               case Plus => NatLiteral(a+b)
@@ -76,9 +78,7 @@ object PartialEvaluator {
                 if(a>=b)   NatLiteral(a-b)
                 else       rc.reporter.fatalError(s"Substraction between ${a} and ${b} will yield a negative value")
               case Mul =>  NatLiteral(a*b)
-              case Div =>
-                if(b!=0)   NatLiteral(a/b)
-                else       rc.reporter.fatalError(s"Attempt to divide ${a} by zero")
+              case Div =>  NatLiteral(a/b) //The /0 case is already taken care of above
               case Eq =>   BooleanLiteral(a==b)
               case Neq =>  BooleanLiteral(a!=b)
               case Leq =>  BooleanLiteral(a<=b)
