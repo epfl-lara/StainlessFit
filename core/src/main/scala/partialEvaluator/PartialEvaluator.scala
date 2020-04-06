@@ -5,6 +5,7 @@ package partialEvaluator
 import trees._
 import util.RunContext
 import parser.FitParser
+import stainlessfit.core.util.Utils
 
 object PartialEvaluator {
 
@@ -62,7 +63,24 @@ object PartialEvaluator {
       case MacroTypeDecl(tpe, bind) => ???
       case MacroTypeInst(v1, args) => ???
       case NatMatch(t, t0, bind) => ???
-      case Primitive(op, args) => ???
+      case Primitive(op, args) =>
+        Utils.mapFirst2(args, smallStep).map(Primitive(op,_)) orElse 
+        {(op,args.head,args.tail.headOption) match {
+          case (Not, BooleanLiteral(a), None) => Some(BooleanLiteral(!a))
+          case (And, BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a && b))
+          case (Or,  BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a || b))
+          case Plus =>
+          case Minus =>
+          case Mul =>
+          case Div =>
+          case Eq =>
+          case Neq =>
+          case Leq =>
+          case Geq =>
+          case Lt =>
+          case Gt =>
+          case Nop =>
+        }}
       case Fold(tp, t) => ???
       case Unfold(t, bind) => ???
       case UnfoldPositive(t, bind) => ???
@@ -71,7 +89,7 @@ object PartialEvaluator {
       case Error(_, _) => ???
       
 
-      //case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $e (${e.getClass}).")
+      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $e (${e.getClass}).")
     }
   }
   /*
