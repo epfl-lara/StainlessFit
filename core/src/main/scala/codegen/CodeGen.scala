@@ -28,32 +28,38 @@ class CodeGen(implicit val rc: RunContext) extends Phase[Module] {
 object CodeGen {
     def genLLVM(tree: Tree, isMain: Boolean)(implicit rc: RunContext): Module = {
 
-        def cgDefFunction(defFun: DefFunction)(implicit rc: RunContext): Function = {
+        def cgDefFunction(defFun: DefFunction): Function = {
           val DefFunction(args, returnType, _, bind, _) = defFun
 
-          val params = args.map{
-            case TypedArgument(id, tpe) => ParamDef(translateType(tpe), new Local(id.toString))
+          val params = args.toList.map{
+            case TypedArgument(id, tpe) => (id, ParamDef(translateType(tpe), new Local(id.name)))
+            case arg => rc.reporter.fatalError(s"Unexpected type for arg $arg")
           }
 
           val (fname, body) = extractBody(bind)
 
-          cgFunction(new Global(fname.toString), params.toList, body)
+          cgFunction(new Global(fname.name), params, body)
         }
 
-        def cgFunction(name: Global, params: List[ParamDef], body: Tree): Function = {
+        def cgFunction(name: Global, params: List[(Identifier, ParamDef)], body: Tree): Function = {
+
           val lh = new LocalHandler(rc)
-          val function = Function(resultType(body), name, params)
+          lh.add(params)
+          //println(s"body a function $name is $body")
+          val function = Function(resultType(body), name, params.unzip._2)
 
           val initBlock = lh.newBlock("entry")
 
           val end = lh.freshLabel("End")
           val result = lh.freshLocal("result")
 
+          //println(s"Will start codegen for function $name")
           val (entryBlock, phi) = codegen(body, initBlock, Some(end), Some(result))(lh, function)
+          //println(s"successfully codgen function $name")
           function.add(entryBlock)
 
           val endBlock = lh.newBlock(end)
-          function.add(endBlock <:> phi <:> Return(Value(result), resultType(tree)))
+          function.add(endBlock <:> phi <:> Return(Value(result), resultType(body)))
           function
         }
 
@@ -68,16 +74,16 @@ object CodeGen {
             val (defs, rest) = extractDefFun(otherDefs)
             (defFun +: defs, rest)
           }
-          case DefFunction(_, _, _, _, rest) => (Nil, rest)
+          case defFun @ DefFunction(_, _, _, _, rest) => (List(defFun), rest)
           case _ => rc.reporter.fatalError(s"Couldn't find the body in $t")
         }
 
-        def cgModule(inputTree: Tree)(implicit rc: RunContext): Module = {
+        def cgModule(inputTree: Tree): Module = {
           val lh = new LocalHandler(rc)
 
           val (functions, bind) = extractDefFun(inputTree)
-          val (id, body) = extractBody(bind)
 
+          val (id, body) = extractBody(bind)
           val main = cgFunction(new Global("main"), Nil, body)  //Might be a function call
 
           val module = Module(
@@ -87,17 +93,6 @@ object CodeGen {
           )
 
           module
-          // val initBlock = lh.newBlock("entry")
-          //
-          // val end = lh.freshLabel("End")
-          // val result = lh.freshLocal("result")
-          //
-          // val (entryBlock, phi) = codegen(tree, initBlock, Some(end), Some(result))(lh, module)
-          // module.add(entryBlock)
-          //
-          // val endBlock = lh.newBlock(end)
-          // module.add(endBlock <:> phi <:> Return(Value(result), resultType(tree)))
-          // module
         }
 
         def filterErasable(t: Tree): Tree = t match {
@@ -137,20 +132,30 @@ object CodeGen {
           case _ => rc.reporter.fatalError("Not yet implemented")
         }
 
-        def cgLiteral(t: Tree): Literal = t match {
-          case BooleanLiteral(b) => IRBooleanLiteral(b)
-          case NatLiteral(n) => Nat(n)
-          case UnitLiteral => Nat(0)
+        def cgLiteral(t: Tree)(implicit lh: LocalHandler): Value = t match {
+          case BooleanLiteral(b) => Value(IRBooleanLiteral(b))
+          case NatLiteral(n) => Value(Nat(n))
+          case UnitLiteral => Value(Nat(0))
+          case Var(id) => Value(lh.getLocal(id))
           case _ => rc.reporter.fatalError(s"This tree isn't a literal: $t")
         }
 
-        def flattenArgs(t: Tree): List[Tree] = t match {
+        def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local]): List[Instruction] = {
+          val assign = toAssign.toList.map(local => Assign(local, tpe, value))
+          val jump = next.toList.map(label => Jump(label))
+
+          if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
+
+          assign ++ jump
+        }
+
+        def flattenPrimitive(t: Tree): List[Tree] = t match {
           case Primitive(op, args) => args.flatMap{
-            case Primitive(op2, args2) if op2 == op => flattenArgs(Primitive(op2, args2))
+            case Primitive(op2, args2) if op2 == op => flattenPrimitive(Primitive(op2, args2))
             case other => List(other)
           }
 
-          case _ => rc.reporter.fatalError(s"flatten is not defined for $t")
+          case _ => rc.reporter.fatalError(s"flattenPrimitive is not defined for $t")
         }
 
         def translateType(tpe: Tree) = tpe match {
@@ -212,54 +217,56 @@ object CodeGen {
             }
 
             case BooleanLiteral(b) => {
-              val assign = toAssign.toList.map(local => Assign(local, BooleanType, Value(IRBooleanLiteral(b))))
-              val jump = next.toList.map(label => Jump(label))
-
-              if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
-
-              (block <:> assign <:> jump, Nil)
+              // val assign = toAssign.toList.map(local => Assign(local, BooleanType, Value(IRBooleanLiteral(b))))
+              // val jump = next.toList.map(label => Jump(label))
+              //
+              // if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
+              //
+              // (block <:> assign <:> jump, Nil)
+              (block <:> cgValue(BooleanType, Value(IRBooleanLiteral(b)), next, toAssign), Nil)
             }
 
             case NatLiteral(n) => {
-              val assign = toAssign.toList.map(local => Assign(local, IRNatType, Value(Nat(n))))
-              val jump = next.toList.map(label => Jump(label))
-
-              if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
-
-              (block <:> assign <:> jump, Nil)
+              // val assign = toAssign.toList.map(local => Assign(local, IRNatType, Value(Nat(n))))
+              // val jump = next.toList.map(label => Jump(label))
+              //
+              // if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
+              //
+              // (block <:> assign <:> jump, Nil)
+              (block <:> cgValue(IRNatType, Value(Nat(n)), next, toAssign), Nil)
             }
 
             case Primitive(op, args) => {
 
-              val flatArgs = flattenArgs(inputTree)
-
-              val argLocals = flatArgs.map{
-                case BooleanLiteral(_) | NatLiteral(_) | UnitLiteral => None  //Todo replace by isLiteral
-                case arg => Some(lh.freshLocal())
-              }
-
-              val init: (Block, List[Value]) = (block, Nil)
-
-              val (cB, valueList: List[Value]) = argLocals.zip(flatArgs).foldLeft(init) {
-                case ((currentBlock, values), (None, arg)) => {
-                  (currentBlock, values :+ Value(cgLiteral(arg)))
-                }
-
-                case ((currentBlock, values), (Some(local), arg)) => {
-                  //TODO check if an intermediate block is necessary
-                  val tempLabel = lh.freshLabel("tempBlock")
-                  val tempBlock = lh.newBlock(tempLabel)
-
-                  val afterLabel = lh.freshLabel("afterBlock")
-                  val afterBlock = lh.newBlock(afterLabel)
-
-                  f.add(currentBlock <:> Jump(tempLabel)) //Todo can I do this?
-
-                  val (otherBlock, phi) = codegen(arg, tempBlock, Some(afterLabel), Some(local))
-                  f.add(otherBlock)
-                  (afterBlock <:> phi, values :+ Value(local))
-                }
-              }
+              val flatArgs = flattenPrimitive(inputTree)
+              val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
+              // val argLocals = flatArgs.map{
+              //   case BooleanLiteral(_) | NatLiteral(_) | UnitLiteral | Var(_) => None  //Todo replace by isLiteral
+              //   case arg => Some(lh.freshLocal())
+              // }
+              //
+              // val init: (Block, List[Value]) = (block, Nil)
+              //
+              // val (cB, valueList: List[Value]) = argLocals.zip(flatArgs).foldLeft(init) {
+              //   case ((currentBlock, values), (None, arg)) => {
+              //     (currentBlock, values :+ Value(cgLiteral(arg)))
+              //   }
+              //
+              //   case ((currentBlock, values), (Some(local), arg)) => {
+              //     //TODO check if an intermediate block is necessary
+              //     val tempLabel = lh.freshLabel("tempBlock")
+              //     val tempBlock = lh.newBlock(tempLabel)
+              //
+              //     val afterLabel = lh.freshLabel("afterBlock")
+              //     val afterBlock = lh.newBlock(afterLabel)
+              //
+              //     f.add(currentBlock <:> Jump(tempLabel)) //Todo can I do this?
+              //
+              //     val (otherBlock, phi) = codegen(arg, tempBlock, Some(afterLabel), Some(local))
+              //     f.add(otherBlock)
+              //     (afterBlock <:> phi, values :+ Value(local))
+              //   }
+              // }
 
               val last = valueList.size - 1
               val (resultBlock, result) = valueList.zipWithIndex.tail.foldLeft((cB, valueList.head)){
@@ -282,14 +289,73 @@ object CodeGen {
               // }
             }
 
-            // case DefFunction(args, optRet, _, body, rest) => {
-            //   if(optFun.isDefined){
-            //
-            //   } else {
-            //
-            //   }
-            // }
+            case Var(id) => {
+              // val assign = toAssign.toList.map(local => Assign(local, lh.getType(id), Value(lh.getLocal(id))))
+              // val jump = next.toList.map(label => Jump(label))
+              //
+              // if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
+              //
+              // (block <:> assign <:> jump, Nil)
+              (block <:> cgValue(lh.getType(id), Value(lh.getLocal(id)), next, toAssign), Nil)
+            }
+
+            case call @ App(_, _) => cgFunctionCall(call, block, next, toAssign)
+
             case _ => rc.reporter.fatalError(s"codegen not implemented for $inputTree")
+          }
+
+          def cgIntermediateBlocks(flatArgs: List[Tree], initialBlock: Block)(implicit lh: LocalHandler, f: Function): (Block, List[Value]) = {
+
+            val argLocals = flatArgs.map{
+              case BooleanLiteral(_) | NatLiteral(_) | UnitLiteral | Var(_) => None  //Todo replace by isLiteral
+              case arg => Some(lh.freshLocal())
+            }
+
+            val init: (Block, List[Value]) = (initialBlock, Nil)
+
+            val (cB, valueList: List[Value]) = argLocals.zip(flatArgs).foldLeft(init) {
+              case ((currentBlock, values), (None, arg)) => {
+                (currentBlock, values :+ cgLiteral(arg))
+              }
+
+              case ((currentBlock, values), (Some(local), arg)) => {
+                //TODO check if an intermediate block is necessary
+                val tempLabel = lh.freshLabel("tempBlock")
+                val tempBlock = lh.newBlock(tempLabel)
+
+                val afterLabel = lh.freshLabel("afterBlock")
+                val afterBlock = lh.newBlock(afterLabel)
+
+                f.add(currentBlock <:> Jump(tempLabel)) //Todo can I do this?
+
+                val (otherBlock, phi) = codegen(arg, tempBlock, Some(afterLabel), Some(local))
+                f.add(otherBlock)
+                (afterBlock <:> phi, values :+ Value(local))
+              }
+            }
+
+            (cB, valueList)
+          }
+
+          def cgFunctionCall(call: Tree, block: Block, next: Option[Label], toAssign: Option[Local])(implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) = call match {
+            case App(Var(funId), args) => {
+              val flatArgs = flattenParams(args)
+              val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
+
+              val result = toAssign.getOrElse(lh.freshLocal("unused"))
+
+              val jump = next.toList.map(label => Jump(label))
+              (cB <:> Call(result, new Global(funId.name), valueList) <:> jump, Nil)
+            }
+            case _ => rc.reporter.fatalError(s"Unable to apply $call yet")
+          }
+
+          def flattenParams(t: Tree): List[Tree] = t match {
+            //TODO might be able to integrate into flattenPrimitive
+            case BooleanLiteral(_) | NatLiteral(_) | UnitLiteral => List(t)
+            case Pair(first, second) => first +: flattenParams(second)
+            case Primitive(_, _) => List(t)
+            case _ => rc.reporter.fatalError(s"flattenParams is not defined fo $t")
           }
 
         cgModule(tree)

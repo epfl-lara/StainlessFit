@@ -64,7 +64,7 @@ object IR {
     override def toString(): String =  "i32"
   }
 
-  case class ParamDef(tpe: Type, name: Local)
+  case class ParamDef(tpe: Type, local: Local)
 
   class Value(val v: Either[Local, Literal])
   object Value {
@@ -154,5 +154,5 @@ object IR {
   case class Return(result : Value, typee: Type) extends Instruction
 
   case class MallocFunction(size: Int) extends Instruction
-  case class Call(res: Local, function: Label) extends Instruction
+  case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
 }
