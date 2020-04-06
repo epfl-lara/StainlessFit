@@ -71,7 +71,7 @@ object ModulePrinter {
           case _ => "or"
         }
 
-        Lined(List(s"$res = $op $tpe 0, ", printValue(from)))
+        Lined(List(s"$res = $op", printType(tpe), "0,", printValue(from)), " ")
       }
 
       case Branch(condition, trueLocal, falseLocal) =>
@@ -79,8 +79,8 @@ object ModulePrinter {
 
       case Jump(dest) => Raw(s"br label $dest")
 
-      case Phi(res, tpe, choices) => Raw(s"$res = phi $tpe ") <:>
-        Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ",") //TODO add type
+      case Phi(res, tpe, choices) => Raw(s"$res = phi ") <:> printType(tpe) <:> " " <:>
+        Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ", ")
 
       case Return(result, tpe) => {
         val returned = result.v match {
@@ -98,10 +98,10 @@ object ModulePrinter {
         val valueTypes = f.params.map(_.tpe)
 
         Raw(s"$result = call $returnType $funName(") <:>
-        Lined(valueTypes.zip(values).map{case (tpe, value) => Raw(s"$tpe ") <:> printValue(value)}, ", ") <:>
+        Lined(valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}, ", ") <:>
         Raw(")")
       }
-        //Lined(params.map(param => s"${param.tpe} ${param.local}"), ", ")
+      
       case other => Raw(s"PLACEHOLDER: $other")
     }
   }
