@@ -27,6 +27,7 @@ object Printer {
     }
 
     val clangOptions = s"${outputWithExt("ll")} -o $outDirName/$filename.out"
+    val optOptions = s"-S ${outputWithExt("ll")} -O1 -o $outDirName/${filename}Opti.ll"
 
     val outDir = new File(outDirName)
     if (!outDir.exists()) {
@@ -37,6 +38,7 @@ object Printer {
 
     try {
         s"$inPath $clangOptions".!!
+        s"opt $optOptions".!! //TODO update opt command depending on OS
       } catch {
         case _: IOException =>
           rc.reporter.fatalError(

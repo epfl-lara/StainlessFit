@@ -29,37 +29,36 @@ object CodeGen {
     def genLLVM(tree: Tree, isMain: Boolean)(implicit rc: RunContext): Module = {
 
         def cgDefFunction(defFun: DefFunction): Function = {
-          val DefFunction(args, returnType, _, bind, _) = defFun
+          val DefFunction(args, optReturnType, _, bind, _) = defFun
 
           val params = args.toList.map{
-            case TypedArgument(id, tpe) => (id, ParamDef(translateType(tpe), new Local(id.name)))
+            case TypedArgument(id, tpe) => (id, ParamDef(translateType(tpe), Local(id.name)))
             case arg => rc.reporter.fatalError(s"Unexpected type for arg $arg")
           }
 
           val (fname, body) = extractBody(bind)
 
-          cgFunction(new Global(fname.name), params, body)
+          val returnType = translateType(optReturnType.get)
+          cgFunction(returnType, Global(fname.name), params, body)
         }
 
-        def cgFunction(name: Global, params: List[(Identifier, ParamDef)], body: Tree): Function = {
+        def cgFunction(returnType: Type, name: Global, params: List[(Identifier, ParamDef)], body: Tree): Function = {
 
           val lh = new LocalHandler(rc)
           lh.add(params)
-          //println(s"body a function $name is $body")
-          val function = Function(resultType(body), name, params.unzip._2)
+
+          val function = Function(returnType, name, params.unzip._2)
 
           val initBlock = lh.newBlock("entry")
 
           val end = lh.freshLabel("End")
           val result = lh.freshLocal("result")
 
-          //println(s"Will start codegen for function $name")
           val (entryBlock, phi) = codegen(body, initBlock, Some(end), Some(result))(lh, function)
-          //println(s"successfully codgen function $name")
           function.add(entryBlock)
 
           val endBlock = lh.newBlock(end)
-          function.add(endBlock <:> phi <:> Return(Value(result), resultType(body)))
+          function.add(endBlock <:> phi <:> Return(Value(result), returnType))
           function
         }
 
@@ -83,13 +82,20 @@ object CodeGen {
 
           val (functions, bind) = extractDefFun(inputTree)
 
+          val funs = functions map cgDefFunction
+
           val (id, body) = extractBody(bind)
-          val main = cgFunction(new Global("main"), Nil, body)  //Might be a function call
+
+          val returnType = resultType(body)(lh) match {
+            case FunctionReturnType(funName) => funs.filter(fun => fun.name == funName).head.returnType
+            case otherType => otherType
+          }
+          val main = cgFunction(returnType, Global("main"), Nil, body)  //Might be a function call
 
           val module = Module(
             rc.config.file.getName(),
             main,
-            functions map cgDefFunction
+            funs
           )
 
           module
@@ -158,20 +164,24 @@ object CodeGen {
           case _ => rc.reporter.fatalError(s"flattenPrimitive is not defined for $t")
         }
 
-        def translateType(tpe: Tree) = tpe match {
+        def translateType(tpe: Tree): Type = tpe match {
           case BoolType => BooleanType
           case NatType => IRNatType
           case UnitType => IRUnitType
+          case Bind(_, rest) => translateType(rest)
           case _ => rc.reporter.fatalError(s"Unkown type $tpe")
         }
 
-        def resultType(t: Tree): Type = t match {
+        def resultType(t: Tree)(implicit lh: LocalHandler): Type = t match {
           case BooleanLiteral(_) => BooleanType
           case NatLiteral(_) => IRNatType
           case UnitLiteral => IRUnitType
+          case Var(id) => lh.getType(id)
 
           case Primitive(op, _) => translateOp(op).returnType
           case IfThenElse(_, thenn, _) => resultType(thenn)
+          case App(Var(funId), _) => FunctionReturnType(Global(funId.name))
+          case app @ App(_, _) => FunctionReturnType(Global(flattenApp(app)._1.name))
           case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
         }
 
@@ -211,7 +221,7 @@ object CodeGen {
                 falsePhi ++
                 toAssign.toList.map{
                   case local => Phi(local, resultType(thenn), List((trueLocal, trueBlock.label), (falseLocal, falseBlock.label)))
-                }
+                } //Need a better way to check for the type
 
               (afterBlock <:> nextPhi <:> Jump(next.get), Nil)
             }
@@ -337,18 +347,36 @@ object CodeGen {
             (cB, valueList)
           }
 
-          def cgFunctionCall(call: Tree, block: Block, next: Option[Label], toAssign: Option[Local])(implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) = call match {
-            case App(Var(funId), args) => {
-              val flatArgs = flattenParams(args)
+          def cgFunctionCall(call: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
+            (implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) = {
+              val (funId, flatArgs) = flattenApp(call)
+
               val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
 
               val result = toAssign.getOrElse(lh.freshLocal("unused"))
 
               val jump = next.toList.map(label => Jump(label))
-              (cB <:> Call(result, new Global(funId.name), valueList) <:> jump, Nil)
+              (cB <:> Call(result, Global(funId.name), valueList) <:> jump, Nil)
             }
-            case _ => rc.reporter.fatalError(s"Unable to apply $call yet")
-          }
+
+
+          //     call match {
+          //   case App(Var(funId), args) => { //base case
+          //     val flatArgs = flattenParams(args)
+          //     val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
+          //
+          //     val result = toAssign.getOrElse(lh.freshLocal("unused"))
+          //
+          //     val jump = next.toList.map(label => Jump(label))
+          //     (cB <:> Call(result, Global(funId.name), valueList) <:> jump, Nil)
+          //   }
+          //
+          //   case App(App(_, _), _) => {
+          //
+          //   }
+          //   case _ => rc.reporter.fatalError(s"Unable to apply $call yet")
+          // }
+
 
           def flattenParams(t: Tree): List[Tree] = t match {
             //TODO might be able to integrate into flattenPrimitive
@@ -356,6 +384,16 @@ object CodeGen {
             case Pair(first, second) => first +: flattenParams(second)
             case Primitive(_, _) => List(t)
             case _ => rc.reporter.fatalError(s"flattenParams is not defined fo $t")
+          }
+
+          def flattenApp(t: Tree): (Identifier, List[Tree]) = t match {
+            case App(Var(id), arg) => (id, List(arg))
+            case App(recApp @ App(_, _), arg) => {
+              val (id, otherArgs) = flattenApp(recApp)
+              (id , otherArgs :+ arg)
+            }
+
+            case _ => rc.reporter.fatalError(s"flattenApp is not defined fo $t")
           }
 
         cgModule(tree)

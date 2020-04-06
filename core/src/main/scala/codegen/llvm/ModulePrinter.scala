@@ -16,9 +16,22 @@ object ModulePrinter {
   private implicit def s2d(s: String) = Raw(s)
 
   def apply(mod: Module) = printModule(mod).print
-  def apply(fun: Function) = printFunction(fun).print
+  //def apply(fun: Function) = printFunction(fun).print
 
-  def printFunction(fun: Function): Document = {
+  private def printModule(module: Module): Document = {
+      var toPrint = new ListBuffer[Document]()
+
+      if(!module.functions.isEmpty)
+        toPrint += Stacked(
+            module.functions.toList.map(f => printFunction(f)(module)),
+            true)
+
+      toPrint += printFunction(module.main)(module)
+
+      Stacked(toPrint.toList, emptyLines = true)
+  }
+
+  private def printFunction(fun: Function)(implicit m: Module): Document = {
     val Function(returnType, name, params, blocks) = fun
     val paramList = Lined(params.map(param => s"${param.tpe} ${param.local}"), ", ")
     Stacked(
@@ -28,25 +41,14 @@ object ModulePrinter {
     )
   }
 
-  private def printModule(module: Module): Document = {
-      var toPrint = new ListBuffer[Document]()
-
-      if(!module.functions.isEmpty)
-        toPrint += Stacked(module.functions.toList map printFunction, true)
-
-      toPrint += printFunction(module.main)
-
-      Stacked(toPrint.toList, emptyLines = true)
-  }
-
-  private def printBlock(block: Block): Document = {
+  private def printBlock(block: Block)(implicit m: Module): Document = {
     Stacked(
       block.label.printLabel,
       Indented(Stacked(block.instructions map printInstr))
     )
   }
 
-  private def printInstr(instr: Instruction): Document = {
+  private def printInstr(instr: Instruction)(implicit m: Module): Document = {
     instr match {
 
       case BinaryOp(op, res, lhs, rhs) => {
@@ -81,16 +83,25 @@ object ModulePrinter {
       case Phi(res, tpe, choices) => Raw(s"$res = phi $tpe ") <:>
         Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ",") //TODO add type
 
-      case Return(result, tpe) => result.v match {
-        case Left(local) => Raw(s"ret $tpe $local")
-        case Right(instr) => Raw(s"ret $tpe ") <:> printInstr(instr)
+      case Return(result, tpe) => {
+        val returned = result.v match {
+          case Left(local) => Raw(s"$local")
+          case Right(instr) => printInstr(instr)
+        }
+
+        Lined(List(Raw("ret"), printType(tpe), returned), " ")
       }
 
       //Todo void functions?
-      case Call(result, funName, args) =>
-        Raw(s"$result = call RETURNTYPE $funName(") <:>
-        Lined(args.map(arg => Raw(s"VALUETYPE ") <:> printValue(arg)), ", ") <:>
+      case Call(result, funName, values) => {
+        val f = getFunction(funName)
+        val returnType = f.returnType
+        val valueTypes = f.params.map(_.tpe)
+
+        Raw(s"$result = call $returnType $funName(") <:>
+        Lined(valueTypes.zip(values).map{case (tpe, value) => Raw(s"$tpe ") <:> printValue(value)}, ", ") <:>
         Raw(")")
+      }
         //Lined(params.map(param => s"${param.tpe} ${param.local}"), ", ")
       case other => Raw(s"PLACEHOLDER: $other")
     }
@@ -104,5 +115,14 @@ object ModulePrinter {
       case Nat(n) => s"$n"
     }
     case other => Raw(s"PLACEHOLDER: $other")
+  }
+
+  private def printType(tpe: Type)(implicit m: Module): Document = tpe match {
+    case FunctionReturnType(funName) => s"${getFunction(funName).returnType}"
+    case _ => s"$tpe"
+  }
+
+  private def getFunction(funName: Global)(implicit m: Module): Function = {
+    m.functions.filter(fun => fun.name == funName).head
   }
 }
