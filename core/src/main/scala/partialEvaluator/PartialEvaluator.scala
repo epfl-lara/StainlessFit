@@ -8,6 +8,9 @@ import parser.FitParser
 
 object PartialEvaluator {
 
+  //see erasure
+  //see utils mapFirst
+
   def smallStep(e: Tree)(implicit rc: RunContext, vars: Map[Identifier,Tree]): Option[Tree] = {
     e match {
       case Var(id) => vars.get(id)
@@ -41,17 +44,17 @@ object PartialEvaluator {
           t match {
             case LeftTree(lt) => ???
             case RightTree(rt) => ???
+            case _ => ???
           }
         }
       case LeftTree(t) => smallStep(t).map(LeftTree(_))
       case RightTree(t) => smallStep(t).map(RightTree(_))
       case App(t1, t2) => ???
+      case ErasableApp(t1, t2) => smallStep(t1)
       case Size(t) => ???
-      case Because(t1, t2) => ???
-      case Bind(id2, e) => ???
       case Lambda(None, bind) => ???
       case Lambda(Some(tp), bind) => ???
-      case ErasableLambda(tp, bind) => ???
+      case ErasableLambda(tp, Bind(_,body)) => smallStep(body)
       case Fix(None, bind) => ???
       case Fix(Some(tp), bind) => ???
       case LetIn(None, v1, bind) => ???
@@ -60,29 +63,15 @@ object PartialEvaluator {
       case MacroTypeInst(v1, args) => ???
       case NatMatch(t, t0, bind) => ???
       case Primitive(op, args) => ???
-      case ErasableApp(t1, t2) => ???
       case Fold(tp, t) => ???
       case Unfold(t, bind) => ???
       case UnfoldPositive(t, bind) => ???
-      case Abs(bind) => ???
-      case TypeApp(abs, t) => ???
+      case Abs(Bind(_,body)) => smallStep(body)
+      case TypeApp(abs, t) => smallStep(abs)
       case Error(_, _) => ???
-      case NatType => ???
-      case BoolType => ???
-      case UnitType => ???
-      case SumType(t1, t2) => ???
-      case PiType(t1, bind) => ???
-      case SigmaType(t1, bind) => ???
-      case IntersectionType(t1, bind) => ???
-      case RefinementType(t1, bind) => ???
-      case RecType(n, bind) => ???
-      case PolyForallType(bind) => ???
-
-      case BottomType => None
-      case TopType => None
       
 
-      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $e (${e.getClass}).")
+      //case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $e (${e.getClass}).")
     }
   }
   /*
