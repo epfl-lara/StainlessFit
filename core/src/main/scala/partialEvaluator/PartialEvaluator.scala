@@ -69,17 +69,26 @@ object PartialEvaluator {
           case (Not, BooleanLiteral(a), None) => Some(BooleanLiteral(!a))
           case (And, BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a && b))
           case (Or,  BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a || b))
-          case Plus =>
-          case Minus =>
-          case Mul =>
-          case Div =>
-          case Eq =>
-          case Neq =>
-          case Leq =>
-          case Geq =>
-          case Lt =>
-          case Gt =>
-          case Nop =>
+          case (_,NatLiteral(a),Some(NatLiteral(b))) => Some(
+            op match {
+              case Plus => NatLiteral(a+b)
+              case Minus => 
+                if(a>=b)   NatLiteral(a-b)
+                else       rc.reporter.fatalError(s"Substraction between ${a} and ${b} will yield a negative value")
+              case Mul =>  NatLiteral(a*b)
+              case Div =>
+                if(b!=0)   NatLiteral(a/b)
+                else       rc.reporter.fatalError(s"Attempt to divide ${a} by zero")
+              case Eq =>   BooleanLiteral(a==b)
+              case Neq =>  BooleanLiteral(a!=b)
+              case Leq =>  BooleanLiteral(a<=b)
+              case Geq =>  BooleanLiteral(a>=b)
+              case Lt =>   BooleanLiteral(a<b)
+              case Gt =>   BooleanLiteral(a>b)
+              case _ =>    ???
+            })
+          case (Nop, _, _) => ???
+          case _ => None //This misses some cases where it should throw an error
         }}
       case Fold(tp, t) => ???
       case Unfold(t, bind) => ???
@@ -89,7 +98,7 @@ object PartialEvaluator {
       case Error(_, _) => ???
       
 
-      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $e (${e.getClass}).")
+      case _ => throw new java.lang.Exception(s"Function `PartialEvaluator.smallStep` is not implemented on $e (${e.getClass}).")
     }
   }
   /*
