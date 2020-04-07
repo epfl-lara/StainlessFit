@@ -186,7 +186,8 @@ trait ScalaDepRules {
   val InferChoose = Rule("InferChoose", {
     case g @ InferGoal(c, e @ Choose(ty)) =>
       TypeChecker.debugs(g, "InferChoose")
-      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, ty))))
+      val ety = PiType(Choose.PathType, Bind(Choose.unusedPath, ty))
+      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, ety))))
 
     case g =>
       None

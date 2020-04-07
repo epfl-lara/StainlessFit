@@ -61,6 +61,13 @@ object Interpreter {
           case nt => EitherMatch(nt, b1, b2)
         }
 
+      case ListMatch(t, t1, b2 @ Bind(idHead, Bind(idTail, t2))) =>
+        evaluateWithContext(c, t) match {
+          case LNil() => evaluateWithContext(c, t1)
+          case LCons(tHead, tTail) => evaluateWithContext(c, t2.replace(idHead, tHead).replace(idTail, tTail))
+          case nt => EitherMatch(nt, t1, b2)
+        }
+
       // case Primitive(Not, BooleanLiteral(b) :: Nil) => BooleanLiteral(!b)
       // case Primitive(And, BooleanLiteral(b1) :: BooleanLiteral(b2) :: Nil) => BooleanLiteral(b1 && b2)
       // case Primitive(Or, BooleanLiteral(b1) :: BooleanLiteral(b2) :: Nil) => BooleanLiteral(b1 || b2)

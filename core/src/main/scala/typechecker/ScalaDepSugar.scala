@@ -69,17 +69,23 @@ object ScalaDepSugar {
 
 
   object ListMatch {
+    def apply(l: Tree, tNil: Tree, tCons: Tree): Tree =
+      Node("ListMatch", Seq(l, tNil, tCons))
 
-    def apply(l: Tree, eNil: Tree, eCons: Tree): Tree = {
-      val Bind(idHead, Bind(idTail, e)) = eCons
+    def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
+      case Node("ListMatch", Seq(l, tNil, tCons)) =>
+        Some((l, tNil, tCons))
+      case _ =>
+        None
+    }
+
+    def lower(l: Tree, tNil: Tree, tCons: Tree): Tree = {
+      val Bind(idHead, Bind(idTail, e)) = tCons
       val unused = Identifier.fresh("u")
       val pair = Identifier.fresh("p")
       EitherMatch(l,
-        Bind(unused, eNil),
+        Bind(unused, tNil),
         Bind(pair,
-          // let idHead = fst pair
-          // let idTail = snd pair
-          // e
           App(App(
             Lambda(None, Bind(idHead, Lambda(None, Bind(idTail, e )))),
             First(Var(pair))),
@@ -87,22 +93,6 @@ object ScalaDepSugar {
           )
         )
       )
-    }
-
-    def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
-      case
-        EitherMatch(l,
-          Bind(unused, eNil),
-          Bind(pair,
-            App(App(
-              Lambda(None, Bind(idHead, Lambda(None, Bind(idTail, e )))),
-              First(Var(pair1))),
-              Second(Var(pair2))
-            )
-          )
-        ) if pair1 == pair && pair2 == pair=>
-        Some((l, eNil, Bind(idHead, Bind(idTail, e))))
-      case _ => None
     }
   }
 
@@ -121,6 +111,9 @@ object ScalaDepSugar {
   }
 
   object Choose {
+    val unusedPath = Identifier.fresh("p")
+    val PathType = LList
+
     def apply(ty: Tree)(implicit rc: RunContext): Tree = Node("Choose", Seq(ty))
 
     def unapply(t: Tree): Option[Tree] = t match {

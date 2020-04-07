@@ -187,11 +187,17 @@ object Namer {
         val (newT1, max1) = namer(t1, m, max)
         val (newT2, max2) = namer(t2, m, max1)
         (EqualityType(newT1, newT2), max2)
+
       case FixWithDefault(tp, t, td) =>
         val (newTp, max1) = namer(tp, m, max)
         val (newT: Bind, max2) = namer(t, m, max1)
         val (newTd, max3) = namer(td, m, max2)
         (FixWithDefault(newTp, newT, newTd), max3)
+      case ListMatch(t, tNil, tCons) =>
+        val (newT, max1) = namer(t, m, max)
+        val (newTNil, max2) = namer(tNil, m, max1)
+        val (newTCons, max3) = namer(tCons, m, max2)
+        (ListMatch(newT, newTNil, newTCons), max3)
 
       case _ => throw new java.lang.Exception(s"Function `namer` is not defined on tree: $t")
     }

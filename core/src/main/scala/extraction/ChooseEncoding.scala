@@ -49,11 +49,19 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case PiType(ty1, Bind(id, ty2)) =>
       val path = Identifier.fresh("p")
       val (Seq(nty1, nty2), n2) = encode(Var(path), n, Seq(ty1, ty2))
-      (PiType(LList, Bind(path, PiType(nty1, Bind(id, nty2)))), n2)
+      (PiType(Choose.PathType, Bind(path, PiType(nty1, Bind(id, nty2)))), n2)
 
     case NatMatch(t, t0, Bind(id, ts)) =>
       val (Seq(nt, nt0, nts), n2) = encode(path, n, Seq(t, t0, ts))
       (NatMatch(nt, nt0, Bind(id, nts)), n2)
+
+    case EitherMatch(t, Bind(id1, t1), Bind(id2, t2)) =>
+      val (Seq(nt, nt1, nt2), n2) = encode(path, n, Seq(t, t1, t2))
+      (EitherMatch(nt, Bind(id1, nt1), Bind(id2, nt2)), n2)
+
+    case ListMatch(t, t1, Bind(idHead, Bind(idTail, t2))) =>
+      val (Seq(nt, nt1, nt2), n2) = encode(path, n, Seq(t, t1, t2))
+      (ListMatch(nt, nt1, Bind(idHead, Bind(idTail, nt2))), n2)
 
     case LetIn(None, v, Bind(id, body)) =>
       val (Seq(nV, nBody), n2) = encode(path, n, Seq(v, body))
@@ -74,10 +82,18 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       val nOptTy = optTy.map(ty => encode(LCons(NatLiteral(n), p), n+1, ty))
       val (nBody, n2) = encode(p, nOptTy.map(_._2).getOrElse(n), body)
 
-      (Lambda(Some(LList), Bind(pIdent,
+      (Lambda(Some(Choose.PathType), Bind(pIdent,
         Lambda(nOptTy.map(_._1), Bind(id,
           nBody
         ))
       )), n2)
+
+    case First(t) =>
+      val (nt, nn) = encode(path, n, t)
+      (First(nt), nn)
+
+    case Second(t) =>
+      val (nt, nn) = encode(path, n, t)
+      (Second(nt), nn)
   }
 }

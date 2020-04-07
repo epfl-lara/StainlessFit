@@ -1,7 +1,17 @@
-fixD(
-  listOfLength [Nat => List] => fun of (n [Nat]) = { nat_match n {
-    case zero => nil
-    case succ n1 => cons (choose[Nat]) (listOfLength n1)
+val listOfLength = fixD(
+  listOfLength [List => List] => fun of (xs [List]) = { list_match xs {
+    case nil => nil
+    case cons x ys => cons (choose[Nat]) (listOfLength ys)
   } },
-  fun of (n [Nat]) = { nil }
-)
+  fun of (n [List]) = { nil }
+);
+
+val head = fun of (xs [List]) = { list_match xs {
+    case nil => nil
+    case cons x ys => x
+  } };
+
+val xs = cons true (cons true nil);
+// val res [Nat] = head (listOfLength xs);  // FIXME: Doesn't go through since we end up with { [Top] choose ... } <: Nat
+val res = head (listOfLength xs);
+()
