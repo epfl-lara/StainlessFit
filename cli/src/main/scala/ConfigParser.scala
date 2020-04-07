@@ -72,6 +72,17 @@ object ConfigParser {
         ),
 
       note(""),
+      cmd("parteval")
+        .action((_, c) => c.copy(mode = Mode.PartEval))
+        .text("Partially evaluate the given file")
+        .children(
+          arg[File]("<file>")
+            .required()
+            .action((f, c) => c.copy(file = f))
+            .text("The file to partially evaluate, in `sf` format")
+        ),
+
+      note(""),
       cmd("typecheck")
         .action((_, c) => c.copy(mode = Mode.TypeCheck))
         .text("Typecheck the given file")
@@ -116,7 +127,7 @@ object ConfigParser {
         ),
 
       checkConfig {
-        case c if c.mode == null => failure("Please specify a command: eval, typecheck, sdep, compile or execute")
+        case c if c.mode == null => failure("Please specify a command: eval, parteval, typecheck, sdep, compile or execute")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
         case c =>
           c.debugSections.find(!DebugSection.available(_)) match {

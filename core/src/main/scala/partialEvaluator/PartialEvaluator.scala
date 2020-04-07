@@ -101,6 +101,14 @@ object PartialEvaluator {
       case _ => throw new java.lang.Exception(s"Function `PartialEvaluator.smallStep` is not implemented on $e (${e.getClass}).")
     }
   }
+
+  def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
+    Printer.exprInfo(e)
+    smallStep(e)(rc,Map()) match {
+      case None => e
+      case Some(value) => evaluate(value)
+    }
+  }
   /*
   def partEval(e: Tree)(implicit rc: RunContext, vars: Map[Identifier,Tree]): Tree = {
     e match {
