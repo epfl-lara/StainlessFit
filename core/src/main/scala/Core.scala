@@ -59,7 +59,7 @@ object Core {
 
       val (t, _) = pipeline.transform(src)
 
-      Interpreter.evaluate(t) match {
+      rc.bench.time("evaluation"){Interpreter.evaluate(t)} match {
         case Error(error, _) => Left(error)
         case v => Right(v)
       }

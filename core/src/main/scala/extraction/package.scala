@@ -20,8 +20,7 @@ package object extraction {
 
   def compilePipeline(implicit rc: RunContext) =
     DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
-    DebugPhase(new Namer(), "Namer") andThen
+    DebugPhase(new Namer(), "Namer") andThen  //=> nom unique
     DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
-    DebugPhase(new Erasure(), "Erasure") //andThen
-    //DebugPhase(new CodeGen(), "Codegen")
+    DebugPhase(new Erasure(), "Erasure") //erasure => LetIn are transformed into lambdas
 }
