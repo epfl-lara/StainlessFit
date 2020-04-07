@@ -67,10 +67,12 @@ object PartialEvaluator {
       case Primitive(op, args) =>
         Utils.mapFirst2(args, smallStep).map(Primitive(op,_)) orElse 
         {(op,args.head,args.tail.headOption) match {
-          case (Not, BooleanLiteral(a), None) => Some(BooleanLiteral(!a))
+          case (Not, BooleanLiteral(a), None) =>                    Some(BooleanLiteral(!a))
+          case (And, BooleanLiteral(false), Some(_)) =>             Some(BooleanLiteral(false))
           case (And, BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a && b))
+          case (Or, BooleanLiteral(true), Some(_)) =>               Some(BooleanLiteral(true))
           case (Or,  BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a || b))
-          case (Div, _, Some(NatLiteral(BigZero))) => rc.reporter.fatalError(s"Attempt to divide by zero")
+          case (Div, _, Some(NatLiteral(BigZero))) =>               rc.reporter.fatalError(s"Attempt to divide by zero")
           case (_,NatLiteral(a),Some(NatLiteral(b))) => Some(
             op match {
               case Plus => NatLiteral(a+b)
