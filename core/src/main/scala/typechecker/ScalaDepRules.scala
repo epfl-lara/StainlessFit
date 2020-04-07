@@ -166,15 +166,26 @@ trait ScalaDepRules {
       None
   })
 
+  def CheckInferredGoal(c: Context, tyCheck: Tree): List[Judgment] => Goal = { js =>
+    js.lastOption match {
+      case Some(InferJudgment(_, _, _, ty)) =>
+        NormalSubtypeGoal(c, ty, tyCheck)
+      case _ =>
+        println(s"UH OH: ${js.map(j => s"${j.getClass.toString}:${j.name}").mkString(", ")}")
+        ErrorGoal(c, None)
+    }
+  }
+
   val InferCons = Rule("InferCons", {
     case g @ InferGoal(c, e @ LCons(x, xs)) =>
       TypeChecker.debugs(g, "InferCons")
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, x)
-      val g2 = CheckGoal(c0, xs, LList)
-      Some((List(_ => g1, _ => g2), {
-        case InferJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: Nil =>
-          (true, InferJudgment("InferCons", c, e, SingletonType(LList, e)))
+      val g2 = InferGoal(c0, xs)
+      val g3 = CheckInferredGoal(c0, LList)
+      Some((List(_ => g1, _ => g2, g3), {
+        case InferJudgment(_, _, _, tyHead) :: InferJudgment(_, _, _, tyTail) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, InferJudgment("InferCons", c, e, SingletonType(LConsType(tyHead, tyTail), e)))
         case _ =>
           emitErrorWithJudgment("InferCons", g, None)
       }))
@@ -198,12 +209,7 @@ trait ScalaDepRules {
       TypeChecker.debugs(g, "CheckInfer")
       val c0 = c.incrementLevel
       val gInfer = InferGoal(c0, t)
-      val fgsub: List[Judgment] => Goal = {
-        case InferJudgment(_, _, _, ty2) :: _ =>
-          NormalSubtypeGoal(c0, ty2, ty)
-        case _ =>
-          ErrorGoal(c0, None)
-      }
+      val fgsub: List[Judgment] => Goal = CheckInferredGoal(c0, ty)
       Some((List(_ => gInfer, fgsub),
         {
           case InferJudgment(_, _, _, ty2) :: SubtypeJudgment(_, _, _, _) :: _ =>
@@ -215,6 +221,18 @@ trait ScalaDepRules {
     case g =>
       None
   })
+
+  object SingletonWithExists {
+    def unapply(ty: Tree): Option[(List[(Identifier, Tree)], Tree, Tree)] =
+      ty match {
+        case ExistsType(ty1, Bind(id, SingletonWithExists(existss, ty, t))) =>
+          Some(((id, ty1) :: existss, ty, t))
+        case SingletonType(ty, t) =>
+          Some((List.empty, ty, t))
+        case _ =>
+          None
+      }
+  }
 
   def normalized(c: Context, ty: Tree): Tree = {
     def rec(
@@ -241,18 +259,22 @@ trait ScalaDepRules {
         case ExistsType(ty1, Bind(id, ty2)) if Tree.linearVarsOf(ty2).contains(id) =>
           rec(c, ty2, linearExistsVars + id, inPositive)
 
-        case ListMatchType(tScrut, tyNil, tyConsBind @ Bind(idHead, Bind(idTail, tyCons))) =>
-          val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
-          tScrutN match {
-            case LNil() =>
+        case ListMatchType(tyScrut, tyNil, tyConsBind @ Bind(idHead, Bind(idTail, tyCons))) =>
+          val tyScrutN = recSimple(tyScrut, inPositive)
+          tyScrutN match {
+            case SingletonWithExists(existss, _, LNil()) =>
               recSimple(tyNil, inPositive)
-            case LCons(tHead, tTail) =>
+            case SingletonWithExists(existss, tyScrutUnder, LCons(tHead, tTail)) =>
+              val (tyHeadUnder, tyTailUnder) = widen(tyScrutUnder) match {
+                case LConsType(ty1, ty2) => (ty1, ty2)
+                case _ => (TopType, LList)
+              }
               val c0 = c
-                .bind(idHead, SingletonType(TopType, tHead))
-                .bind(idTail, SingletonType(LList, tTail))
+                .bind(idHead, SingletonType(tyHeadUnder, tHead))
+                .bind(idTail, SingletonType(tyTailUnder, tTail))
               rec(c0, tyCons, linearExistsVars, inPositive)
             case _ =>
-              ListMatchType(tScrutN, tyNil, tyConsBind)
+              ListMatchType(tyScrutN, tyNil, tyConsBind)
           }
 
         case SumType(ty1, ty2) => SumType(recSimple(ty1, inPositive), recSimple(ty2, inPositive))
@@ -326,7 +348,7 @@ trait ScalaDepRules {
 
   val SubListMatch = Rule("SubListMatch", {
     case g @ SubtypeGoal(c,
-      tya @ ListMatchType(t, tyNil, Bind(idHead, Bind(idTail, tyCons))),
+      tya @ ListMatchType(_, tyNil, Bind(idHead, Bind(idTail, tyCons))),
       tyb
     ) =>
       TypeChecker.debugs(g, "SubListMatch")
@@ -339,6 +361,20 @@ trait ScalaDepRules {
           (true, SubtypeJudgment("SubListMatch", c, tya, tyb))
         case _ =>
           emitErrorWithJudgment("SubListMatch", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+  val SubCons = Rule("SubCons", {
+    case g @ SubtypeGoal(c,
+      tya @ LConsType(_, _),
+      tyb @ `LList`
+    ) =>
+      TypeChecker.debugs(g, "SubCons")
+      Some((List(), _ => {
+        (true, SubtypeJudgment("SubCons", c, tya, tyb))
       }))
 
     case g =>
@@ -373,7 +409,8 @@ trait ScalaDepRules {
     case g @ InferGoal(c, e @ ListMatch(t, t1, Bind(idHead, Bind(idTail, t2)))) =>
       TypeChecker.debugs(g, "InferListMatch")
       val c0 = c.incrementLevel
-      val inferScrutinee = CheckGoal(c0, t, LList)
+      val inferScrutinee = InferGoal(c0, t)
+      val checkScrutinee = CheckInferredGoal(c0, LList)
 
       val inferT1 = InferGoal(c0, t1)
 
@@ -381,12 +418,13 @@ trait ScalaDepRules {
       val inferT2 = InferGoal(c1, t2)
 
       Some((
-        List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
-          case CheckJudgment(_, _, _, _) ::
+        List(_ => inferScrutinee, checkScrutinee, _ => inferT1, _ => inferT2), {
+          case InferJudgment(_, _, _, ty) ::
+            SubtypeJudgment(_, _, _, _) ::
             InferJudgment(_, _, _, ty1) ::
             InferJudgment(_, _, _, ty2) :: _ =>
               (true, InferJudgment("InferListMatch", c, e,
-                ListMatchType(t, ty1, Bind(idHead, Bind(idTail, ty2)))))
+                ListMatchType(ty, ty1, Bind(idHead, Bind(idTail, ty2)))))
 
           case _ => emitErrorWithJudgment("InferListMatch", g, None)
         }

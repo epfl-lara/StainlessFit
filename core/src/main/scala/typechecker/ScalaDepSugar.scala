@@ -60,13 +60,18 @@ object ScalaDepSugar {
 
   val idHead2 = Identifier.fresh("x")
   val idTail2 = Identifier.fresh("xs")
-  // cons :  (head: Top) => (tail: List) => { [List] cons head tail }
-  // val LConsType: Tree = PiType(TopType, Bind(idHead2,
-  //   PiType(LList, Bind(idTail2,
-  //     SingletonType(LList, App(App(LCons(), Var(idHead2)), Var(idTail2)))
-  //   ))
-  // ))
 
+  object LConsType {
+    def apply(tyHead: Tree, tyTail: Tree): Tree =
+      Node("ConsType", Seq(tyHead, tyTail))
+
+    def unapply(ty: Tree): Option[(Tree, Tree)] = ty match {
+      case Node("ConsType", Seq(tyHead, tyTail)) =>
+        Some((tyHead, tyTail))
+      case _ =>
+        None
+    }
+  }
 
   object ListMatch {
     def apply(l: Tree, tNil: Tree, tCons: Tree): Tree =
@@ -97,15 +102,15 @@ object ScalaDepSugar {
   }
 
   object ListMatchType {
-    def apply(l: Tree, tyNil: Tree, tyCons: Tree)(implicit rc: RunContext): Tree = tyCons match {
+    def apply(ty: Tree, tyNil: Tree, tyCons: Tree)(implicit rc: RunContext): Tree = tyCons match {
       case Bind(idHead, Bind(idTail, _)) =>
-        Node("ListMatchType", Seq(l, tyNil, tyCons))
+        Node("ListMatchType", Seq(ty, tyNil, tyCons))
       case _ =>
         rc.reporter.fatalError("Expecting two binds in the third argument of `ListMatchType`")
     }
 
     def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
-      case Node("ListMatchType", Seq(t, tyNil, tyCons)) => Some((t, tyNil, tyCons))
+      case Node("ListMatchType", Seq(ty, tyNil, tyCons)) => Some((ty, tyNil, tyCons))
       case _ => None
     }
   }
