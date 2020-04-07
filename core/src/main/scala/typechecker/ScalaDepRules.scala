@@ -26,7 +26,7 @@ trait ScalaDepRules {
     case g @ InferGoal(c, e @ NatLiteral(n)) =>
       TypeChecker.debugs(g, "InferNat1")
       Some((List(), _ =>
-        (true, InferJudgment("InferNat1", c, NatLiteral(n), SingletonType(NatType, e)))))
+        (true, InferJudgment("InferNat1", c, e, SingletonType(NatType, e)))))
     case g =>
       None
   })
