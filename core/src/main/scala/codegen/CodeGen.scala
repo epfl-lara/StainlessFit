@@ -76,7 +76,7 @@ object CodeGen {
         }
 
         def extractDefFun(t: Tree): (List[DefFunction], Tree) = t match {
-          case defFun @ DefFunction(_, _, _, _, nested) => {
+          case defFun @ DefFunction(_, _, _, _, nested) => {  //DefFunction(_, _, _, _, Bind(fid, body))
             val (defs, rest) = extractDefFun(nested)
             (defFun +: defs, rest)
           }
@@ -89,7 +89,7 @@ object CodeGen {
           case Bind(id, rec: Bind) => extractBody(rec)
           case Bind(id, body) => (id, body)
           case _ => rc.reporter.fatalError(s"Couldn't find the body in $bind")
-        }
+        } //Binds(bind: Bind): Option(Seq[Identifier], Tree) unapply est utilisé dans un pattern match
 
         def translateOp(op: Operator): Op = op match {
           case Not => IRNot

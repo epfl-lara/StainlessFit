@@ -22,7 +22,7 @@ object Printer {
         os match {
           case Linux   => ("clang", "opt")
           case Windows => rc.reporter.fatalError("Windows compilation not et implemented")
-          case Mac     => ("clang", "opt")
+          case Mac     => ("clang", "/usr/local/opt/llvm/bin/opt")
         }
     }
 
@@ -30,7 +30,7 @@ object Printer {
 
     val genOutput = output("gen", "ll")
 
-    val passname = "O1"
+    val passname = "O3"
     val optiOutput = output(passname, "ll")
     val compiled = output(passname, "out")
 
@@ -46,7 +46,7 @@ object Printer {
     // try {
     //   val targetTriple = ("clang -print-effective-triple").!
     // }
-    
+
     module.printToFile(genOutput)
 
     def llvm(action: String) = {
@@ -75,33 +75,12 @@ object Printer {
 
     llvm("compile")
 
-    // try {
-    //     s"$opt $optOptions".!!
-    //   } catch {
-    //     case _: IOException =>
-    //       rc.reporter.fatalError(
-    //             s"opt utility was not found under system path, " +
-    //             "or did not have permission to execute"
-    //       )
-    //     case _: RuntimeException =>
-    //       rc.reporter.fatalError(s"opt failed to optimise file $optiOutput")
-    //   }
-    //
-    // try {
-    //     s"$clang $clangOptions".!!
-    //   } catch {
-    //     case _: IOException =>
-    //       rc.reporter.fatalError(
-    //             s"clang utility was not found under system path, " +
-    //             "or did not have permission to execute"
-    //       )
-    //     case _: RuntimeException =>
-    //       rc.reporter.fatalError(s"clang failed to compile text file $optiOutput to binary")
-    //   }
-
     try {
-      val ret = (s"./$compiled").!
+      //val ret = (s"./$compiled").!
+      //TODO find a way to retrieve the return value
+      val ret: Int = rc.bench.time("execution"){(s"./$compiled").!}
       println(s"[OUTPUT] $ret")
+      ret
     } catch {
       case _: RuntimeException =>
       rc.reporter.warning(s"Could not run the file: $compiled. Check permissions")
