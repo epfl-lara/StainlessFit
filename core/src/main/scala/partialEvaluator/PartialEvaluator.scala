@@ -9,6 +9,8 @@ import stainlessfit.core.util.Utils
 
 object PartialEvaluator {
   val BigZero = BigInt(0)
+  def subError(a: BigInt,b: BigInt) = s"Substraction between ${a} and ${b} will yield a negative value"
+  def divError() = s"Attempt to divide by zero"
 
   //see erasure
   //see utils mapFirst
@@ -64,33 +66,32 @@ object PartialEvaluator {
       case MacroTypeDecl(tpe, bind) => ???
       case MacroTypeInst(v1, args) => ???
       case NatMatch(t, t0, bind) => ???
-      case Primitive(op, args) =>
-        Utils.mapFirst2(args, smallStep).map(Primitive(op,_)) orElse 
-        {(op,args.head,args.tail.headOption) match {
-          case (Not, BooleanLiteral(a), None) =>                    Some(BooleanLiteral(!a))
-          case (And, BooleanLiteral(false), Some(_)) =>             Some(BooleanLiteral(false))
-          case (And, BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a && b))
-          case (Or, BooleanLiteral(true), Some(_)) =>               Some(BooleanLiteral(true))
-          case (Or,  BooleanLiteral(a), Some(BooleanLiteral(b))) => Some(BooleanLiteral(a || b))
-          case (Div, _, Some(NatLiteral(BigZero))) =>               rc.reporter.fatalError(s"Attempt to divide by zero")
-          case (_,NatLiteral(a),Some(NatLiteral(b))) => Some(
-            op match {
-              case Plus => NatLiteral(a+b)
-              case Minus => 
-                if(a>=b)   NatLiteral(a-b)
-                else       rc.reporter.fatalError(s"Substraction between ${a} and ${b} will yield a negative value")
-              case Mul =>  NatLiteral(a*b)
-              case Div =>  NatLiteral(a/b) //The /0 case is already taken care of above
-              case Eq =>   BooleanLiteral(a==b)
-              case Neq =>  BooleanLiteral(a!=b)
-              case Leq =>  BooleanLiteral(a<=b)
-              case Geq =>  BooleanLiteral(a>=b)
-              case Lt =>   BooleanLiteral(a<b)
-              case Gt =>   BooleanLiteral(a>b)
-              case _ =>    ???
-            })
-          case (Nop, _, _) => ???
-          case _ => None //This misses some cases where it should throw an error
+      case Primitive(op, arg1 :: rest) =>
+        smallStep(arg1).map(x => Primitive(op, x :: rest)) orElse
+        {(op, arg1, rest) match {
+          case (Not, BooleanLiteral(a), Nil) =>           Some(BooleanLiteral(!a))
+          case (And, BooleanLiteral(false), _ :: Nil) =>  Some(BooleanLiteral(false))
+          case (Or, BooleanLiteral(true), _ :: Nil) =>    Some(BooleanLiteral(true))
+          case _ =>                                       None
+        }} orElse { rest.headOption.flatMap{ arg2 => //assumes there is never three arguments
+          smallStep(arg2).map( x => Primitive(op, arg1 :: x :: Nil)) orElse 
+          {(op,arg1,arg2) match {
+            case (And, BooleanLiteral(a), BooleanLiteral(b)) =>     Some(BooleanLiteral(a && b))
+            case (Or,  BooleanLiteral(a), BooleanLiteral(b)) =>     Some(BooleanLiteral(a || b))
+            case (Plus, NatLiteral(a), NatLiteral(b)) =>            Some(NatLiteral(a + b))
+            case (Minus, NatLiteral(a), NatLiteral(b)) => if(a>=b)  Some(NatLiteral(a - b))
+                                                          else      Some(Error(subError(a,b),None))
+            case (Mul, NatLiteral(a), NatLiteral(b)) =>             Some(NatLiteral(a * b))
+            case (Div, NatLiteral(a), NatLiteral(b)) => if(b != 0)  Some(NatLiteral(a / b))
+                                                        else        Some(Error(divError, None))
+            case (Eq, NatLiteral(a), NatLiteral(b)) =>              Some(BooleanLiteral(a == b))
+            case (Neq, NatLiteral(a), NatLiteral(b)) =>             Some(BooleanLiteral(a != b))
+            case (Leq, NatLiteral(a), NatLiteral(b)) =>             Some(BooleanLiteral(a <= b))
+            case (Geq, NatLiteral(a), NatLiteral(b)) =>             Some(BooleanLiteral(a >= b))
+            case (Lt, NatLiteral(a), NatLiteral(b)) =>              Some(BooleanLiteral(a < b))
+            case (Gt, NatLiteral(a), NatLiteral(b)) =>              Some(BooleanLiteral(a > b))
+            case _ =>                                               None
+          }}
         }}
       case Fold(tp, t) => ???
       case Unfold(t, bind) => ???
