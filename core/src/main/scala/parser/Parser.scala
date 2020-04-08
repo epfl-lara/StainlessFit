@@ -75,7 +75,7 @@ object FitLexer extends Lexers with CharRegExps {
 
   val lexer = Lexer(
     // Operators
-    oneOf("-+/*!<>") | word("&&") |  word("||") |
+    oneOf("-+/*!<>∪") | word("&&") |  word("||") |
     word("==") | word("!=") | word("<=") | word(">=")
     |> { (cs, r) => OperatorToken(Operator.fromString(cs.mkString).get).setPos(r) },
 
@@ -90,13 +90,14 @@ object FitLexer extends Lexers with CharRegExps {
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ elem(']')) |
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ word("positive") ~ elem(']')) |
     word("as") | word("fun of") | word("keep") |
-    word("if") | word("else") | word("case") | word("match") |
+    word("if") | word("else") | word("case") |
+    word("match") | word("nat_match") |
     word("fix") | word("fun") | word("val") |
     word("error") |
     word("zero") | word("succ") |
     word("left") | word("right") | word("size") |
     word("Rec") | word("Pi") | word("Sigma") |
-    word("Forall") | word("PolyForall") |
+    word("Forall") | word("PolyForall") | word("Exists") |
     word("type")
       |> { (cs, r) => KeywordToken(cs.mkString.replaceAll("""[ \n]""", "")).setPos(r) },
 
@@ -105,7 +106,7 @@ object FitLexer extends Lexers with CharRegExps {
       |> { (cs, r) => SeparatorToken(cs.mkString).setPos(r) },
 
     // Separator
-    oneOf("{},|().:;[]") | word("=>")
+    word("{{") | word("}}") | oneOf("{},|().:;[]") | word("=>")
       |> { (cs, r) => SeparatorToken(cs.mkString).setPos(r) },
 
     // Space
@@ -205,13 +206,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   val equal: Syntax[Unit] = elem(EqualityClass).unit(EqualityToken)
-  val dlbra: Syntax[Unit] = elem(SeparatorClass("[|")).unit(SeparatorToken("[|"))
-  val drbra: Syntax[Unit] = elem(SeparatorClass("|]")).unit(SeparatorToken("|]"))
+  val dlsbra: Syntax[Unit] = elem(SeparatorClass("[|")).unit(SeparatorToken("[|"))
+  val drsbra: Syntax[Unit] = elem(SeparatorClass("|]")).unit(SeparatorToken("|]"))
   val lpar: Syntax[Unit] = elem(SeparatorClass("(")).unit(SeparatorToken("("))
   val rpar: Syntax[Unit] = elem(SeparatorClass(")")).unit(SeparatorToken(")"))
   val lbra: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{"))
-  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").printWith("\n").indent())
   val rbra: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}"))
+  val dlbra: Syntax[Unit] = elem(SeparatorClass("{{")).unit(SeparatorToken("{{"))
+  val drbra: Syntax[Unit] = elem(SeparatorClass("}}")).unit(SeparatorToken("}}"))
+  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").printWith("\n").indent())
   val rbraBlock: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n").unindent())
   val rbraBlock2: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n\n").unindent())
   val lsbra: Syntax[Unit] = elem(SeparatorClass("[")).unit(SeparatorToken("["))
@@ -227,15 +230,19 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val ifK: Syntax[Unit] = elem(KeywordClass("if")).unit(KeywordToken("if"))
   val elseK: Syntax[Unit] = elem(KeywordClass("else")).unit(KeywordToken("else"))
   val fixK: Syntax[Unit] = elem(KeywordClass("fix")).unit(KeywordToken("fix"))
+  val fixDK: Syntax[Unit] = elem(KeywordClass("fixD")).unit(KeywordToken("fixD"))
   val funK: Syntax[Unit] = elem(KeywordClass("fun")).unit(KeywordToken("fun"))
   val funOfK: Syntax[Unit] = elem(KeywordClass("funof")).unit(KeywordToken("funof"))
   val matchK: Syntax[Unit] = elem(KeywordClass("match")).unit(KeywordToken("match"))
+  val natMatchK: Syntax[Unit] = elem(KeywordClass("nat_match")).unit(KeywordToken("nat_match"))
   val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
   val caseK: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case"))
   val valK: Syntax[Unit] = elem(KeywordClass("val")).unit(KeywordToken("val"))
   val keepK: Syntax[Unit] = elem(KeywordClass("keep")).unit(KeywordToken("keep"))
   val errorK: Syntax[Unit] = elem(KeywordClass("error")).unit(KeywordToken("error"))
   val foldK: Syntax[Unit] = elem(KeywordClass("[fold")).unit(KeywordToken("[fold"))
+  val nilK: Syntax[Unit] = elem(KeywordClass("nil")).unit(KeywordToken("nil"))
+  val consK: Syntax[Unit] = elem(KeywordClass("cons")).unit(KeywordToken("cons"))
   val asK: Syntax[Unit] = elem(KeywordClass("as")).unit(KeywordToken("as"))
   val unfoldK: Syntax[Unit] = elem(KeywordClass("[unfold]")).unit(KeywordToken("[unfold]"))
   val unfoldPositiveK: Syntax[Unit] = elem(KeywordClass("[unfoldpositive]")).unit(KeywordToken("[unfoldpositive]"))
@@ -244,9 +251,12 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val sigmaK: Syntax[Unit] = elem(KeywordClass("Sigma")).unit(KeywordToken("Sigma"))
   val forallK: Syntax[Unit] = elem(KeywordClass("Forall")).unit(KeywordToken("Forall"))
   val polyForallK: Syntax[Unit] = elem(KeywordClass("PolyForall")).unit(KeywordToken("PolyForall"))
+  val existsK: Syntax[Unit] = elem(KeywordClass("Exists")).unit(KeywordToken("Exists"))
   val recK: Syntax[Unit] = elem(KeywordClass("Rec")).unit(KeywordToken("Rec"))
   val typeK: Syntax[Unit] = elem(KeywordClass("type")).unit(KeywordToken("type"))
 
+  val zeroK: Syntax[Token] = elem(KeywordClass("zero"))
+  val succK: Syntax[Token] = elem(KeywordClass("succ"))
   val leftK: Syntax[Token] = elem(KeywordClass("left"))
   val rightK: Syntax[Token] = elem(KeywordClass("right"))
   val sizeK: Syntax[Token] = elem(KeywordClass("size"))
@@ -267,6 +277,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   def opParser(op: Operator): Syntax[Token] = elem(OperatorClass(op))
 
+  val cup = opParser(Cup)
   val plus = opParser(Plus)
   val minus = opParser(Minus)
   val mul = opParser(Mul)
@@ -323,6 +334,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
   }
 
+  lazy val existsType: Syntax[Tree] = {
+    (existsK.skip ~ lpar.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rpar.skip).map({
+      case id ~ ty1 ~ ty2 => ExistsType(ty1, Bind(id, ty2))
+    }, {
+      case ExistsType(ty1, Bind(id, ty2)) => Seq(id ~ ty1 ~ ty2)
+      case _ => Seq()
+    })
+  }
+
   lazy val recType: Syntax[Tree] = {
     (recK.skip ~ lpar.skip ~ expr ~ rpar.skip ~ lpar.skip ~ typeIdentifier ~ arrow.skip ~ typeExpr ~ rpar.skip).map({
       case y ~ alpha ~ ty => RecType(y, Bind(alpha, ty))
@@ -333,20 +353,33 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   lazy val refinementType: Syntax[Tree] =
-    (lbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ expr ~ rbra.skip).map({
+    (lbra.skip ~
+      (termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
+      pipe.skip ~ expr ~ rbra.skip)
+    ).map({
       case x ~ ty ~ p => RefinementType(ty, Bind(x, p))
     }, {
       case RefinementType(ty, Bind(x, p)) => Seq(x ~ ty ~ p)
       case _ => Seq()
     })
 
-  lazy val sums: Syntax[Tree] = infixLeft(simpleTypeExpr, plus)({
-    case (ty1, _, ty2) => SumType(ty1, ty2)
+  lazy val refinementByType: Syntax[Tree] =
+    (dlbra.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~ pipe.skip ~ typeExpr ~ drbra.skip).map({
+      case x ~ ty1 ~ ty2 => RefinementByType(ty1, Bind(x, ty2))
+    }, {
+      case RefinementByType(ty1, Bind(x, ty2)) => Seq(x ~ ty1 ~ ty2)
+      case _ => Seq()
+    })
+
+  lazy val sumsAndUnions: Syntax[Tree] = infixLeft(simpleTypeExpr, plus | cup)({
+    case (ty1, OperatorToken(`Plus`), ty2) => SumType(ty1, ty2)
+    case (ty1, OperatorToken(`Cup`),  ty2) => UnionType(ty1, ty2)
   }, {
-    case SumType(ty1, ty2) => (ty1, OperatorToken(Plus), ty2)
+    case SumType(ty1, ty2)    => (ty1, OperatorToken(Plus), ty2)
+    case UnionType(ty1, ty2)  => (ty1, OperatorToken(Cup), ty2)
   })
 
-  lazy val arrows: Syntax[Tree] = infixRight(sums, arrow)({
+  lazy val arrows: Syntax[Tree] = infixRight(sumsAndUnions, arrow)({
     case (ty1, _, ty2) => PiType(ty1, Bind(Identifier.fresh("X"), ty2))
   }, {
     case PiType(ty1, Bind(id, ty2)) if !id.isFreeIn(ty2) => (ty1, OperatorToken(Plus), ty2)
@@ -373,7 +406,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   //   })
 
   lazy val equalityType: Syntax[Tree] =
-    (pipe.skip ~ expr ~ equal.skip ~ expr ~ pipe.skip).map({
+    (lsbra.skip ~ expr ~ equal.skip ~ expr ~ rsbra.skip).map({
       case ty1 ~ ty2 => EqualityType(ty1, ty2)
     }, {
       case EqualityType(ty1, ty2) => Seq(ty1 ~ ty2)
@@ -381,9 +414,11 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val simpleTypeExpr: Syntax[Tree] =
-    primitiveType | parTypeExpr | recType | refinementType |
+    primitiveType | parTypeExpr | recType |
+    refinementType | refinementByType |
     macroTypeInst | equalityType |
-    piType | sigmaType | forallType | polyForallType
+    piType | sigmaType | forallType | polyForallType |
+    existsType
 
   lazy val typeExpr: Syntax[Tree] = recursive { arrows }
 
@@ -393,6 +428,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     case BooleanLiteral(value) => Seq(BooleanToken(value))
     case _ => Seq()
   })
+
   val number: Syntax[Tree] = accept(NumberClass)({
     case NumberToken(value) => NatLiteral(value)
   }, {
@@ -424,7 +460,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     userIdentifier |
     BuiltInIdentifiers.builtInIdentifiers.map(s => builtinIdentifier(s)).reduce(_ | _)
 
-  lazy val typeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass)({
+  lazy val userTypeIdentifier: Syntax[Identifier] = accept(TypeIdentifierClass)({
     case t@TypeIdentifierToken(content) => Identifier(0, content).setPos(t)
   }, {
     case Identifier(id, name) if (!name.isEmpty && name(0).isUpper) =>
@@ -435,12 +471,9 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     case _ => Seq()
   })
 
-  lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
-    case Var(id) => Seq(id)
-    case _ => Seq()
-  })
+  lazy val typeIdentifier = userTypeIdentifier
 
-  lazy val typeVariable: Syntax[Tree] = typeIdentifier.map(Var(_), {
+  lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
     case Var(id) => Seq(id)
     case _ => Seq()
   })
@@ -479,7 +512,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val ghostArgument: Syntax[DefArgument] = {
-    (dlbra.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ drbra.skip).map({
+    (dlsbra.skip ~ termIdentifier ~ colon.skip ~ typeExpr ~ drsbra.skip).map({
       case id ~ ty => ForallArgument(id, ty): DefArgument
     }, {
       case ForallArgument(id, ty) => Seq(id ~ ty)
@@ -629,7 +662,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   lazy val bracketAppArg: Syntax[AppArgument] = {
-    (dlbra.skip ~ expr ~ drbra.skip).map({
+    (dlsbra.skip ~ expr ~ drsbra.skip).map({
       case e => ErasableAppArg(e)
     }, {
       case ErasableAppArg(e) => Seq(e)
@@ -698,9 +731,9 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val natMatch: Syntax[Tree] =
-    (matchK.skip ~ expr ~ lbra.skip ~
-      caseK.skip ~ leftK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
-      caseK.skip ~ rightK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
+    (natMatchK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ zeroK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ succK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
     rbra.skip
     ).map({
       case (e ~ e1 ~ id2 ~ e2) => NatMatch(e, e1, Bind(id2, e2))
@@ -789,7 +822,9 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   }
 
   lazy val expr: Syntax[Tree] = recursive {
-    termOrEquality | condition | eitherMatch | letIn | unfoldIn | unfoldPositiveIn |
+    termOrEquality | condition | eitherMatch |
+    natMatch |
+    letIn | unfoldIn | unfoldPositiveIn |
     defFunction | macroTypeDeclaration
   }
 

@@ -14,7 +14,6 @@ object Printer {
     case SeparatorToken(s) => s
     case KeywordToken("funof") => "fun of"
     case KeywordToken("[unfoldpositive]") => "[unfold positive]"
-    case KeywordToken("{case") => "{\ncase"
     case KeywordToken(s) => s
     case TypeIdentifierToken(content) => content
     case TermIdentifierToken(content) => content
@@ -24,6 +23,7 @@ object Printer {
     case UnitToken => "()"
     case NumberToken(value) => value.toString
     case BooleanToken(value) => value.toString
+    case StringToken(value) => value
     case _ => throw new Exception(s"Token $t is not supported by the pretty printer")
   }
 
@@ -66,6 +66,16 @@ object Printer {
     case (KeywordToken("else"), _) => true
     case (KeywordToken("keep"), _) => true
     case (KeywordToken("funof"), _) => true
+    case (KeywordToken("case"), _) => true
+    case (_, KeywordToken("case")) => true
+    case (KeywordToken("left"), _) => true
+    case (KeywordToken("right"), _) => true
+    case (KeywordToken("succ"), _) => true
+    case (KeywordToken("cons"), _) => true
+    case (KeywordToken("match"), _) => true
+    case (KeywordToken("nat_match"), _) => true
+    case (KeywordToken("list_match"), _) => true
+    case (KeywordToken("List_Match"), _) => true
     case (KeywordToken("[returns"), _) => true
     case (_, KeywordToken("[returns")) => true
 
@@ -105,6 +115,9 @@ object Printer {
     case _ => false
   }
 
+  def allowNewLine(t: Token): Boolean = t != SeparatorToken(";")
+  def allowNewLine(ts: Seq[Token]): Boolean = ts.isEmpty || allowNewLine(ts(0))
+
   def tokensToString(l: Seq[Token])(implicit rc: RunContext): String = {
 
     val res = new StringBuilder()
@@ -119,19 +132,21 @@ object Printer {
 
         res.append(tokenToString(t))
 
-        if (t.after.isEmpty) {
-          if (ts.isEmpty)
-            res.append("\n" + newIndentation)
-          else if (insertSpace(t, ts.head))
-            res.append(" ")
-        }
-        else {
-          res.append(t.after)
-          if (t.after.last == '\n' && !ts.isEmpty)
-            res.append(newIndentation)
-        }
+        if (!ts.isEmpty) {
 
-        loop(newIndentation, ts)
+          if (t.after.isEmpty) {
+            if (insertSpace(t, ts.head))
+              res.append(" ")
+          }
+          else {
+            val after = if (allowNewLine(ts)) t.after else t.after.replace("\n", "")
+            res.append(after)
+            if (!after.isEmpty && after.last == '\n' && !ts.isEmpty)
+              res.append(newIndentation)
+          }
+
+          loop(newIndentation, ts)
+        }
     }
 
     rc.bench.time("tokensToString"){ loop("", l) }
@@ -152,7 +167,7 @@ object Printer {
     else {
       asStringDebug(t)
       // Should be unreachable code:
-      rc.reporter.fatalError(s"The pretty printer does not handle expression: $t")
+      throw new IllegalStateException("unreachable")
     }
   }
 
@@ -172,7 +187,7 @@ object Printer {
     })
   }
 
-  def exprOrTypeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
+  def asString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
     asStringMap.getOrElseUpdate(t, {
       val it = rc.exprPrinter(t)
       if (it.isEmpty)
@@ -193,8 +208,8 @@ object Printer {
     case EmptyGoal(_) => ""
     case ErrorGoal(_, _) => ""
     case InferGoal(c, t) => exprAsString(t) + " ⇑ _"
-    case CheckGoal(c, t, tp) =>
-      exprAsString(t) + " ⇓ " + typeAsString(tp)
+    case CheckGoal(c, t, tp) => exprAsString(t) + " ⇓ " + typeAsString(tp)
+    case SubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <: " + typeAsString(ty2)
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeAsString(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -205,9 +220,10 @@ object Printer {
     import rc.parser._
 
     val syntaxes: Seq[Syntax[Tree]] = Seq(
-      primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType,
-      recType, refinementType, sums, arrows, equalityType, simpleTypeExpr,
-      typeExpr, boolean, number, termVariable, typeVariable, unit, literal,
+      primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType, existsType,
+      recType, refinementType, refinementByType, sumsAndUnions, arrows,
+      equalityType, simpleTypeExpr,
+      typeExpr, boolean, number, termVariable, unit, literal,
       defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,
       eitherMatch, natMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,
@@ -215,7 +231,7 @@ object Printer {
       macroTypeDeclaration, expr
     )
 
-    t.traverse_post { e =>
+    t.traversePost { e =>
       if (syntaxes.forall(s => rc.parser.PrettyPrinter(s)(e).isEmpty))
         rc.reporter.fatalError(s"The pretty printer does not handle subtree: $e")
     }

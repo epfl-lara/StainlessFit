@@ -27,6 +27,10 @@ case object Or extends Operator {
   override def toString = "||"
 }
 
+case object Cup extends Operator {
+  override def toString = "∪"
+}
+
 case object Plus extends Operator {
   override def toString = "+"
 }
@@ -179,7 +183,7 @@ object Tree {
       case Bind(id2, e) =>
         if (id2.isFreeIn(v))
           rc.reporter.fatalError(
-            s"""Replacing ${Printer.asString(id)} by ${Printer.exprOrTypeAsString(v)} in
+            s"""Replacing ${Printer.asString(id)} by ${Printer.asString(v)} in
               |$body would capture variable ${Printer.asString(id2)}""".stripMargin
           )
         Bind(id2, replace(id, v, e))
@@ -214,146 +218,163 @@ object Tree {
       case PiType(t1, bind) => PiType(replace(id, v, t1), replace(id, v, bind))
       case SigmaType(t1, bind) => SigmaType(replace(id, v, t1), replace(id, v, bind))
       case IntersectionType(t1, bind) => IntersectionType(replace(id, v, t1), replace(id, v, bind))
+      case ExistsType(t1, bind) => ExistsType(replace(id, v, t1), replace(id, v, bind))
       case RefinementType(t1, bind) => RefinementType(replace(id, v, t1), replace(id, v, bind))
+      case RefinementByType(t1, bind) => RefinementByType(replace(id, v, t1), replace(id, v, bind))
+      case EqualityType(t1, t2) => EqualityType(replace(id, v, t1), replace(id, v, t2))
       case RecType(n, bind) => RecType(replace(id, v, n), replace(id, v, bind))
       case PolyForallType(bind) => PolyForallType(replace(id, v, bind))
+      case Node(name, children) => Node(name, children.map(replace(id, v, _)))
 
       case BottomType => BottomType
       case TopType => TopType
-
-      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
     }
   }
 
-  def traverse_post(t: Tree, f: Tree => Unit): Unit = {
+  def traversePost(t: Tree, f: Tree => Unit): Unit = {
     t match {
       case Var(_) => f(t)
       case UnitLiteral => f(t)
       case NatLiteral(_) => f(t)
       case BooleanLiteral(_) => f(t)
       case IfThenElse(cond, t1, t2) =>
-        traverse_post(cond, f)
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(cond, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
       case App(t1, t2) =>
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
       case Pair(t1, t2) =>
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
-      case Size(t) => traverse_post(t, f); f(t)
-      case First(t) => traverse_post(t, f); f(t)
-      case Second(t) => traverse_post(t, f); f(t)
-      case LeftTree(t) => traverse_post(t, f); f(t)
-      case RightTree(t) => traverse_post(t, f); f(t)
+      case Size(t) => traversePost(t, f); f(t)
+      case First(t) => traversePost(t, f); f(t)
+      case Second(t) => traversePost(t, f); f(t)
+      case LeftTree(t) => traversePost(t, f); f(t)
+      case RightTree(t) => traversePost(t, f); f(t)
       case Because(t1, t2) =>
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
       case Bind(id2, e) =>
-        traverse_post(e, f)
+        traversePost(e, f)
         // We don't feed Bind to `f` as it is not a tree on its own
       case Lambda(optTy, bind) =>
-        optTy.foreach(ty => traverse_post(ty, f))
-        traverse_post(bind, f)
+        optTy.foreach(ty => traversePost(ty, f))
+        traversePost(bind, f)
         f(t)
       case ErasableLambda(ty, bind) =>
-        traverse_post(ty, f)
-        traverse_post(bind, f)
+        traversePost(ty, f)
+        traversePost(bind, f)
         f(t)
       case Fix(optTy, bind) =>
-        optTy.foreach(ty => traverse_post(ty, f))
-        traverse_post(bind, f)
+        optTy.foreach(ty => traversePost(ty, f))
+        traversePost(bind, f)
         f(t)
       case LetIn(optTy, t, bind) =>
-        optTy.foreach(ty => traverse_post(ty, f))
-        traverse_post(t, f)
-        traverse_post(bind, f)
+        optTy.foreach(ty => traversePost(ty, f))
+        traversePost(t, f)
+        traversePost(bind, f)
         f(t)
       case MacroTypeDecl(ty, bind) =>
-        traverse_post(ty, f)
-        traverse_post(bind, f)
+        traversePost(ty, f)
+        traversePost(bind, f)
         f(t)
       case MacroTypeInst(v, args) =>
-        traverse_post(v, f)
-        args.foreach(arg => traverse_post(arg._2, f))
+        traversePost(v, f)
+        args.foreach(arg => traversePost(arg._2, f))
         f(t)
       case NatMatch(t, t0, bind) =>
-        traverse_post(t, f)
-        traverse_post(t0, f)
-        traverse_post(bind, f)
+        traversePost(t, f)
+        traversePost(t0, f)
+        traversePost(bind, f)
         f(t)
       case EitherMatch(t, bind1, bind2) =>
-        traverse_post(t, f)
-        traverse_post(bind1, f)
-        traverse_post(bind2, f)
+        traversePost(t, f)
+        traversePost(bind1, f)
+        traversePost(bind2, f)
         f(t)
       case Primitive(op, args) =>
-        args.foreach(arg => traverse_post(arg, f))
+        args.foreach(arg => traversePost(arg, f))
         f(t)
       case ErasableApp(t1, t2) =>
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
       case Fold(tp, t) =>
-        traverse_post(tp, f)
-        traverse_post(t, f)
+        traversePost(tp, f)
+        traversePost(t, f)
         f(t)
       case Unfold(t, bind) =>
-        traverse_post(t, f)
-        traverse_post(bind, f)
+        traversePost(t, f)
+        traversePost(bind, f)
         f(t)
       case UnfoldPositive(t, bind) =>
-        traverse_post(t, f)
-        traverse_post(bind, f)
+        traversePost(t, f)
+        traversePost(bind, f)
         f(t)
       case Abs(bind) =>
-        traverse_post(bind, f)
+        traversePost(bind, f)
         f(t)
       case TypeApp(abs, t) =>
-        traverse_post(abs, f)
-        traverse_post(t, f)
+        traversePost(abs, f)
+        traversePost(t, f)
         f(t)
       case Error(_, optTy) =>
-        optTy.foreach(ty => traverse_post(ty, f))
+        optTy.foreach(ty => traversePost(ty, f))
         f(t)
 
       case NatType => f(t)
       case BoolType => f(t)
       case UnitType => f(t)
       case SumType(t1, t2) =>
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
       case PiType(t1, bind) =>
-        traverse_post(t1, f)
-        traverse_post(bind, f)
+        traversePost(t1, f)
+        traversePost(bind, f)
         f(t)
       case SigmaType(t1, bind) =>
-        traverse_post(t1, f)
-        traverse_post(bind, f)
+        traversePost(t1, f)
+        traversePost(bind, f)
+        f(t)
+      case UnionType(t1, t2) =>
+        traversePost(t1, f)
+        traversePost(t2, f)
         f(t)
       case IntersectionType(t1, bind) =>
-        traverse_post(t1, f)
-        traverse_post(bind, f)
+        traversePost(t1, f)
+        traversePost(bind, f)
+        f(t)
+      case ExistsType(t1, bind) =>
+        traversePost(t1, f)
+        traversePost(bind, f)
         f(t)
       case RefinementType(t1, bind) =>
-        traverse_post(t1, f)
-        traverse_post(bind, f)
+        traversePost(t1, f)
+        traversePost(bind, f)
+        f(t)
+      case RefinementByType(t1, bind) =>
+        traversePost(t1, f)
+        traversePost(bind, f)
         f(t)
       case RecType(n, bind) =>
-        traverse_post(n, f)
-        traverse_post(bind, f)
+        traversePost(n, f)
+        traversePost(bind, f)
         f(t)
       case PolyForallType(bind) =>
-        traverse_post(bind, f)
+        traversePost(bind, f)
         f(t)
       case EqualityType(t1, t2) =>
-        traverse_post(t1, f)
-        traverse_post(t2, f)
+        traversePost(t1, f)
+        traversePost(t2, f)
+        f(t)
+      case Node(name, args) =>
+        args.foreach(arg => traversePost(arg, f))
         f(t)
 
       case BottomType =>
@@ -361,7 +382,7 @@ object Tree {
       case TopType =>
         f(t)
 
-      case _ => throw new java.lang.Exception(s"Function `traverse_post` is not implemented on $t (${t.getClass}).")
+      case _ => throw new java.lang.Exception(s"Function `traversePost` is not implemented on $t (${t.getClass}).")
     }
   }
 
@@ -484,6 +505,16 @@ object Tree {
           }
         ) yield
           Primitive(op, rargs)
+      case Node(name, children) =>
+        val eithers = children.map(arg => replace(p, arg));
+        for(
+          rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
+            case (acc @ Left(_), _) => acc
+            case (_, Left(error)) => Left(error)
+            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
+          }
+        ) yield
+          Node(name, rargs)
       case ErasableApp(t1, t2) =>
         for (
           rt1 <- replace(p,t1);
@@ -547,12 +578,24 @@ object Tree {
           rbind <- replace(p,bind)
         ) yield
           IntersectionType(rt1, rbind)
+      case ExistsType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          ExistsType(rt1, rbind)
       case RefinementType(t1, bind) =>
         for (
           rt1 <- replace(p,t1);
           rbind <- replace(p,bind)
         ) yield
           RefinementType(rt1, rbind)
+      case RefinementByType(t1, bind) =>
+        for (
+          rt1 <- replace(p,t1);
+          rbind <- replace(p,bind)
+        ) yield
+          RefinementByType(rt1, rbind)
       case RecType(n, bind) =>
         for (
           rn <- replace(p,n);
@@ -561,6 +604,13 @@ object Tree {
           RecType(rn, rbind)
       case PolyForallType(bind) =>
         replace(p, bind).map(PolyForallType(_))
+
+      case EqualityType(t1, t2) =>
+        for (
+          rt1 <- replace(p,t1);
+          rt2 <- replace(p,t2)
+        ) yield
+          EqualityType(rt1, rt2)
 
       case BottomType => Right(body)
       case TopType => Right(body)
@@ -619,9 +669,13 @@ object Tree {
       case PiType(t1, bind) => PiType(replaceMany(p, t1), replaceMany(p, bind))
       case SigmaType(t1, bind) => SigmaType(replaceMany(p, t1), replaceMany(p, bind))
       case IntersectionType(t1, bind) => IntersectionType(replaceMany(p, t1), replaceMany(p, bind))
+      case ExistsType(t1, bind) => ExistsType(replaceMany(p, t1), replaceMany(p, bind))
       case RefinementType(t1, bind) => RefinementType(replaceMany(p, t1), replaceMany(p, bind))
+      case RefinementByType(t1, bind) => RefinementByType(replaceMany(p, t1), replaceMany(p, bind))
       case RecType(n, bind) => RecType(replaceMany(p, n), replaceMany(p, bind))
       case PolyForallType(bind) => PolyForallType(replaceMany(p, bind))
+      case EqualityType(t1, t2) => EqualityType(replaceMany(p, t1), replaceMany(p, t2))
+      case Node(name, children) => Node(name, children.map(replaceMany(p, _)))
 
       case BottomType => BottomType
       case TopType => TopType
@@ -694,9 +748,12 @@ object Tree {
       case (PiType(t1, bind1), PiType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (SigmaType(t1, bind1), SigmaType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (ExistsType(t1, bind1), ExistsType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
+      case (Node(name1, args1), Node(name2, args2)) => name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
       case _ => t1 == t2
     }
   }
@@ -716,7 +773,7 @@ case class Identifier(id: Int, name: String) extends Positioned {
 
   def isFreeIn(e: Tree): Boolean = {
     e match {
-      case Var(id2) if id2 == this => true
+      case Var(id2) => id2 == this
       case IfThenElse(cond, t1, t2) =>
         isFreeIn(t1) || isFreeIn(t2) ||
         isFreeIn(cond)
@@ -747,14 +804,32 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case Abs(bind) => isFreeIn(bind)
       case ErasableApp(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
+      case Error(_, t) => t.map(isFreeIn).getOrElse(false)
+      case DefFunction(args, optRet, optMeasure, body, rest) =>
+        // FIXME: Actually traverse?
+        false
+      case ErasableLambda(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
+
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case ExistsType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
+      case RefinementByType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
       case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
       case PolyForallType(bind) => isFreeIn(bind)
-      case _ => false
+      case Node(name, args) => args.exists(isFreeIn)
+      case EqualityType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+
+      case BottomType => false
+      case TopType => false
+      case UnitType => false
+      case BoolType => false
+      case NatType => false
+      case UnitLiteral => false
+      case NatLiteral(_) => false
+      case BooleanLiteral(_) => false
     }
   }
 }
@@ -783,7 +858,7 @@ sealed abstract class Tree extends Positioned {
 
   def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Tree = Tree.replace(id, t, this)
 
-  def traverse_post(f: Tree => Unit): Unit = Tree.traverse_post(this, f)
+  def traversePost(f: Tree => Unit): Unit = Tree.traversePost(this, f)
 
   def replace(p: Tree => Option[Either[String,Tree]]): Either[String,Tree] = Tree.replace(p, this)
 
@@ -867,10 +942,12 @@ case class SigmaType(t1: Tree, t2: Tree) extends Tree
 case class SumType(t1: Tree, t2: Tree) extends Tree
 case class PiType(t1: Tree, t2: Tree) extends Tree
 case class IntersectionType(t1: Tree, t2: Tree) extends Tree
+case class ExistsType(t1: Tree, t2: Tree) extends Tree
 case class RefinementType(t1: Tree, t2: Tree) extends Tree
+case class RefinementByType(t1: Tree, t2: Tree) extends Tree
 case class RecType(n: Tree, bind: Tree) extends Tree
 case class PolyForallType(t: Tree) extends Tree
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 case class EqualityType(t1: Tree, t2: Tree) extends Tree
-case class SingletonType(t: Tree) extends Tree
 case class Because(t1: Tree, t2: Tree) extends Tree
+case class Node(name: String, children: Seq[Tree]) extends Tree
