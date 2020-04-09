@@ -543,17 +543,17 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
           optRet.map(ret => Binds(ids, ret)),
           optMeasure.map(measure => Binds(ids, measure)),
           Binds(ids, Bind(f, e1)),
-          Binds(ids, Bind(f, followingExpr))
+          Bind(f, followingExpr)
         )
       case _ => sys.error("Unreachable")
     }, {
-      case DefFunction(args, optRet, optMeasure, e1, Binds(ids, body)) =>
+      case DefFunction(args, optRet, optMeasure, Binds(_, e1), Bind(f, body)) =>
         Seq(
-          ids.last ~
+          f ~
           args ~
           optRet.map(Binds.remove) ~
           optMeasure.map(Binds.remove) ~
-          Binds.remove(e1) ~
+          e1 ~
           Some(body)
         )
       case _ => Seq()

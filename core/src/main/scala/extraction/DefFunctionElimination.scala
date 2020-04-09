@@ -10,8 +10,7 @@ import parser.FitParser
 
 class DefFunctionElimination(implicit val rc: RunContext) extends Phase[Unit] {
   def transform(t: Tree): (Tree, Unit) = (t.replaceMany(e => e match {
-    case DefFunction(args, optRet, optMeasure, Binds(ids :+ f, body), Binds(ids2 :+ g, rest)) =>
-      assert(ids2 == ids)
+    case DefFunction(args, optRet, optMeasure, Binds(ids :+ f, body), Bind(g, rest)) =>
       assert(f == g)
 
       if (f.isFreeIn(body) && optMeasure.isEmpty) {
