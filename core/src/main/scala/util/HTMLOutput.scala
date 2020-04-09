@@ -17,7 +17,7 @@ object HTMLOutput {
   def headerColor(s: String) = color("#002875", s)
   def bold(s: String) = s"<b>$s</b>"
 
-  def shortString(s: String, maxWidth: Int = 90): String = {
+  def shortString(s: String, maxWidth: Int = 900): String = {
     val r = s.replaceAll("\n", " ")
     if (r.length > maxWidth) r.take(maxWidth - 3) + "..."
     else r
@@ -33,8 +33,8 @@ object HTMLOutput {
     case EmptyGoal(_) => ""
     case ErrorGoal(_, _) => ""
     case InferGoal(c, t) => termOutput(t) + " ⇑ _"
-    case CheckGoal(c, t, tp) =>
-      termOutput(t) + " ⇓ " + typeOutput(tp)
+    case CheckGoal(c, t, tp) => termOutput(t) + " ⇓ " + typeOutput(tp)
+    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + " <: " + typeOutput(ty2)
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -45,22 +45,25 @@ object HTMLOutput {
     case CheckJudgment(name, context, t, tp) =>
       "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termOutput(t) + " ⇓ " +
-        typeOutput(tp) +
+        termOutput(t) + " ⇓ " + typeOutput(tp) +
+      "</span>"
+
+    case SubtypeJudgment(name, context, ty1, ty2) =>
+      "<span class='sub'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        typeOutput(ty1) + " <: " + typeOutput(ty2) +
       "</span>"
 
     case InferJudgment(name, context, t, tp) =>
       "<span class='infer'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termOutput(t) + " ⇑ " +
-        typeOutput(tp) +
+        termOutput(t) + " ⇑ " + typeOutput(tp) +
       "</span>"
 
     case AreEqualJudgment(name, context, t1, t2, _) =>
       "<span class='equal'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
-        termOutput(t1)+ " ≡ " +
-        termOutput(t2) +
+        termOutput(t1) + " ≡ " + termOutput(t2) +
       "</span>"
 
     case SynthesisJudgment(name, context, tp, t) =>
@@ -109,7 +112,9 @@ object HTMLOutput {
     fw.write(s"<title> Type Checking File $name: $status </title>\n")
     fw.write("""|<style>
                 |body {
-                |  font-family: "Fira Code", Menlo, Monaco, monospace
+                |  font-family: "Fira Code", Menlo, Monaco, monospace;
+                |  background-color: white;
+                |  color: black;
                 |}
                 |
                 |.infer {
@@ -134,6 +139,14 @@ object HTMLOutput {
                 |
                 |.equal:hover {
                 |  background-color: #dadba7
+                |}
+                |
+                |.sub {
+                |  background-color: #fff6eb
+                |}
+                |
+                |.sub:hover {
+                |  background-color: #ffe9cf
                 |}
                 |
                 |.error {
