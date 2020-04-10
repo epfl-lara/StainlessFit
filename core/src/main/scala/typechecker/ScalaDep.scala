@@ -43,7 +43,7 @@ class ScalaDep(implicit val rc: RunContext)
     SubPi.t ||
     SubSigma.t ||
     SubReflexive.t ||
-    SubSingletonReflexive.t ||
+    // SubSingletonReflexive.t ||
     SubSingletonLeft.t ||
     SubTop.t
 
