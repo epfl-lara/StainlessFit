@@ -32,7 +32,7 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case BoolType => (t, n)
     case LNil() => (t, n)
 
-    case Choose(ty) => (App(Choose(ty), path), n)
+    case Choose(ty) => (ChooseWithPath(ty, path), n)
 
     case FixWithDefault(ty, Bind(id, t), td) =>
       val (Seq(nTy, nT, nTd), n2) = encode(path, n, Seq(ty, t, td))
@@ -87,6 +87,10 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
           nBody
         ))
       )), n2)
+
+    case Pair(t1, t2) =>
+      val (Seq(nT1, nT2), n2) = encode(path, n, Seq(t1, t2))
+      (Pair(nT1, nT2), n2)
 
     case First(t) =>
       val (nt, nn) = encode(path, n, t)
