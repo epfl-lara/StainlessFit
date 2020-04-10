@@ -202,10 +202,9 @@ trait ScalaDepRules {
   })
 
   val InferChoose = Rule("InferChoose", {
-    case g @ InferGoal(c, e @ Choose(ty)) =>
+    case g @ InferGoal(c, e @ ChooseWithPath(ty, tPath)) =>
       TypeChecker.debugs(g, "InferChoose")
-      val ety = PiType(Choose.PathType, Bind(Choose.unusedPath, ty))
-      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, ety))))
+      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, ty))))
 
     case g =>
       None
@@ -243,7 +242,7 @@ trait ScalaDepRules {
       // Re-type if we performed any delta reductions during evaluation:
       // TODO: Compute this more efficiently (e.g. output from evaluateWithContext)
       val shouldRetype = c.termVariables.exists { case (id, SingletonType(_, _)) => id.isFreeIn(t); case _ => false }
-      if (shouldRetype) {
+      if (shouldRetype || true) {
         val g1 = InferGoal(c0, v)
         Some((List(_ => g1), {
           case InferJudgment(_, _, _, tyV) :: Nil =>

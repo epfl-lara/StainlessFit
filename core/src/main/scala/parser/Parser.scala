@@ -717,6 +717,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case First(t)     => Seq(Var(Identifier(0, "first"))  ~ Seq(AppArg(t)))
       case Second(t)    => Seq(Var(Identifier(0, "second")) ~ Seq(AppArg(t)))
       case Choose(ty)   => Seq(Var(Identifier(0, "choose")) ~ Seq(TypeAppArg(ty)))
+      case ChooseWithPath(ty, t) => Seq(Var(Identifier(0, "choose")) ~ Seq(TypeAppArg(ty), AppArg(t)))
       case Applications(f, args) => Seq(f ~ args)
       case _ => Seq()
     })

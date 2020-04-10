@@ -122,6 +122,15 @@ object ScalaDepSugar {
     }
   }
 
+  object ChooseWithPath {
+    def apply(ty: Tree, t: Tree) = Node("Choose", Seq(ty, t))
+
+    def unapply(t: Tree): Option[(Tree, Tree)] = t match {
+      case Node("Choose", Seq(ty, t)) => Some((ty, t))
+      case _ => None
+    }
+  }
+
   object FixWithDefault {
     val globalFuel = NatLiteral(123)
 
