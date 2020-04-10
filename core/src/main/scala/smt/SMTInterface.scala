@@ -1,109 +1,82 @@
-// package stainlessfit
-// package core
+package stainlessfit
+package core
 
-// import smtlib.trees.Terms. {
-//   Identifier => TermIdentifier,
-//   _
-// }
-// import smtlib.trees.Commands._
-// import smtlib.theories.Core. {
-//   And => TermAnd,
-//   Or => TermOr,
-//   Implies => TermImplies,
-//   Not => TermNot,
-//   Equals => TermEquals,
-//   _
-// }
-// import smtlib.theories.Ints. {
-//   Div => TermDiv,
-//   Mod => TermMod,
-//   _
-// }
-// import smtlib.printer.RecursivePrinter
+import java.io.{File, Writer}
 
-// import scala.language.postfixOps
+import smtlib.printer.RecursivePrinter
+import smtlib.theories.Core.{And => TermAnd, Equals => TermEquals, Not => TermNot, Or => TermOr}
+import smtlib.theories.Ints.{Div => TermDiv, Mul => TermMul, _}
+import smtlib.trees.Commands._
+import smtlib.trees.Terms._
+import stainlessfit.core.trees._
 
-// import java.io.{File, Writer}
+import scala.language.postfixOps
+import scala.sys.process._
 
-// import sys.process._
+object SMTInterface {
+  def declareVar(id: String, w: Writer): Unit =
+    pc(DeclareConst(sy(id), IntSort()), w)
 
-// import trees._
+  def addAssertion(t: Tree, w: Writer): Unit =
+    pc(Assert(treeToTerm(t)), w)
 
-// object SMTInterface {
-//   def sy(s: String) = SSymbol(s)
-//   def si(s: SSymbol) = SimpleIdentifier(s)
-//   def t(s: SSymbol): QualifiedIdentifier = QualifiedIdentifier(si(s))
-//   def t(s: String): Term = t(sy(s))
+  def isSatisfiable(file: File, w: Writer): Boolean = {
+    pc(CheckSat(), w)
+    w.close()
 
-//   implicit class SymbolDecoration(s: SSymbol) {
-//     def apply(ts: Term*) = FunctionApplication(t(s), ts.toSeq)
-//   }
+    val cmd = s"""z3 dump-models=true "${file.getPath}""""
+    var output = ""
+    val code = cmd ! ProcessLogger(s => {
+      output += s + "\n"
+    })
+    if (code != 0)
+      throw new Exception(s"Error (code $code) in Z3:\n$output")
+    else if (output.contains("unsat")) false
+    else
+    // TODO: logging
+      true
+  }
 
-//   def treeToTerm(e: Tree): Term = e match {
-//     case BooleanLiteral(false) => t("false")
-//     case BooleanLiteral(true) => t("true")
-//     case NatLiteral(i) => SNumeral(i)
-//     case UnaryMinus(e0) => Neg(treeToTerm(e0))
-//     case And(e1, e2) => TermAnd(treeToTerm(e1), treeToTerm(e2))
-//     case Or(e1, e2) => TermOr(treeToTerm(e1), treeToTerm(e2))
-//     case Implies(e1, e2) => TermImplies(treeToTerm(e1), treeToTerm(e2))
-//     case Not(e0) => TermNot(treeToTerm(e0))
-//     case Plus(e1, e2) => Add(treeToTerm(e1), treeToTerm(e2))
-//     case Minus(e1, e2) => Sub(treeToTerm(e1), treeToTerm(e2))
-//     case Mult(e1, e2) => Mul(treeToTerm(e1), treeToTerm(e2))
-//     case Div(e1, e2) => TermDiv(treeToTerm(e1), treeToTerm(e2))
-//     case Mod(e1, e2) => TermMod(treeToTerm(e1), treeToTerm(e2))
-//     case Equals(e1, e2) => TermEquals(treeToTerm(e1), treeToTerm(e2))
-//     case Geq(e1, e2) => GreaterEquals(treeToTerm(e1), treeToTerm(e2))
-//     case Gt(e1, e2) => GreaterThan(treeToTerm(e1), treeToTerm(e2))
-//     case Leq(e1, e2) => LessEquals(treeToTerm(e1), treeToTerm(e2))
-//     case Lt(e1, e2) => LessThan(treeToTerm(e1), treeToTerm(e2))
-//     case Var(Identifier(name)) => t(name)
-//     case Old(_) => throw new Exception("`Old` cannot be translated to SMT")
-//   }
+  private def pc(c: Command, w: Writer): Unit = RecursivePrinter.printCommand(c, w)
 
-//   def typeToSort(t: Type): Sort = t match {
-//     case BoolType => BoolSort()
-//     case BigIntType => IntSort()
-//   }
+  def sy(s: String) = SSymbol(s)
 
-//   def treeToSMT(fresh: Int, vds: Seq[VarDef], args: Seq[Arg], e: Tree, writer: Writer): Unit = {
-//     def pc(c: Command) = RecursivePrinter.printCommand(c, writer)
-//     def passert(t: Term) = pc(Assert(t))
+  def si(s: SSymbol) = SimpleIdentifier(s)
 
-//     for (vd <- vds) {
-//       for (suffix <- "" +: "'" +: (1 until fresh).map("#" + _))
-//         pc(DeclareConst(sy(vd.id.name + suffix), typeToSort(vd.tpe)))
-//     }
+  def t(s: SSymbol): QualifiedIdentifier = QualifiedIdentifier(si(s))
 
-//     for (arg <- args) {
-//       pc(DeclareConst(sy(arg.id.name), typeToSort(arg.tpe)))
-//     }
+  def t(s: String): Term = t(sy(s))
 
-//     passert(treeToTerm(e))
-
-//     pc(CheckSat())
-
-//     writer.close()
-//   }
-
-//   def exec(cmd: String): (Int, String) = {
-//     var output = ""
-//     val code = cmd ! ProcessLogger(s => { output += s + "\n"});
-//     (code, output)
-//   }
-
-//   def invokeZ3(file: File): Boolean = {
-//     val (code, output) = exec(s"""z3 dump-models=true "${file.getPath}"""")
-//     if (code != 0)
-//       throw new Exception(s"Error (code $code) in Z3:\n$output")
-//     else if (output.contains("unsat")) true
-//     else {
-//       reporter.error("Z3 returned a satisfying model:")
-//       reporter.error("===============================")
-//       reporter.error(output)
-//       reporter.error("===============================")
-//       false
-//     }
-//   }
-// }
+  def treeToTerm(tree: Tree): Term =
+    tree match {
+      case Var(id) => t(id.toString)
+      case BooleanLiteral(false) => t("false")
+      case BooleanLiteral(true) => t("true")
+      case NatLiteral(i) => SNumeral(i)
+      case Primitive(op, args) =>
+        val e1: Option[Term] = args match {
+          case head :: _ => Some(treeToTerm(head))
+          case Nil => None
+        }
+        val e2: Option[Term] = args match {
+          case _ :: second :: _ => Some(treeToTerm(second))
+          case _ => None
+        }
+        op match {
+          case Not => TermNot(e1.get)
+          case And => TermAnd(e1.get, e2.get)
+          case Or => TermOr(e1.get, e2.get)
+          case Plus => Add(e1.get, e2.get)
+          case Minus => Sub(e1.get, e2.get)
+          case Mul => TermMul(e1.get, e2.get)
+          case Div => TermDiv(e1.get, e2.get)
+          case Eq => TermEquals(e1.get, e2.get)
+          case Neq => TermNot(TermEquals(e1.get, e2.get))
+          case Leq => LessEquals(e1.get, e2.get)
+          case Geq => GreaterEquals(e1.get, e2.get)
+          case Lt => LessThan(e1.get, e2.get)
+          case Gt => GreaterThan(e1.get, e2.get)
+          case Nop => e1.get
+        }
+    }
+}
