@@ -1,0 +1,8 @@
+fun assert(b [{b [Bool] | b}])  [returns Unit] = {
+  if (b) { () }
+  else { error[Unit]("Assertion failed") }
+}
+
+fun f(a [Nat]) (b [Nat]) = {
+  assert(a + b >= b)
+}

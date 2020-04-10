@@ -111,20 +111,21 @@ trait ProvenRules {
   val InferLet = Rule("InferLet", {
     case g @ InferGoal(c, e @ LetIn(None, v, Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLet")
-      val gv = InferGoal(c.incrementLevel, v)
+      val c0 = c.incrementLevel
+      val gv = InferGoal(c0, v)
       val fgb: List[Judgment] => Goal =
         {
           case InferJudgment(_, _, _, tyv) :: _ =>
-            val c1 = c.bind(id, tyv).addEquality(Var(id), v).incrementLevel
+            val c1 = c0.bind(id, tyv).addEquality(Var(id), v)
             InferGoal(c1, body)
           case _ =>
-            ErrorGoal(c, None)
+            ErrorGoal(c0, None)
         }
       Some((
         List(_ => gv, fgb),
         {
-          case _ :: InferJudgment(_, _, _, tyb) :: _ =>
-            (true, InferJudgment("InferLet", c, e, tyb))
+          case _ :: InferJudgment(_, _, _, tyb) :: Nil =>
+            (true, InferJudgment("InferLet", c, e, tyb.replace(id, v)))
           case _ =>
             emitErrorWithJudgment("InferLet", g, None)
         }
@@ -139,7 +140,7 @@ trait ProvenRules {
         List(_ => gv, _ => gb),
         {
           case CheckJudgment(_, _, _, _) :: InferJudgment(_, _, _, tyb) :: _ =>
-            (true, InferJudgment("InferLet", c, e, tyb))
+            (true, InferJudgment("InferLet", c, e, tyb.replace(id, v)))
           case _ =>
             emitErrorWithJudgment("InferLet", g, None)
         }
