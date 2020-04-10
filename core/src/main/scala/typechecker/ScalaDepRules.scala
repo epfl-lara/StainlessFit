@@ -157,6 +157,24 @@ trait ScalaDepRules {
       None
   })
 
+  val InferPair1 = Rule("InferPair1", {
+    case g @ InferGoal(c, e @ Pair(t1, t2)) =>
+      TypeChecker.debugs(g, "InferPair1")
+      val inferFirst = InferGoal(c.incrementLevel, t1)
+      val inferSecond = InferGoal(c.incrementLevel, t2)
+      Some((List(_ => inferFirst, _ => inferSecond),
+        {
+          case InferJudgment(_, _, _, ty1) :: InferJudgment(_, _, _, ty2) :: Nil =>
+            val inferredType = SigmaType(ty1, Bind(Identifier.fresh("X"), ty2))
+            (true, InferJudgment("InferPair1", c, e, inferredType))
+          case _ =>
+            emitErrorWithJudgment("InferPair1", g, None)
+        }
+      ))
+    case g =>
+      None
+  })
+
   val InferNil = Rule("InferNil", {
     case g @ InferGoal(c, e) if e == LNil() =>
       TypeChecker.debugs(g, "InferNil")
@@ -339,9 +357,9 @@ trait ScalaDepRules {
       None
   })
 
-  val NormArrow = Rule("NormArrow", {
+  val NormPi = Rule("NormPi", {
     case g @ NormalizationGoal(c, ty @ PiType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
-      TypeChecker.debugs(g, "NormArrow")
+      TypeChecker.debugs(g, "NormPi")
       val c0 = c.incrementLevel
       val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive = false)
       val g2: List[Judgment] => Goal = {
@@ -353,9 +371,31 @@ trait ScalaDepRules {
       }
       Some((List(_ => g1, g2), {
         case NormalizationJudgment(_, _, _, tyN1) :: NormalizationJudgment(_, _, _, tyN2) :: Nil =>
-          (true, NormalizationJudgment("NormArrow", c, ty, PiType(tyN1, Bind(id, tyN2))))
+          (true, NormalizationJudgment("NormPi", c, ty, PiType(tyN1, Bind(id, tyN2))))
         case _ =>
-          emitErrorWithJudgment("NormArrow", g, None)
+          emitErrorWithJudgment("NormPi", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val NormSigma = Rule("NormSigma", {
+    case g @ NormalizationGoal(c, ty @ SigmaType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
+      TypeChecker.debugs(g, "NormSigma")
+      val c0 = c.incrementLevel
+      val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
+      val g2: List[Judgment] => Goal = {
+        case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
+          val c1 = c0.bind(id, tyN1)
+          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
+        case _ =>
+          ErrorGoal(c0, None)
+      }
+      Some((List(_ => g1, g2), {
+        case NormalizationJudgment(_, _, _, tyN1) :: NormalizationJudgment(_, _, _, tyN2) :: Nil =>
+          (true, NormalizationJudgment("NormSigma", c, ty, SigmaType(tyN1, Bind(id, tyN2))))
+        case _ =>
+          emitErrorWithJudgment("NormSigma", g, None)
       }))
     case g =>
       None
@@ -423,20 +463,39 @@ trait ScalaDepRules {
       None
   })
 
-  val SubPi = Rule("SubArrow", {
+  val SubPi = Rule("SubPi", {
     case g @ SubtypeGoal(c,
       tya @ PiType(tya1, Bind(ida, tya2)),
       tyb @ PiType(tyb1, Bind(idb, tyb2))) =>
-      TypeChecker.debugs(g, "SubArrow")
+      TypeChecker.debugs(g, "SubPi")
 
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, tyb1, tya1)
       val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
         case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-          (true, SubtypeJudgment("SubArrow", c, tya, tyb))
+          (true, SubtypeJudgment("SubPi", c, tya, tyb))
         case _ =>
-          emitErrorWithJudgment("SubArrow", g, None)
+          emitErrorWithJudgment("SubPi", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubSigma = Rule("SubSigma", {
+    case g @ SubtypeGoal(c,
+      tya @ SigmaType(tya1, Bind(ida, tya2)),
+      tyb @ SigmaType(tyb1, Bind(idb, tyb2))) =>
+      TypeChecker.debugs(g, "SubSigma")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tya1, tyb1)
+      val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubSigma", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubSigma", g, None)
       }))
     case g =>
       None

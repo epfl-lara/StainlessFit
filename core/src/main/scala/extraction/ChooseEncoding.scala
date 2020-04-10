@@ -88,6 +88,10 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
         ))
       )), n2)
 
+    case Pair(t1, t2) =>
+      val (Seq(nT1, nT2), n2) = encode(path, n, Seq(t1, t2))
+      (Pair(nT1, nT2), n2)
+
     case First(t) =>
       val (nt, nn) = encode(path, n, t)
       (First(nt), nn)
