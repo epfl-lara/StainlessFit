@@ -12,6 +12,5 @@ val head = fun of (xs [List]) = { list_match xs {
   } };
 
 val xs = cons true (cons true nil);
-// val res [Nat] = head (listOfLength xs);  // FIXME: Doesn't go through since we end up with { [Top] choose ... } <: Nat
-val res = head (listOfLength xs);
+val res [Nat] = head (listOfLength xs);
 ()

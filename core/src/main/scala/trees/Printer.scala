@@ -210,6 +210,8 @@ object Printer {
     case InferGoal(c, t) => exprAsString(t) + " ⇑ _"
     case CheckGoal(c, t, tp) => exprAsString(t) + " ⇓ " + typeAsString(tp)
     case SubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <: " + typeAsString(ty2)
+    case NormalizedSubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <:‖ " + typeAsString(ty2)
+    case NormalizationGoal(c, ty, _, _) => typeAsString(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeAsString(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -226,7 +228,7 @@ object Printer {
       typeExpr, boolean, number, termVariable, unit, literal,
       defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fixpointWithDefault, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,
-      eitherMatch, natMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,
+      eitherMatch, natMatch, listMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,
       termOrEquality, condition, optBracketExpr, bracketExpr, simpleExpr,
       macroTypeDeclaration, expr
     )

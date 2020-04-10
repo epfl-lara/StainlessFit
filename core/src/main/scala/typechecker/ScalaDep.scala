@@ -29,6 +29,14 @@ class ScalaDep(implicit val rc: RunContext)
     InferApp1.t ||
     InferListMatch.t ||
     CheckInfer.t ||
+    NormBase.t ||
+    NormWidenRedundantVar.t ||
+    NormSingleton.t ||
+    NormSubstVar.t ||
+    NormMarkRedundantVar.t ||
+    NormListMatch.t ||
+    NormArrow.t ||
+    SubNormalize.t ||
     SubListMatch.t ||
     SubPi.t ||
     SubReflexive.t ||
