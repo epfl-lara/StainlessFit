@@ -30,7 +30,7 @@ object Printer {
 
     val genOutput = output("gen", "ll")
 
-    val passname = "O3"
+    val passname = "O1"
     val optiOutput = output(passname, "ll")
     val compiled = output(passname, "out")
 
@@ -59,11 +59,13 @@ object Printer {
       }
 
       try {
-          exec.!!
+          val (exitValue, standardOutput, errOutput) = runCommand(exec)
+          reporterSelect(errOutput)
+
         } catch {
           case _: IOException =>
             rc.reporter.fatalError(
-                  s"opt utility was not found under system path, " +
+                  s"$program utility was not found under system path, " +
                   "or did not have permission to execute"
             )
           case _: RuntimeException =>
@@ -76,14 +78,57 @@ object Printer {
     llvm("compile")
 
     try {
-      //val ret = (s"./$compiled").!
-      //TODO find a way to retrieve the return value
-      val ret: Int = rc.bench.time("execution"){(s"./$compiled").!}
-      println(s"[OUTPUT] $ret")
-      ret
+      val (exitValue, standardOutput, errOutput) = rc.bench.time("execution"){ runCommand(s"./$compiled") }
+      rc.reporter.info(standardOutput)
+      reporterSelect(errOutput)
     } catch {
       case _: RuntimeException =>
       rc.reporter.warning(s"Could not run the file: $compiled. Check permissions")
     }
+
+    // try {
+    //   // val format =
+    //   //   "%U user\n" +
+    //   //   "%S system\n" +
+    //   //   "%e elapsed"
+    //   // val (exitValue, standardOutput, errOutput) = runCommand(s"time -f '${format}' ./$compiled")
+    //
+    //   val (startValue, startStd, _) = runCommand(s"date +%s%N")
+    //   val (exitValue, standardOutput, errOutput) = runCommand(s"time -p ./$compiled") //date +%s
+    //   val (endValue, endStd, _) = runCommand(s"date +%s%N")
+    //
+    //   val time = (BigInt(endStd.trim) - BigInt(startStd.trim))/BigInt(1000000)
+    //
+    //   rc.reporter.info(standardOutput)
+    //
+    //   if(time <= BigInt(10)){
+    //     rc.reporter.info(s"time <= 10 ms")
+    //   } else {
+    //     reporterSelect(errOutput)
+    //   }
+    // } catch {
+    //   case _: RuntimeException =>
+    //   rc.reporter.warning(s"Could not run the file: $compiled. Check permissions")
+    // }
+
+    def runCommand(cmd: String): (Int, String, String) = {
+      val stdoutStream = new ByteArrayOutputStream
+      val stderrStream = new ByteArrayOutputStream
+      val stdoutWriter = new PrintWriter(stdoutStream)
+      val stderrWriter = new PrintWriter(stderrStream)
+      val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
+      stdoutWriter.close()
+      stderrWriter.close()
+      (exitValue, stdoutStream.toString, stderrStream.toString)
+    }
+
+    def reporterSelect(output: String) =
+      if(output.contains("warning")){
+        rc.reporter.warning(output)
+      } else if(output.contains("error")){
+        rc.reporter.error(output)
+      } else if(output.size != 0){
+        rc.reporter.info(output)
+      }
   }
 }

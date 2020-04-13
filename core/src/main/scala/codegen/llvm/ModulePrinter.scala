@@ -16,6 +16,9 @@ object ModulePrinter {
 
   def apply(mod: Module) = printModule(mod).print
   //def apply(fun: Function) = printFunction(fun).print
+  private val format = "%d\\00"
+  private val printfStr = "@.str = private unnamed_addr constant [3 x i8] c\"" + format + "\", align 1"
+  //private def printf(s: String) = s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), i32 %result)"
 
   private def printModule(module: Module): Document = {
       var toPrint = new ListBuffer[Document]()
@@ -24,6 +27,10 @@ object ModulePrinter {
         toPrint += Stacked(
             module.functions.toList.map(f => printFunction(f)(module)),
             true)
+
+      toPrint += Raw(printfStr)
+      toPrint += Raw("declare dso_local noalias i8* @malloc(i64) local_unnamed_addr")
+      toPrint += Raw("declare dso_local i32 @printf(i8*, ...)")
 
       toPrint += printFunction(module.main)(module)
 
@@ -82,14 +89,8 @@ object ModulePrinter {
       case Phi(res, tpe, choices) => Raw(s"$res = phi ") <:> printType(tpe) <:> " " <:>
         Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ", ")
 
-      case Return(result, tpe) => {
-        val returned = result.v match {
-          case Left(local) => Raw(s"$local")
-          case Right(instr) => printInstr(instr)
-        }
-
-        Lined(List(Raw("ret"), printType(tpe), returned), " ")
-      }
+      case Return(result, tpe) =>
+        Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
 
       //Todo void functions?
       case Call(result, funName, values) => {
@@ -101,7 +102,12 @@ object ModulePrinter {
         Lined(valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}, ", ") <:>
         Raw(")")
       }
-      
+
+      case Printf(value) =>
+        Raw("call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), i32 ") <:>
+        printValue(value) <:>
+        Raw(")")
+
       case other => Raw(s"PLACEHOLDER: $other")
     }
   }
