@@ -33,7 +33,7 @@ object CodeGen {
             case otherType => otherType
           }
 
-          val main = cgFunction(mainReturnType, Global("main"), Nil, body)
+          val main = cgFunction(mainReturnType, Global("main"), Nil, body, true)
 
           Module(
             rc.config.file.getName(),
@@ -55,7 +55,7 @@ object CodeGen {
           cgFunction(returnType, Global(funId.name), params, body)
         }
 
-        def cgFunction(returnType: Type, name: Global, params: List[(Identifier, ParamDef)], body: Tree): Function = {
+        def cgFunction(returnType: Type, name: Global, params: List[(Identifier, ParamDef)], body: Tree, isMain: Boolean = false): Function = {
 
           val lh = new LocalHandler(rc)
           lh.add(params)
@@ -71,7 +71,13 @@ object CodeGen {
           function.add(entryBlock)
 
           val endBlock = lh.newBlock(end)
-          function.add(endBlock <:> phi <:> Return(Value(result), returnType))
+          val (print, returnValue) = if(isMain){
+            (List(Printf(Value(result))), Value(Nat(0)))
+          } else {
+            (Nil, Value(result))
+          }
+
+          function.add(endBlock <:> phi <:> print <:> Return(returnValue, returnType))
           function
         }
 

@@ -161,6 +161,7 @@ object IR {
   case class Jump(destination: Label) extends Instruction
   case class Return(result : Value, typee: Type) extends Instruction
 
-  case class MallocFunction(size: Int) extends Instruction
+  case class MallocCall(size: Int) extends Instruction
   case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
+  case class Printf(value: Value) extends Instruction
 }
