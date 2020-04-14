@@ -242,8 +242,7 @@ trait ScalaDepRules {
       // Re-type if we performed any delta reductions during evaluation:
       // TODO: Compute this more efficiently (e.g. output from evaluateWithContext)
       val shouldRetype = c.termVariables.exists { case (id, SingletonType(_, _)) => id.isFreeIn(t); case _ => false }
-      // TODO: REACTIVATE OPTIMIZATION
-      if (shouldRetype || true) {
+      if (shouldRetype) {
         val g1 = InferGoal(c0, v)
         Some((List(_ => g1), {
           case InferJudgment(_, _, _, tyV) :: Nil =>
@@ -417,11 +416,15 @@ trait ScalaDepRules {
           (ty, Var(id))
         case PiType(ty1, Bind(id, ty2)) =>
           // TODO: To be checked
-          ???
-          val id = Identifier.fresh("f")
+          val idF = Identifier.fresh("f")
           val tyN = PiType(ty1, Bind(id, asSingleton(ty2)))
-          newBindings ::= id -> tyN
-          (tyN, Var(id))
+          newBindings ::= idF -> tyN
+          (tyN, Var(idF))
+        case ListMatchType(_, _, _) =>
+          // TODO: To be checked
+          val idL = Identifier.fresh("l")
+          newBindings ::= idL -> ty
+          (ty, Var(idL))
         case SigmaType(ty1, Bind(id, ty2)) =>
           val (ty1UnderlyingN, t1) = rec(ty1)
           val (ty2UnderlyingN, t2) = rec(ty2)
@@ -480,7 +483,11 @@ trait ScalaDepRules {
         case ExistsType(ty1, Bind(id, ty2)) =>
           if (ty1 == LList && id.name == "p")
             potentialPathVars += id
-          ExistsType(ty1, Bind(id, recType(ty2)))
+          val ty2N = recType(ty2)
+          if (id.isFreeIn(ty2N))
+            ExistsType(ty1, Bind(id, ty2N))
+          else
+            ty2N
       }
     val tyN = recType(ty)
     bindings.foldLeft(tyN) { case (tyAcc, (id, ty)) => ExistsType(ty, Bind(id, tyAcc)) }
@@ -590,6 +597,103 @@ trait ScalaDepRules {
         case _ =>
           emitErrorWithJudgment("SubListMatch", g, None)
       }))
+
+    case g =>
+      None
+  })
+
+  object ExistsTypes {
+    def unapply(ty: Tree): Some[(List[(Identifier, Tree)], Tree)] =
+      Some(ty match {
+        case ExistsType(ty1, Bind(id, ExistsTypes(bindings, ty2))) =>
+          ((id, ty1) :: bindings, ty2)
+        case _ =>
+          (List.empty, ty)
+      })
+  }
+
+  def matchAndGenerateSubGoals(c: Context, t1: Tree, t2: Tree, ty1Underlying: Tree, bindings2: Map[Identifier, Tree]): Option[List[Goal]] = {
+    var goals = List.empty[Goal]
+    def rec(t1: Tree, t2: Tree, ty1Underlying: Tree): Boolean =
+      (t1, t2, ty1Underlying) match {
+        case (ChooseWithPath(ty1, path1), ChooseWithPath(ty2, path2), _) =>
+          Tree.areEqual(ty1, ty2) && Tree.areEqual(path1, path2)
+        case (Var(id1), Var(id2), _) if id1 == id2 =>
+          true
+        case (t1, Var(id2), ty1Underlying) =>
+          if (bindings2.contains(id2)) {
+            // TODO: Wrap `bindings(id2)` in all the additional existentials that it depends on
+            //       (Should be impossible by construction except for stray `p`s leftover from `choosesToExists`).
+            goals ::= SubtypeGoal(c, SingletonType(ty1Underlying, t1), bindings2(id2))
+            true
+          } else {
+            false
+          }
+        case (Pair(t11, t12), Pair(t21, t22), SigmaType(u1, Bind(_, u2))) =>
+          rec(t11, t21, u1) && rec(t12, t22, u2)
+        case (First(t1), First(t2), u) =>
+          rec(t1, t2, SigmaType(u, Bind(Identifier.fresh("u"), TopType)))
+        case (Second(t1), Second(t2), u) =>
+          rec(t1, t2, SigmaType(TopType, Bind(Identifier.fresh("u"), u)))
+        case (LeftTree(t1), LeftTree(t2), u) =>
+          rec(t1, t2, SumType(u, TopType))
+        case (RightTree(t1), RightTree(t2), u) =>
+          rec(t1, t2, SumType(TopType, u))
+        case _ => false // TODO: Implement rest
+        // case (App(t11, t12), App(t21, t22)) => rec(t11, t21) && rec(t12, t22)
+        // case LetIn(optTy, value, Bind(id, body)) =>
+        //   LetIn(optTy, recTerm(value), Bind(id, recTerm(body)))
+        // case NatMatch(t, t1, Bind(id2, t2)) =>
+        //   NatMatch(recTerm(t), recTerm(t1), Bind(id2, recTerm(t2)))
+        // case EitherMatch(t, Bind(id1, t1), Bind(id2, t2)) =>
+        //   EitherMatch(recTerm(t), Bind(id1, recTerm(t1)), Bind(id2, recTerm(t2)))
+        // case ListMatch(t, t1, Bind(idHead, Bind(idTail, t2))) =>
+        //   ListMatch(recTerm(t), recTerm(t1), Bind(idHead, Bind(idTail, recTerm(t2))))
+        // // Don't dive into terms that might use chooses referring to a different `p`:
+        // case FixWithDefault(_, _, _) => t
+        // case _: NatLiteral | _: BooleanLiteral | _: UnitLiteral.type | _: Lambda => t
+      }
+    if (rec(t1, t2, ty1Underlying)) Some(goals) else None
+  }
+
+  val SubExistsLeft = Rule("SubExistsLeft", {
+    case g @ SubtypeGoal(c,
+      tya @ ExistsTypes(bindings1, ty1),
+      tyb
+    ) if bindings1.nonEmpty =>
+      TypeChecker.debugs(g, "SubExistsLeft")
+
+      val c0 = c.incrementLevel
+      val c1 = bindings1.foldRight(c0) { case ((id, ty), cAcc) => cAcc.bind(id, ty) }
+      val g1 = SubtypeGoal(c1, ty1, tyb)
+      Some((
+        List(_ => g1), {
+          case SubtypeJudgment(_, _, _, _) :: Nil =>
+            (true, SubtypeJudgment("SubExistsLeft", c, tya, tyb))
+          case _ => emitErrorWithJudgment("SubExistsLeft", g, None)
+        }
+      ))
+
+    case g =>
+      None
+  })
+
+  val SubExistsRight = Rule("SubExistsRight", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(ty1Underlying, t1),
+      tyb @ ExistsTypes(bindings2, SingletonType(_, t2))
+    ) if bindings2.nonEmpty =>
+      TypeChecker.debugs(g, "SubExistsRight")
+
+      val c0 = c.incrementLevel
+      matchAndGenerateSubGoals(c0, t1, t2, ty1Underlying, bindings2.toMap).map { goals =>
+        (goals.map(g => (_: List[Judgment]) => g), { judgments: List[Judgment] =>
+          if (judgments.forall { case SubtypeJudgment(_, _, _, _) => true; case _ => false })
+            (true, SubtypeJudgment("SubExistsRight", c, tya, tyb))
+          else
+            emitErrorWithJudgment("SubExistsRight", g, None)
+        })
+      }
 
     case g =>
       None

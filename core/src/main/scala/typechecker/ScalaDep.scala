@@ -38,6 +38,8 @@ class ScalaDep(implicit val rc: RunContext)
     NormPi.t ||
     NormSigma.t ||
     SubNormalize.t ||
+    SubExistsLeft.t ||
+    SubExistsRight.t ||
     SubListMatch.t ||
     SubPi.t ||
     SubSigma.t ||
