@@ -1,3 +1,8 @@
+fun one(n [Nat]) [returns Nat] = {
+  [decreases n]
+  1
+}
+
 fun fac(n [Nat]) [returns Nat] = {
 [decreases n]
   if(n < 1){
@@ -5,11 +10,6 @@ fun fac(n [Nat]) [returns Nat] = {
   } else {
     n * fac(n -1)
   }
-}
-
-fun one(n [Nat]) [returns Nat] = {
-  [decreases n]
-  1
 }
 
 fun fibo(n [Nat]) [returns Nat] = {

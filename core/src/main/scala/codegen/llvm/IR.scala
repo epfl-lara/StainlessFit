@@ -9,29 +9,7 @@ object IR {
   case class Block(index: Int, label: Label, instructions: List[Instruction]) {
     def <:>(instr: Instruction) = Block(index, label, instructions :+ instr)
     def <:>(is: List[Instruction]) = Block(index, label, instructions ++ is)
-    def <:>(that: Block) = Code(List(this, that), Nil)
   }
-
-  case class Code(blocks: List[Block], current: List[Instruction]){
-    def <:>(instr: Instruction) = Code(blocks, current :+ instr)
-    def <:>(is: List[Instruction]) = Code(blocks, current ++ is)
-
-    // def <:>(next: Block) = Code(merge :+ next, Nil)
-    // def <:>(other: Code) = Code(merge ++ other.blocks, other.current)
-    //
-    // def merge() : List[Block] = if(blocks.isEmpty){
-    //   List(Block.create(new Label("temp"))) //TODO find correct label to apply
-    // } else {
-    //   blocks.dropRight(1) :+ (blocks.last <:> current)
-    // }
-  }
-
-  object Code {
-    def empty: Code = new Code(Nil, Nil)
-    def first(block: Block) = new Code(List(block), Nil)
-  }
-
-  //case object NoCode extends Code
 
   case class Label (val label: String){
     override def toString: String = s"%$label"
@@ -64,13 +42,12 @@ object IR {
     override def toString(): String =  "i32"
   }
 
-  case class FunctionReturnType(funName: Global) extends Type
+  case class PointerType(tpe: Type) extends Type {
+    override def toString(): String =  s"$tpe*"
 
-  // case object Union {
-  //   def apply(left: Type, right: Type): Type = (left, right) match {
-  //     case (FunctionResult(f), Fun)
-  //   }
-  // }
+  }
+
+  case class FunctionReturnType(funName: Global) extends Type
 
   case class ParamDef(tpe: Type, local: Local)
 
@@ -163,5 +140,5 @@ object IR {
 
   case class MallocCall(size: Int) extends Instruction
   case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
-  case class Printf(value: Value) extends Instruction
+  case class Printf(value: Value, tpe: Type) extends Instruction
 }

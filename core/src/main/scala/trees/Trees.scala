@@ -626,6 +626,9 @@ object Tree {
       case BottomType => BottomType
       case TopType => TopType
 
+      case DefFunction(args, optRet, optMeasure, body, rest) =>
+        DefFunction(args, optRet, optMeasure, replaceMany(p, body), replaceMany(p, rest))
+
       case _ => throw new java.lang.Exception(s"Function `replaceMany` is not implemented on $body (${body.getClass}).")
     }
   }

@@ -15,11 +15,11 @@ import codegen.llvm._
 import codegen.utils.{Identifier => _, _}
 
 class CodeGen(implicit val rc: RunContext) extends Phase[Module] {
-  def transform(t: Tree): (Tree, Module) = (t, CodeGen.genLLVM(t, true))
+  def transform(t: Tree): (Tree, Module) = (t, CodeGen.genLLVM(t, true, rc.config.file.getName()))
 }
 
 object CodeGen {
-    def genLLVM(tree: Tree, isMain: Boolean)(implicit rc: RunContext): Module = {
+    def genLLVM(tree: Tree, isMain: Boolean, moduleName: String)(implicit rc: RunContext): Module = {
 
         def cgModule(inputTree: Tree): Module = {
           val lh = new LocalHandler(rc)
@@ -36,7 +36,7 @@ object CodeGen {
           val main = cgFunction(mainReturnType, Global("main"), Nil, body, true)
 
           Module(
-            rc.config.file.getName(),
+            moduleName,
             main,
             functions)
         }
@@ -72,7 +72,7 @@ object CodeGen {
 
           val endBlock = lh.newBlock(end)
           val (print, returnValue) = if(isMain){
-            (List(Printf(Value(result))), Value(Nat(0)))
+            (List(Printf(Value(result), returnType)), Value(Nat(0)))
           } else {
             (Nil, Value(result))
           }
@@ -178,7 +178,7 @@ object CodeGen {
           case NatLiteral(_) => IRNatType
           case UnitLiteral => IRUnitType
           case Var(id) => lh.getType(id)
-
+          case LetIn(_, _, Bind(_, rest)) => resultType(rest)
           case Primitive(op, _) => translateOp(op).returnType
           case IfThenElse(_, thenn, _) => resultType(thenn)
           case App(Var(funId), _) => FunctionReturnType(Global(funId.name))
@@ -232,7 +232,7 @@ object CodeGen {
           }
 
         def filterErasable(t: Tree): Tree = t match {
-          case LetIn(_, _, _) |
+          case //LetIn(_, _, _) |
             MacroTypeDecl(_, _) |
             MacroTypeInst(_, _) |
             ErasableApp(_, _) |
@@ -249,6 +249,14 @@ object CodeGen {
           case _ => t
         }
 
+        def requireBranch(t: Tree): Boolean = t match {
+          case IfThenElse(_, _, _) => true
+          case App(_ , arg) => requireBranch(arg)
+          case LetIn(_, valueBody, _) => requireBranch(valueBody)
+          case Primitive(op, args) => args.exists(arg => requireBranch(arg))
+          case _ => false
+        }
+
         def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
           (implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) =
 
@@ -257,6 +265,45 @@ object CodeGen {
             case value if isValue(value) => (block <:> cgValue(resultType(value), translateValue(value), next, toAssign), Nil)
 
             case call @ App(_, _) => cgFunctionCall(call, block, next, toAssign)
+
+
+            case LetIn(_, valueBody, Bind(newVar, rest)) => {
+              val local = lh.freshLocal(newVar)
+
+              val resultBlock = if(requireBranch(valueBody)) {
+
+                val afterBlock = lh.newBlock("after")
+                val (valueBlock, valuePhi) = codegen(valueBody, block, Some(afterBlock.label), Some(local))
+                f.add(valueBlock)
+
+                afterBlock <:> valuePhi
+              } else {
+                val (afterBlock, _) = codegen(valueBody, block, None, Some(local))
+                afterBlock
+              }
+
+              lh.add(newVar, ParamDef(resultType(valueBody), local))
+
+              codegen(rest, resultBlock, next, toAssign)
+            }
+            // if(requireBranch(valueBody)){
+            //   val local = lh.freshLocal(newVar)
+            //
+            //   val afterBlock = lh.newBlock("after")
+            //   val (valueBlock, valuePhi) = codegen(valueBody, block, Some(afterBlock.label), Some(local))
+            //   f.add(valueBlock)
+            //
+            //   lh.add(newVar, ParamDef(resultType(valueBody), local))
+            //
+            //   codegen(rest, afterBlock <:> valuePhi, next, toAssign)
+            // } else {
+            //   val local = lh.freshLocal(newVar)
+            //
+            //   val (currentBlock, _) = codegen(valueBody, block, None, Some(local))
+            //   lh.add(newVar, ParamDef(resultType(valueBody), local))
+            //
+            //   codegen(rest, currentBlock, next, toAssign)
+            // }
 
             case IfThenElse(cond, thenn, elze) => {
 
@@ -271,7 +318,19 @@ object CodeGen {
               val afterLocal = lh.freshLocal()
               val afterBlock = lh.newBlock("after")
 
-              val (condPrep, condPhi) = codegen(cond, block, None, Some(condLocal))
+             // val (condPrep, condPhi) = codegen(cond, block, None, Some(condLocal))
+
+              val (condPrep, condPhi) = if(requireBranch(cond)){
+                val beforeBlock = lh.newBlock("before")
+
+                val (a, b) = codegen(cond, block, Some(beforeBlock.label), Some(condLocal))
+                f.add(a)
+
+                (beforeBlock <:> b, Nil)
+
+              } else {
+                codegen(cond, block, None, Some(condLocal))
+              }
 
               val (trueBlock, truePhi) = codegen(thenn, tBlock, Some(afterBlock.label), Some(trueLocal))
               f.add(trueBlock)
@@ -319,9 +378,36 @@ object CodeGen {
               (resultBlock <:> jump, Nil)
             }
 
+            // case Primitive(op, args) => if(args.size == 1){
+            //   val arg = args.head
+            //
+            //
+            //
+            //   UnaryOp(translateOp(op), toAssign.getOrElse(lh.freshLocal("temp")), value)
+            // } else {
+            //
+            // }
+            //
+            // case Primitive(op, args) => {
+            //
+            //   val assignee = toAssign.getOrElse(lh.freshLocal("temp"))
+            //
+            //   args.foldLeft(init){
+            //     case ((currentBlock, values), arg) if isValue(arg) => {
+            //       (currentBlock, values :+ translateValue(arg))
+            //     }
+            //
+            //     case ((currentBlock, values), arg) if => {
+            //       val temp = lh.freshLocal("temp")
+            //       codegen(arg, )
+            //     }
+            //   }
+            // }
+
             case _ => rc.reporter.fatalError(s"codegen not implemented for $inputTree")
           }
 
-        cgModule(tree)
+        //cgModule(tree)
+        rc.bench.time("Code generation"){cgModule(tree)}
     }
 }

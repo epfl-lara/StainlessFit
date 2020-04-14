@@ -175,6 +175,11 @@ object Namer {
         val (newBind, max1) = namer(bind, m, max)
         (PolyForallType(newBind), max1)
 
+      case DefFunction(args, optRet, optMeasure, body, rest) => {
+        val (newBody, bodyMax) = namer(body, m, max)
+        val (newRest, restMax) = namer(rest, m, bodyMax)
+        (DefFunction(args, optRet, optMeasure, newBody, newRest), restMax)
+      }
       case _ => throw new java.lang.Exception(s"Function `namer` is not defined on tree: $t")
     }
   }

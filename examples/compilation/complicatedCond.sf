@@ -1,0 +1,5 @@
+if(if(false){true}else{false}){
+  1
+} else {
+  2
+}

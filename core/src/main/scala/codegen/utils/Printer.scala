@@ -11,22 +11,23 @@ import java.io._
 
 object Printer {
 
-  def run(rc: RunContext)(module : Module) = {
-      val outDirName = "LLVM_out"
-      val filename = module.name.substring(0, module.name.lastIndexOf("."))
+  def run(rc: RunContext)(module : Module): Either[String, BigInt] = {
+    val outDirName = "LLVM_out"
+    val filename = module.name.substring(0, module.name.lastIndexOf("."))
 
-      def outputWithExt(ext: String) = s"$outDirName/$filename.$ext"
-
-      val (clang, opt) = {
-        import Env._
-        os match {
-          case Linux   => ("clang", "opt")
-          case Windows => rc.reporter.fatalError("Windows compilation not et implemented")
-          case Mac     => ("clang", "/usr/local/opt/llvm/bin/opt")
-        }
-    }
+    def outputWithExt(ext: String) = s"$outDirName/$filename.$ext"
 
     def output(suffix: String, ext: String) = s"$outDirName/${filename}_$suffix.$ext"
+
+    //TODO require the end-user to have each command in their path
+    val (clang, opt) = {
+      import Env._
+      os match {
+        case Linux   => ("clang", "opt")
+        case Windows => rc.reporter.fatalError("Windows compilation not et implemented")
+        case Mac     => ("clang", "/usr/local/opt/llvm/bin/opt")
+      }
+    }
 
     val genOutput = output("gen", "ll")
 
@@ -37,17 +38,25 @@ object Printer {
     val optOptions = s"-S $genOutput -$passname -o $optiOutput"
     val clangOptions = s"$optiOutput -o $compiled"
 
-    val outDir = new File(outDirName)
-    if (!outDir.exists()) {
-      outDir.mkdir()
+    def runCommand(cmd: String): (Int, String, String) = {
+      val stdoutStream = new ByteArrayOutputStream
+      val stderrStream = new ByteArrayOutputStream
+      val stdoutWriter = new PrintWriter(stdoutStream)
+      val stderrWriter = new PrintWriter(stderrStream)
+      val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
+      stdoutWriter.close()
+      stderrWriter.close()
+      (exitValue, stdoutStream.toString, stderrStream.toString)
     }
 
-    //TODO get the current target triple here
-    // try {
-    //   val targetTriple = ("clang -print-effective-triple").!
-    // }
-
-    module.printToFile(genOutput)
+    def reporterSelect(output: String) =
+      if(output.contains("warning")){
+        rc.reporter.warning(output)
+      } else if(output.contains("error")){
+        rc.reporter.error(output)
+      } else if(output.size != 0){
+        rc.reporter.info(output)
+      }
 
     def llvm(action: String) = {
       val (exec, program, errorMsg) = if(action == "optimize"){
@@ -73,62 +82,26 @@ object Printer {
         }
     }
 
+    val outDir = new File(outDirName)
+    if (!outDir.exists()) {
+      outDir.mkdir()
+    }
+
+    module.printToFile(genOutput)
+
     llvm("optimize")
 
     llvm("compile")
 
     try {
-      val (exitValue, standardOutput, errOutput) = rc.bench.time("execution"){ runCommand(s"./$compiled") }
+      val (exitValue, standardOutput, errOutput) = rc.bench.time("Execution"){ runCommand(s"./$compiled") }
       rc.reporter.info(standardOutput)
       reporterSelect(errOutput)
+      Right(BigInt(standardOutput.trim))
     } catch {
       case _: RuntimeException =>
       rc.reporter.warning(s"Could not run the file: $compiled. Check permissions")
+      Left("")
     }
-
-    // try {
-    //   // val format =
-    //   //   "%U user\n" +
-    //   //   "%S system\n" +
-    //   //   "%e elapsed"
-    //   // val (exitValue, standardOutput, errOutput) = runCommand(s"time -f '${format}' ./$compiled")
-    //
-    //   val (startValue, startStd, _) = runCommand(s"date +%s%N")
-    //   val (exitValue, standardOutput, errOutput) = runCommand(s"time -p ./$compiled") //date +%s
-    //   val (endValue, endStd, _) = runCommand(s"date +%s%N")
-    //
-    //   val time = (BigInt(endStd.trim) - BigInt(startStd.trim))/BigInt(1000000)
-    //
-    //   rc.reporter.info(standardOutput)
-    //
-    //   if(time <= BigInt(10)){
-    //     rc.reporter.info(s"time <= 10 ms")
-    //   } else {
-    //     reporterSelect(errOutput)
-    //   }
-    // } catch {
-    //   case _: RuntimeException =>
-    //   rc.reporter.warning(s"Could not run the file: $compiled. Check permissions")
-    // }
-
-    def runCommand(cmd: String): (Int, String, String) = {
-      val stdoutStream = new ByteArrayOutputStream
-      val stderrStream = new ByteArrayOutputStream
-      val stdoutWriter = new PrintWriter(stdoutStream)
-      val stderrWriter = new PrintWriter(stderrStream)
-      val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
-      stdoutWriter.close()
-      stderrWriter.close()
-      (exitValue, stdoutStream.toString, stderrStream.toString)
-    }
-
-    def reporterSelect(output: String) =
-      if(output.contains("warning")){
-        rc.reporter.warning(output)
-      } else if(output.contains("error")){
-        rc.reporter.error(output)
-      } else if(output.size != 0){
-        rc.reporter.info(output)
-      }
   }
 }
