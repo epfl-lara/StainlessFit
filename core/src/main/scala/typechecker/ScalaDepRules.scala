@@ -204,7 +204,7 @@ trait ScalaDepRules {
   val InferChoose = Rule("InferChoose", {
     case g @ InferGoal(c, e @ ChooseWithPath(ty, tPath)) =>
       TypeChecker.debugs(g, "InferChoose")
-      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, ty))))
+      Some((List(), _ => (true, InferJudgment("InferChoose", c, e, SingletonType(ty, e)))))
 
     case g =>
       None
@@ -242,6 +242,7 @@ trait ScalaDepRules {
       // Re-type if we performed any delta reductions during evaluation:
       // TODO: Compute this more efficiently (e.g. output from evaluateWithContext)
       val shouldRetype = c.termVariables.exists { case (id, SingletonType(_, _)) => id.isFreeIn(t); case _ => false }
+      // TODO: REACTIVATE OPTIMIZATION
       if (shouldRetype || true) {
         val g1 = InferGoal(c0, v)
         Some((List(_ => g1), {
@@ -272,7 +273,7 @@ trait ScalaDepRules {
       val g2: List[Judgment] => Goal = {
         case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
           val c1 = c0.bind(id, tyN1)
-          NormalizationGoal(c0, ty2, linearExistsVars, inPositive)
+          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
         case _ =>
           ErrorGoal(c0, Some(s"Expected normalized type"))
       }
@@ -286,33 +287,25 @@ trait ScalaDepRules {
       None
   })
 
-  val NormMarkRedundantVar = Rule("NormMarkRedundantVar", {
-    case g @ NormalizationGoal(c, ty @ ExistsType(ty1, Bind(id, ty2)), linearExistsVars, inPositive)
-        if Tree.linearVarsOf(ty2).contains(id) =>
-      TypeChecker.debugs(g, "NormMarkRedundantVar")
+  // NOTE: This rule should have lower priority than `NormSubstVar`.
+  val NormExists = Rule("NormExists", {
+    case g @ NormalizationGoal(c, ty @ ExistsType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
+      TypeChecker.debugs(g, "NormExists")
       val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, ty2, linearExistsVars + id, inPositive)
-      Some((List(_ => g1), {
-        case NormalizationJudgment(_, _, _, tyN2) :: Nil =>
-          (true, NormalizationJudgment("NormMarkRedundantVar", c, ty, tyN2))
+      val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
+      val g2: List[Judgment] => Goal = {
+        case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
+          // TODO: Assert tyN1 is not singleton? (Otherwise we might want to strip the Exists as in NormSubstVar)
+          val c1 = c0.bind(id, tyN1)
+          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
         case _ =>
-          emitErrorWithJudgment("NormMarkRedundantVar", g, None)
-      }))
-    case g =>
-      None
-  })
-
-  val NormWidenRedundantVar = Rule("NormWidenRedundantVar", {
-    case g @ NormalizationGoal(c, ty @ SingletonType(tyUnderlying, Var(id)), linearExistsVars, true)
-        if linearExistsVars.contains(id) =>
-      TypeChecker.debugs(g, "NormWidenRedundantVar")
-      val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, tyUnderlying, linearExistsVars, true)
-      Some((List(_ => g1), {
-        case NormalizationJudgment(_, _, _, tyUnderlyingN) :: Nil =>
-          (true, NormalizationJudgment("NormWidenRedundantVar", c, ty, tyUnderlyingN))
+          ErrorGoal(c0, Some(s"Expected normalized type"))
+      }
+      Some((List(_ => g1, g2), {
+        case NormalizationJudgment(_, _, _, tyN1) :: NormalizationJudgment(_, _, _, tyN2) :: Nil =>
+          (true, NormalizationJudgment("NormExists", c, ty, ExistsType(tyN1, Bind(id, tyN2))))
         case _ =>
-          emitErrorWithJudgment("NormWidenRedundantVar", g, None)
+          emitErrorWithJudgment("NormExists", g, None)
       }))
     case g =>
       None
@@ -348,7 +341,7 @@ trait ScalaDepRules {
           })
         case _ =>
           (List(), {
-            case Nil =>
+            case _ =>
               (true, NormalizationJudgment("NormListMatch", c, ty, ListMatchType(tScrutN, tyNil, tyConsBind)))
           })
       })
@@ -405,12 +398,93 @@ trait ScalaDepRules {
       TypeChecker.debugs(g, "NormBase")
       val c0 = c.incrementLevel
       Some((List(), {
-        case Nil =>
+        case _ =>
           (true, NormalizationJudgment("NormBase", c, g.ty, g.ty))
       }))
     case g =>
       None
   })
+
+  def asSingleton(ty: Tree): Tree = {
+    var newBindings = List.empty[(Identifier, Tree)]
+    def rec(ty: Tree): (Tree, Tree) =
+      ty match {
+        case SingletonType(tyUnderlying, t) =>
+          (tyUnderlying, t)
+        case TopType | BoolType | NatType | `UnitType` | `LList` =>
+          val id = Identifier.fresh("x")
+          newBindings ::= id -> ty
+          (ty, Var(id))
+        case PiType(ty1, Bind(id, ty2)) =>
+          // TODO: To be checked
+          ???
+          val id = Identifier.fresh("f")
+          val tyN = PiType(ty1, Bind(id, asSingleton(ty2)))
+          newBindings ::= id -> tyN
+          (tyN, Var(id))
+        case SigmaType(ty1, Bind(id, ty2)) =>
+          val (ty1UnderlyingN, t1) = rec(ty1)
+          val (ty2UnderlyingN, t2) = rec(ty2)
+          (SigmaType(ty1UnderlyingN, Bind(id, ty2UnderlyingN)), Pair(t1, t2))
+        case ExistsType(ty1, Bind(id, ty2)) =>
+          newBindings ::= id -> ty1
+          rec(ty2)
+      }
+    val (tyUnderlyingN, tN) = rec(ty)
+    val tyN = SingletonType(tyUnderlyingN, tN)
+    newBindings.foldLeft(tyN) { case (tyAcc, (id, ty)) => ExistsType(ty, Bind(id, tyAcc)) }
+  }
+
+  def choosesToExists(ty: Tree): Tree = {
+    var bindings = List.empty[(Identifier, Tree)]
+    var potentialPathVars = Set.empty[Identifier]
+    def pathPrefixIdent(t: Tree): Option[Identifier] =
+      t match {
+        case LCons(_, tTail) => pathPrefixIdent(tTail)
+        case Var(id) => Some(id)
+        case _ => None
+      }
+    def recTerm(t: Tree): Tree =
+      t match {
+        case ChooseWithPath(ty, path) =>
+          pathPrefixIdent(path) match {
+            case Some(path) if potentialPathVars.contains(path) =>
+              val id = Identifier.fresh("v")
+              bindings ::= (id, ty)
+              Var(id)
+            case _ => t
+          }
+        case Var(id) => t
+        case Pair(t1, t2) => Pair(recTerm(t1), recTerm(t2))
+        case First(t) => First(recTerm(t))
+        case Second(t) => Second(recTerm(t))
+        case App(f, t) => App(recTerm(f), recTerm(t))
+        case LetIn(optTy, value, Bind(id, body)) =>
+          LetIn(optTy, recTerm(value), Bind(id, recTerm(body)))
+        case NatMatch(t, t1, Bind(id2, t2)) =>
+          NatMatch(recTerm(t), recTerm(t1), Bind(id2, recTerm(t2)))
+        case EitherMatch(t, Bind(id1, t1), Bind(id2, t2)) =>
+          EitherMatch(recTerm(t), Bind(id1, recTerm(t1)), Bind(id2, recTerm(t2)))
+        case ListMatch(t, t1, Bind(idHead, Bind(idTail, t2))) =>
+          ListMatch(recTerm(t), recTerm(t1), Bind(idHead, Bind(idTail, recTerm(t2))))
+        case LeftTree(t) => LeftTree(recTerm(t))
+        case RightTree(t) => RightTree(recTerm(t))
+        // Don't dive into terms that might use chooses referring to a different `p`:
+        case FixWithDefault(_, _, _) => t
+        case _: NatLiteral | _: BooleanLiteral | _: UnitLiteral.type | _: Lambda => t
+      }
+    def recType(ty: Tree): Tree =
+      ty match {
+        case SingletonType(tyUnderlying, t) =>
+          SingletonType(tyUnderlying, recTerm(t))
+        case ExistsType(ty1, Bind(id, ty2)) =>
+          if (ty1 == LList && id.name == "p")
+            potentialPathVars += id
+          ExistsType(ty1, Bind(id, recType(ty2)))
+      }
+    val tyN = recType(ty)
+    bindings.foldLeft(tyN) { case (tyAcc, (id, ty)) => ExistsType(ty, Bind(id, tyAcc)) }
+  }
 
   // NOTE: This only matches on NormalizedSubtypeGoal, which is not a SubtypeGoal,
   //       but yields a SubtypeJudgment!
@@ -422,7 +496,7 @@ trait ScalaDepRules {
       val g2 = NormalizationGoal(c0, ty2)
       val g3: List[Judgment] => Goal = {
         case NormalizationJudgment(_, _, _, tyN1) :: NormalizationJudgment(_, _, _, tyN2) :: Nil =>
-          SubtypeGoal(c0, tyN1, tyN2)
+          SubtypeGoal(c0, choosesToExists(asSingleton(tyN1)), choosesToExists(asSingleton(tyN2)))
         case _ =>
           ErrorGoal(c0, Some(s"Expected normalized types"))
       }
@@ -517,30 +591,6 @@ trait ScalaDepRules {
           emitErrorWithJudgment("SubListMatch", g, None)
       }))
 
-    case g =>
-      None
-  })
-
-  val SubSingletonReflexive = Rule("SubSingletonReflexive", {
-    case g @ SubtypeGoal(c,
-      tya @ SingletonType(ty1, t1),
-      tyb @ SingletonType(ty2, t2)) =>
-      TypeChecker.debugs(g, "SubSingletonReflexive")
-
-      val c0 = c.incrementLevel
-
-      if (t1 == t2)
-        Some((List(_ => SubtypeGoal(c0, tya, ty2)), {
-          case SubtypeJudgment(_, _, _, _) :: _ =>
-            (true, SubtypeJudgment("SubSingletonReflexive", c, tya, tyb))
-          case _ =>
-            emitErrorWithJudgment("SubSingletonReflexive", g, None)
-        }))
-      else
-        Some((
-          List(), _ =>
-          (false, ErrorJudgment("SubSingletonReflexive", g, Some(s"${asString(t1)} and ${asString(t2)} are not the same")))
-        ))
     case g =>
       None
   })

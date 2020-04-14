@@ -31,10 +31,9 @@ class ScalaDep(implicit val rc: RunContext)
     InferListMatch.t ||
     CheckInfer.t ||
     NormBase.t ||
-    NormWidenRedundantVar.t ||
     NormSingleton.t ||
     NormSubstVar.t ||
-    NormMarkRedundantVar.t ||
+    NormExists.t ||
     NormListMatch.t ||
     NormPi.t ||
     NormSigma.t ||
@@ -43,7 +42,6 @@ class ScalaDep(implicit val rc: RunContext)
     SubPi.t ||
     SubSigma.t ||
     SubReflexive.t ||
-    // SubSingletonReflexive.t ||
     SubSingletonLeft.t ||
     SubTop.t
 

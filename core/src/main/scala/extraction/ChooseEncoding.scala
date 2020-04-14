@@ -18,6 +18,14 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     }, n + ts.length)
   }
 
+  def encodeAnnot(n: Int, ty: Tree): (Tree, Int) = {
+    val path = Identifier.fresh("p")
+    val (nTy, n2) = encode(Var(path), n, ty)
+    if (path.isFreeIn(nTy))
+      (ExistsType(Choose.PathType, Bind(path, nTy)), n2)
+    else
+      (nTy, n2)
+  }
 
   def encode(path: Tree, n: Int, t: Tree): (Tree, Int) = t match {
     case Var(x) => (t, n)
@@ -32,11 +40,18 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case BoolType => (t, n)
     case LNil() => (t, n)
 
-    case Choose(ty) => (ChooseWithPath(ty, path), n)
+    case Choose(ty) =>
+      // TODO: Lift this restriction?
+      assert(ty match {
+        case `LList` | TopType | NatType | UnitType | BoolType => true
+        case _ => false
+      })
+      (ChooseWithPath(ty, path), n)
 
     case FixWithDefault(ty, Bind(id, t), td) =>
-      val (Seq(nTy, nT, nTd), n2) = encode(path, n, Seq(ty, t, td))
-      (FixWithDefault(nTy, Bind(id, nT), nTd), n2)
+      val (nTy, n2) = encodeAnnot(n, ty)
+      val (Seq(nT, nTd), n3) = encode(path, n2, Seq(t, td))
+      (FixWithDefault(nTy, Bind(id, nT), nTd), n3)
 
     case SingletonType(ty, t) =>
       val (Seq(nTy, nt), n2) = encode(path, n, Seq(ty, t))
@@ -68,8 +83,9 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       (LetIn(None, nV, Bind(id, nBody)), n2)
 
     case LetIn(Some(ty), v, Bind(id, body)) =>
-      val (Seq(nTy, nV, nBody), n2) = encode(path, n, Seq(ty, v, body))
-      (LetIn(Some(nTy), nV, Bind(id, nBody)), n2)
+      val (nTy, n2) = encodeAnnot(n, ty)
+      val (Seq(nV, nBody), n3) = encode(path, n2, Seq(v, body))
+      (LetIn(Some(nTy), nV, Bind(id, nBody)), n3)
 
     case App(t1, t2) =>
       val (nt1, n1) = encode(path, n+2, t1)
@@ -79,7 +95,7 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case Lambda(optTy, Bind(id, body)) =>
       val pIdent = Identifier.fresh("p")
       val p = Var(pIdent)
-      val nOptTy = optTy.map(ty => encode(LCons(NatLiteral(n), p), n+1, ty))
+      val nOptTy = optTy.map(ty => encodeAnnot(n+1, ty))
       val (nBody, n2) = encode(p, nOptTy.map(_._2).getOrElse(n), body)
 
       (Lambda(Some(Choose.PathType), Bind(pIdent,
