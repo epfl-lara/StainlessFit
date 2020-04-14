@@ -89,21 +89,18 @@ object Core {
     }
   }
 
-  def compileFile(f: File)(implicit rc: RunContext): Either[String, Boolean] = {
+  def compileFile(f: File)(implicit rc: RunContext): Either[String, BigInt] = {
     parseFile(f) flatMap { src =>
 
       // println(s"Printing the AST before the pipeline:\n$src")
       //
-      // val (t, _) = extraction.compilePipeline.transform(src)
+      val (t, _) = extraction.compilePipeline.transform(src)
       //
       // println(s"Printing the AST after the pipeline:\n$t")
-
       //val module = CodeGen.genLLVM(t, true)
-      val module = CodeGen.genLLVM(src, true)
+      val module = CodeGen.genLLVM(t, true, f.getName)
 
       LLVMPrinter.run(rc)(module)
-
-      Right(true)
     }
   }
 
@@ -113,4 +110,6 @@ object Core {
   def typeCheckFile(s: String)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
     typeCheckFile(new File(s))
 
+  def compileFile(s: String)(implicit rc: RunContext): Either[String, BigInt] =
+    compileFile(new File(s))
 }

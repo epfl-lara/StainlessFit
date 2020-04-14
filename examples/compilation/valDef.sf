@@ -1,0 +1,5 @@
+fun lessThan2(y [Nat]) [returns Bool] = { y < 2 }
+
+val x = 3;
+val y = 4;
+lessThan2(x) && lessThan2(y)

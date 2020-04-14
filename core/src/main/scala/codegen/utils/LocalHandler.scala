@@ -13,10 +13,10 @@ class LocalHandler(val rc : RunContext) {
   private val counter = new codegen.utils.UniqueCounter[String]
   private var blockIndex : Int = -1
 
-  private val variables = mutable.Map[SfIdentifier, ParamDef]()
+  private val variables = mutable.Map[String, ParamDef]()
 
   def add(id: SfIdentifier, param: ParamDef): Unit = {
-    variables.put(id, param)
+    variables.put(translateId(id), param)
   }
 
   def add(args: List[(SfIdentifier, ParamDef)]): Unit = {
@@ -24,7 +24,7 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def get(id: SfIdentifier): ParamDef =
-    variables.getOrElse(id, rc.reporter.fatalError(s"Unkown variable $id"))
+    variables.getOrElse(translateId(id), rc.reporter.fatalError(s"Unkown variable $id"))
 
   def getType(id: SfIdentifier) = get(id).tpe
   def getLocal(id: SfIdentifier) = get(id).local
@@ -44,7 +44,7 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def freshLocal(id: SfIdentifier): Local = {
-    Local(id.toString)
+    Local(translateId(id))
   }
 
   def freshLocal(): Local = freshLocal("local")
@@ -54,7 +54,7 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def freshLabel(id: SfIdentifier): Label = {
-    Label(id.toString)
+    Label(translateId(id))
   }
 
   def freshLabel(): Label = freshLabel("")
@@ -64,8 +64,10 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def freshGlobal(id: SfIdentifier): Global = {
-    Global(id.toString)
+    Global(translateId(id))
   }
 
   def freshGlobal(): Global = freshGlobal("global")
+
+  def translateId(id: SfIdentifier): String = id.toString.replace("#", "_")
 }

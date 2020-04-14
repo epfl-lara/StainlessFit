@@ -185,6 +185,11 @@ object Namer {
         val (newT2, max2) = namer(t2, m, max1)
         (EqualityType(newT1, newT2), max2)
 
+      case DefFunction(args, optRet, optMeasure, body, rest) => {
+        val (newBody, bodyMax) = namer(body, m, max)
+        val (newRest, restMax) = namer(rest, m, bodyMax)
+        (DefFunction(args, optRet, optMeasure, newBody, newRest), restMax)
+      }
       case _ => throw new java.lang.Exception(s"Function `namer` is not defined on tree: $t")
     }
   }

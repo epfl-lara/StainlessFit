@@ -18,19 +18,18 @@ object ModulePrinter {
   //def apply(fun: Function) = printFunction(fun).print
   private val format = "%d\\00"
   private val printfStr = "@.str = private unnamed_addr constant [3 x i8] c\"" + format + "\", align 1"
-  //private def printf(s: String) = s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), i32 %result)"
 
   private def printModule(module: Module): Document = {
       var toPrint = new ListBuffer[Document]()
+
+      toPrint += Raw(printfStr)
+      toPrint += Raw("declare dso_local noalias i8* @malloc(i64) local_unnamed_addr")
+      toPrint += Raw("declare dso_local i32 @printf(i8*, ...)")
 
       if(!module.functions.isEmpty)
         toPrint += Stacked(
             module.functions.toList.map(f => printFunction(f)(module)),
             true)
-
-      toPrint += Raw(printfStr)
-      toPrint += Raw("declare dso_local noalias i8* @malloc(i64) local_unnamed_addr")
-      toPrint += Raw("declare dso_local i32 @printf(i8*, ...)")
 
       toPrint += printFunction(module.main)(module)
 
@@ -103,8 +102,8 @@ object ModulePrinter {
         Raw(")")
       }
 
-      case Printf(value) =>
-        Raw("call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), i32 ") <:>
+      case Printf(value, tpe) =>
+        Raw("call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), ") <:> printType(tpe) <:> " " <:>
         printValue(value) <:>
         Raw(")")
 

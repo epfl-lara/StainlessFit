@@ -19,8 +19,8 @@ package object extraction {
     DebugPhase(new Erasure(), "Erasure")
 
   def compilePipeline(implicit rc: RunContext) =
-    DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
-    DebugPhase(new Namer(), "Namer") andThen  //=> nom unique
+    //DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+    //DebugPhase(new Namer(), "Namer") andThen  //=> nom unique
     DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
-    DebugPhase(new Erasure(), "Erasure") //erasure => LetIn are transformed into lambdas
+    DebugPhase(new PartialErasure(), "PartialErasure") //erasure => LetIn are transformed into lambdas
 }
