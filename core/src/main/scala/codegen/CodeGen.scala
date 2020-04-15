@@ -214,6 +214,15 @@ object CodeGen {
           case App(Var(funId), _) => FunctionReturnType(Global(funId.name))
           case app @ App(_, _) => FunctionReturnType(Global(flattenApp(app)._1.name))
           case Pair(first, second) => PointerType(PairType(resultType(first), resultType(second)))
+          case First(pair) => resultType(pair) match {
+            case PointerType(PairType(firstType, _)) => firstType
+            case other => rc.reporter.fatalError(s"Unexpected operation: calling First on type $other")
+          }
+
+          case Second(pair) => resultType(pair) match {
+            case PointerType(PairType(_, secondType)) => secondType
+            case other => rc.reporter.fatalError(s"Unexpected operation: calling Second on type $other")
+          }
           case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
         }
 
@@ -303,18 +312,50 @@ object CodeGen {
               val t2 = lh.freshLocal(".malloc.size")
               val t3 = lh.freshLocal(".malloc.ptr")
               val pair = assignee(toAssign)
-              val malloc = Malloc(pair, t1, t2, t3, resultType(inputTree))
+              val pairType = resultType(inputTree)
+              val malloc = Malloc(pair, t1, t2, t3, pairType) //will assigne toAssign
 
               val (firstPtr, secondPtr) = (lh.freshLocal(".first.gep"), lh.freshLocal(".second.gep"))
 
               val initialise = List(
-                GepToFirst(firstPtr, resultType(inputTree), pair),
+                GepToFirst(firstPtr, pairType, pair),
                 Store(Value(firstLocal), PointerType(resultType(first)), firstPtr),
-                GepToSecond(secondPtr, resultType(inputTree), pair),
+                GepToSecond(secondPtr, pairType, pair),
                 Store(Value(secondLocal), PointerType(resultType(second)), secondPtr)
               )
-              //Todo store first and second in the pair
+
               (secondBlock <:> secondPhi <:> malloc <:> initialise <:> jumpTo(next), Nil)
+            }
+
+            case First(pair) => { //TODO refactor first and second since they are identical?
+              val pairLocal = lh.freshLocal("pair")
+              val (currentBlock, phi) = codegen(pair, block, None, Some(pairLocal))
+
+              val pairType = resultType(pair)
+              val firstPtr = lh.freshLocal(".first.gep")
+
+              val prep = List(
+                GepToFirst(firstPtr, pairType, pairLocal),
+                Load(assignee(toAssign), PointerType(resultType(inputTree)), firstPtr)
+              )
+
+              (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
+            }
+
+            case Second(pair) => {
+
+              val pairLocal = lh.freshLocal("pair")
+              val (currentBlock, phi) = codegen(pair, block, None, Some(pairLocal))
+
+              val pairType = resultType(pair)
+              val secondPtr = lh.freshLocal(".second.gep")
+
+              val prep = List(
+                GepToSecond(secondPtr, pairType, pairLocal),
+                Load(assignee(toAssign), PointerType(resultType(inputTree)), secondPtr)
+              )
+
+              (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
             }
 
             case LetIn(_, valueBody, Bind(newVar, rest)) => {
