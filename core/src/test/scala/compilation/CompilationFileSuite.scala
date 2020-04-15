@@ -18,11 +18,8 @@ class CompilationFileSuite extends FunSuite {
       (Core.evalFile(f), Core.compileFile(f)) match {
         case (Left(_), _) => assert(false)
         case (_, Left(_)) => assert(false)
-        case (Right(evalRes), Right(compileRes)) => evalRes match {
-          case NatLiteral(n) => assert(n == compileRes)
-          case BooleanLiteral(false) | UnitLiteral => assert(compileRes == BigInt(0))
-          case BooleanLiteral(true) => assert(compileRes == BigInt(1))
-          case _ => assert(false)
+        case (Right(evalRes), Right(compileRes)) => {
+          assert(Printer.exprAsString(evalRes) == compileRes)
         }
       }
     }
