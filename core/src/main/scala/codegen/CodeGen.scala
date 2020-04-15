@@ -28,12 +28,14 @@ object CodeGen {
 
           val functions = defFunctions map cgDefFunction
 
-          val mainReturnType = resultType(body)(lh) match {
-            case FunctionReturnType(funName) => functions.filter(_.name == funName).head.returnType
-            case otherType => otherType
-          }
+          // val mainReturnType = resultType(body)(lh) match {
+          //   case FunctionReturnType(funName) => functions.filter(_.name == funName).head.returnType
+          //   case otherType => otherType
+          // }
+          //
+          // val main = cgFunction(mainReturnType, Global("main"), Nil, body, true)
 
-          val main = cgFunction(mainReturnType, Global("main"), Nil, body, true)
+          val main = cgFunction(IRNatType, Global("main"), Nil, body, true)
 
           Module(
             moduleName,
@@ -72,7 +74,7 @@ object CodeGen {
 
           val endBlock = lh.newBlock(end)
           val (print, returnValue) = if(isMain){
-            (List(Printf(Value(result), returnType)), Value(Nat(0)))
+            (List(Printf(Value(result), resultType(body)(lh))), Value(Nat(0)))
           } else {
             (Nil, Value(result))
           }
@@ -183,6 +185,7 @@ object CodeGen {
           case IfThenElse(_, thenn, _) => resultType(thenn)
           case App(Var(funId), _) => FunctionReturnType(Global(funId.name))
           case app @ App(_, _) => FunctionReturnType(Global(flattenApp(app)._1.name))
+          case Pair(first, second) => PointerType(PairType(resultType(first), resultType(second)))
           case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
         }
 
@@ -260,6 +263,21 @@ object CodeGen {
             case value if isValue(value) => (block <:> cgValue(resultType(value), translateValue(value), next, toAssign), Nil)
 
             case call @ App(_, _) => cgFunctionCall(call, block, next, toAssign)
+
+            case Pair(first, second) => {
+              val firstLocal = lh.freshLocal("first")
+              val secondLocal = lh.freshLocal("second")
+
+              val (firstBlock, firstPhi) = codegen(first, block, None, Some(firstLocal))
+              val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal))
+              val t1 = lh.freshLocal("pair.temp")
+              val t2 = lh.freshLocal("pair.temp")
+              val t3 = lh.freshLocal("pair.temp")
+
+              val malloc = Malloc(assignee(toAssign), t1, t2, t3, resultType(inputTree))
+              //Todo store first and second in the pair
+              (secondBlock <:> secondPhi <:> malloc <:> jumpTo(next), Nil)
+            }
 
             case LetIn(_, valueBody, Bind(newVar, rest)) => {
                 val local = lh.freshLocal(newVar)
