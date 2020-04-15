@@ -74,13 +74,42 @@ object CodeGen {
 
           val endBlock = lh.newBlock(end)
           val (print, returnValue) = if(isMain){
-            (List(Printf(Value(result), resultType(body)(lh))), Value(Nat(0)))
+            val printType = resultType(body)(lh)
+            (customPrint(result, printType, true)(lh), Value(Nat(0)))
           } else {
             (Nil, Value(result))
           }
 
           function.add(endBlock <:> phi <:> print <:> Return(returnValue, returnType))
           function
+        }
+
+        def customPrint(toPrint: Local, tpe: Type, parentheses: Boolean)(implicit lh: LocalHandler): List[Instruction] = tpe match {
+          case PointerType(PairType(firstType, secondType)) => {
+
+            val (firstLocal, secondLocal) = (lh.freshLocal("first"), lh.freshLocal("second"))
+
+            val (firstPtr, secondPtr) = (lh.freshLocal(".first.gep"), lh.freshLocal(".second.gep"))
+
+            val prep = List(
+              GepToFirst(firstPtr, tpe, toPrint),
+              Load(firstLocal, PointerType(firstType), firstPtr),
+              GepToSecond(secondPtr, tpe, toPrint),
+              Load(secondLocal, PointerType(secondType), secondPtr)
+            )
+
+            val printFirst = customPrint(firstLocal, firstType, true)
+            val printSecond = customPrint(secondLocal, secondType, false)
+
+            val pair = printFirst ++ List(PrintComma) ++ printSecond
+            val (open, close) = if(parentheses) (List(PrintOpen), List(PrintClose)) else (Nil, Nil)
+            open ++ prep ++ pair ++ close
+          }
+
+          case BooleanType => List(PrintBool(toPrint, lh.freshLocal(".boolean")))
+
+          case _ => List(Printf(Value(toPrint), tpe))
+          //TODO add case for Left and Right type
         }
 
         def extractDefFun(t: Tree): (List[DefFunction], Tree) = t match {
@@ -134,10 +163,9 @@ object CodeGen {
           case _ => rc.reporter.fatalError(s"This tree isn't a value: $t")
         }
 
-        def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local]): List[Instruction] = {
-          val assign = toAssign.toList.map(local => Assign(local, tpe, value))
-          val jump = jumpTo(next) //next.toList.map(label => Jump(label))
-          //val assign = Assign(toAssign.getOrElse(lh.freshLocal()), tpe, value)
+        def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local])(implicit lh: LocalHandler): List[Instruction] = {
+          val jump = jumpTo(next)
+          val assign = List(Assign(assignee(toAssign), tpe, value))
           if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
 
           assign ++ jump
@@ -270,13 +298,23 @@ object CodeGen {
 
               val (firstBlock, firstPhi) = codegen(first, block, None, Some(firstLocal))
               val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal))
-              val t1 = lh.freshLocal("pair.temp")
-              val t2 = lh.freshLocal("pair.temp")
-              val t3 = lh.freshLocal("pair.temp")
 
-              val malloc = Malloc(assignee(toAssign), t1, t2, t3, resultType(inputTree))
+              val t1 = lh.freshLocal(".malloc.gep")
+              val t2 = lh.freshLocal(".malloc.size")
+              val t3 = lh.freshLocal(".malloc.ptr")
+              val pair = assignee(toAssign)
+              val malloc = Malloc(pair, t1, t2, t3, resultType(inputTree))
+
+              val (firstPtr, secondPtr) = (lh.freshLocal(".first.gep"), lh.freshLocal(".second.gep"))
+
+              val initialise = List(
+                GepToFirst(firstPtr, resultType(inputTree), pair),
+                Store(Value(firstLocal), PointerType(resultType(first)), firstPtr),
+                GepToSecond(secondPtr, resultType(inputTree), pair),
+                Store(Value(secondLocal), PointerType(resultType(second)), secondPtr)
+              )
               //Todo store first and second in the pair
-              (secondBlock <:> secondPhi <:> malloc <:> jumpTo(next), Nil)
+              (secondBlock <:> secondPhi <:> malloc <:> initialise <:> jumpTo(next), Nil)
             }
 
             case LetIn(_, valueBody, Bind(newVar, rest)) => {

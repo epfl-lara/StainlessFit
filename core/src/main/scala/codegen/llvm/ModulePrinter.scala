@@ -11,18 +11,76 @@ import scala.language.implicitConversions
 import scala.collection.mutable.ListBuffer
 
 object ModulePrinter {
-
+  // 24:                                               ; preds = %10
+  //   %25 = load i32*, i32** %6, align 8
+  //   %26 = bitcast i32* %25 to i8*
+  //   call void @free(i8* %26) #3
+  //   %27 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.1, i64 0, i64 0))
+  //   store i32 256, i32* %8, align 4
+  //   ret i32 0
+  // }
+  //
+  // declare dso_local i32 @fprintf(%struct._IO_FILE*, i8*, ...) #2
+  //
+  // call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str.1, i64 0, i64 0), i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.2, i64 0, i64 0))
   private implicit def s2d(s: String) = Raw(s)
 
   def apply(mod: Module) = printModule(mod).print
   //def apply(fun: Function) = printFunction(fun).print
-  private val format = "%d\\00"
-  private val printfStr = "@.str = private unnamed_addr constant [3 x i8] c\"" + format + "\", align 1"
+  // private val integerFormat = "%d\\00"
+  // private val integerStr = "@.integer.str"
+  // private val charFormat = "%c\\00"
+  // private val charStr = "@.char.str"
+  //
+  // private def constStr(s) = i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.2, i64 0, i64 0)
+  //
+  // private def format(format_: String) = "private unnamed_addr constant [3 x i8] c\"" + format_ + "\", align 1"
+  //
+  // private def callPrintf(toPrint: Either[(Value. Type), Char]) = {
+  //   val (printArg, str) = toPrint match {
+  //     case Left((value, tpe)) => (printType(tpe) <:> " " <:> printValue(value), integerStr)
+  //     case Right(c) => (c, charStr)
+  //   }
+  //
+  //   Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* $str, i64 0, i64 0))"
+  // }
+
+  private val openGlobal = "@.open"
+  private val open = "private unnamed_addr constant [2 x i8] c\"(\\00\", align 1"
+
+  private val closeGlobal = "@.close"
+  private val close = "private unnamed_addr constant [2 x i8] c\")\\00\", align 1"
+
+  private val commaGlobal = "@.comma"
+  private val comma = "private unnamed_addr constant [3 x i8] c\", \\00\", align 1"
+
+  private val integerGlobal = "@.integer"
+  private val integer = "private unnamed_addr constant [3 x i8] c\"%d\\00\", align 1"
+
+  private val trueGlobal = "@.true"
+  private val true_ = "private unnamed_addr constant [6 x i8] c\"true\\00\\00\", align 1"
+
+  private val falseGlobal = "@.false"
+  private val false_ = "private unnamed_addr constant [6 x i8] c\"false\\00\", align 1"
+
+  def printChar(c: String) = {
+    val (global, size) = c match {
+      case "(" => (openGlobal, 2)
+      case ")" => (closeGlobal, 2)
+      case "," => (commaGlobal, 3)
+    }
+    Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([$size x i8], [$size x i8]* $global, i64 0, i64 0))")
+  }
 
   private def printModule(module: Module): Document = {
       var toPrint = new ListBuffer[Document]()
 
-      toPrint += Raw(printfStr)
+      toPrint += Raw(s"$openGlobal = $open")
+      toPrint += Raw(s"$closeGlobal = $close")
+      toPrint += Raw(s"$commaGlobal = $comma")
+      toPrint += Raw(s"$integerGlobal = $integer")
+      toPrint += Raw(s"$trueGlobal = $true_")
+      toPrint += Raw(s"$falseGlobal = $false_")
       toPrint += Raw("declare dso_local noalias i8* @malloc(i64) local_unnamed_addr")
       toPrint += Raw("declare dso_local i32 @printf(i8*, ...)")
 
@@ -102,10 +160,23 @@ object ModulePrinter {
         Raw(")")
       }
 
-      case Printf(value, tpe) =>
-        Raw("call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), ") <:> printType(tpe) <:> " " <:>
+      case Printf(value, tpe) => {
+        Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* $integerGlobal, i64 0, i64 0), ") <:> printType(tpe) <:> " " <:>
         printValue(value) <:>
         Raw(")")
+      }
+
+      case PrintOpen => printChar("(")
+      case PrintClose => printChar(")")
+      case PrintComma => printChar(",")
+
+      case PrintBool(cond, local) => {
+        Stacked(
+          Raw(s"$local.select = select i1 $cond, [6 x i8]* $trueGlobal, [6 x i8]* $falseGlobal"),
+          Raw(s"$local.string = getelementptr [6 x i8], [6 x i8]* $local.select, i64 0, i64 0"),
+          Raw(s"call i32 (i8*, ...) @printf(i8* $local.string)")
+        )
+      }
 
       case Malloc(res, t1, t2, t3, tpe) => {
         Stacked(
@@ -115,6 +186,33 @@ object ModulePrinter {
           Raw(s"$res = bitcast i8* $t3 to ") <:> printType(tpe)
         )
       }
+
+      case GepToFirst(result, tpe, pair) => {
+        Raw(s"$result = getelementptr ") <:> printInMemoryType(tpe, true) <:> Raw(", ") <:> printType(tpe) <:> Raw(s" $pair, i32 0, i32 0")
+      }
+
+      case GepToSecond(result, tpe, pair) => {
+        Raw(s"$result = getelementptr ") <:> printInMemoryType(tpe, true) <:> Raw(", ") <:> printType(tpe) <:> Raw(s" $pair, i32 0, i32 1")
+      }
+
+      case Store(value, tpe, ptr) =>
+        Lined(List(
+          "store",
+          printInMemoryType(tpe, true),
+          printValue(value),
+          ",",
+          printType(tpe),
+          s"$ptr"
+        ), " ")
+
+      case Load(result, tpe, ptr) => Lined(List(
+        s"$result = load",
+        printInMemoryType(tpe, true),
+        ",",
+        printType(tpe),
+        s"$ptr"
+      ), " ")
+
       case other => Raw(s"PLACEHOLDER: $other")
     }
   }

@@ -75,7 +75,7 @@ object Core {
     }
   }
 
-  def compileFile(f: File)(implicit rc: RunContext): Either[String, BigInt] = {
+  def compileFile(f: File)(implicit rc: RunContext): Either[String, String] = {
     parseFile(f) flatMap { src =>
 
       // println(s"Printing the AST before the pipeline:\n$src")
@@ -96,6 +96,6 @@ object Core {
   def typeCheckFile(s: String)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
     typeCheckFile(new File(s))
 
-  def compileFile(s: String)(implicit rc: RunContext): Either[String, BigInt] =
+  def compileFile(s: String)(implicit rc: RunContext): Either[String, String] =
     compileFile(new File(s))
 }
