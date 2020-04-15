@@ -134,8 +134,8 @@ object CodeGen {
 
         def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local]): List[Instruction] = {
           val assign = toAssign.toList.map(local => Assign(local, tpe, value))
-          val jump = next.toList.map(label => Jump(label))
-
+          val jump = jumpTo(next) //next.toList.map(label => Jump(label))
+          //val assign = Assign(toAssign.getOrElse(lh.freshLocal()), tpe, value)
           if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
 
           assign ++ jump
@@ -225,9 +225,9 @@ object CodeGen {
 
             val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
 
-            val result = toAssign.getOrElse(lh.freshLocal("unused"))
+            val result = assignee(toAssign)
 
-            val jump = next.toList.map(label => Jump(label))
+            val jump = jumpTo(next)
             (cB <:> Call(result, Global(funId.name), valueList) <:> jump, Nil)
           }
 
@@ -249,13 +249,8 @@ object CodeGen {
           case _ => t
         }
 
-        def requireBranch(t: Tree): Boolean = t match {
-          case IfThenElse(_, _, _) => true
-          case App(_ , arg) => requireBranch(arg)
-          case LetIn(_, valueBody, _) => requireBranch(valueBody)
-          case Primitive(op, args) => args.exists(arg => requireBranch(arg))
-          case _ => false
-        }
+        def assignee(toAssign: Option[Local])(implicit lh: LocalHandler) = toAssign getOrElse lh.freshLocal
+        def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
 
         def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
           (implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) =
@@ -266,44 +261,13 @@ object CodeGen {
 
             case call @ App(_, _) => cgFunctionCall(call, block, next, toAssign)
 
-
             case LetIn(_, valueBody, Bind(newVar, rest)) => {
-              val local = lh.freshLocal(newVar)
+                val local = lh.freshLocal(newVar)
 
-              val resultBlock = if(requireBranch(valueBody)) {
-
-                val afterBlock = lh.newBlock("after")
-                val (valueBlock, valuePhi) = codegen(valueBody, block, Some(afterBlock.label), Some(local))
-                f.add(valueBlock)
-
-                afterBlock <:> valuePhi
-              } else {
-                val (afterBlock, _) = codegen(valueBody, block, None, Some(local))
-                afterBlock
-              }
-
-              lh.add(newVar, ParamDef(resultType(valueBody), local))
-
-              codegen(rest, resultBlock, next, toAssign)
+                val (tempBlock, phi) = codegen(valueBody, block, None, Some(local))
+                lh.add(newVar, ParamDef(resultType(valueBody), local))
+                codegen(rest, tempBlock <:> phi, next, toAssign)
             }
-            // if(requireBranch(valueBody)){
-            //   val local = lh.freshLocal(newVar)
-            //
-            //   val afterBlock = lh.newBlock("after")
-            //   val (valueBlock, valuePhi) = codegen(valueBody, block, Some(afterBlock.label), Some(local))
-            //   f.add(valueBlock)
-            //
-            //   lh.add(newVar, ParamDef(resultType(valueBody), local))
-            //
-            //   codegen(rest, afterBlock <:> valuePhi, next, toAssign)
-            // } else {
-            //   val local = lh.freshLocal(newVar)
-            //
-            //   val (currentBlock, _) = codegen(valueBody, block, None, Some(local))
-            //   lh.add(newVar, ParamDef(resultType(valueBody), local))
-            //
-            //   codegen(rest, currentBlock, next, toAssign)
-            // }
 
             case IfThenElse(cond, thenn, elze) => {
 
@@ -318,19 +282,7 @@ object CodeGen {
               val afterLocal = lh.freshLocal()
               val afterBlock = lh.newBlock("after")
 
-             // val (condPrep, condPhi) = codegen(cond, block, None, Some(condLocal))
-
-              val (condPrep, condPhi) = if(requireBranch(cond)){
-                val beforeBlock = lh.newBlock("before")
-
-                val (a, b) = codegen(cond, block, Some(beforeBlock.label), Some(condLocal))
-                f.add(a)
-
-                (beforeBlock <:> b, Nil)
-
-              } else {
-                codegen(cond, block, None, Some(condLocal))
-              }
+              val (condPrep, condPhi) = codegen(cond, block, None, Some(condLocal))
 
               val (trueBlock, truePhi) = codegen(thenn, tBlock, Some(afterBlock.label), Some(trueLocal))
               f.add(trueBlock)
@@ -348,66 +300,37 @@ object CodeGen {
               val nextPhi =
                 truePhi ++
                 falsePhi ++
-                toAssign.toList.map{ //TODO Need a better way to check for the type
+                toAssign.toList.map{
                   case local => Phi(local, resultType(thenn), List((trueLocal, trueBlock.label), (falseLocal, falseBlock.label)))
                 }
 
-              (afterBlock <:> nextPhi <:> Jump(next.get), Nil)
+              val jump = jumpTo(next)
+              (afterBlock <:> nextPhi <:> jump, Nil)
             }
 
             case Primitive(op, args) => {
-
-              val flatArgs = flattenPrimitive(inputTree)
-              val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
-
-              val last = valueList.size - 1
-
-              //apply the operation to the arguments two-by-two
-              val (resultBlock, result) = valueList.zipWithIndex.tail.foldLeft((cB, valueList.head)){
-                case ((cBlock, lhs), (rhs, index)) => {
-                  val temp = if(index == last && toAssign.isDefined){
-                    toAssign.get
-                  } else {
-                    lh.freshLocal("temp")
-                  }
-                  (cBlock <:> BinaryOp(translateOp(op), temp, lhs, rhs), Value(temp))
+              val init: (Block, List[Value]) = (block, Nil)
+              val (currentBlock, values) = args.map((_, lh.freshLocal("temp"))).foldLeft(init){
+                case ((currentBlock, values), (arg, temp)) => {
+                  val (nextBlock, phi) = codegen(arg, currentBlock, None, Some(temp))
+                  (nextBlock <:> phi, values :+ Value(temp))
                 }
               }
 
-              val jump = next.toList.map(label => Jump(label))
-              (resultBlock <:> jump, Nil)
-            }
+              val jump = jumpTo(next)
 
-            // case Primitive(op, args) => if(args.size == 1){
-            //   val arg = args.head
-            //
-            //
-            //
-            //   UnaryOp(translateOp(op), toAssign.getOrElse(lh.freshLocal("temp")), value)
-            // } else {
-            //
-            // }
-            //
-            // case Primitive(op, args) => {
-            //
-            //   val assignee = toAssign.getOrElse(lh.freshLocal("temp"))
-            //
-            //   args.foldLeft(init){
-            //     case ((currentBlock, values), arg) if isValue(arg) => {
-            //       (currentBlock, values :+ translateValue(arg))
-            //     }
-            //
-            //     case ((currentBlock, values), arg) if => {
-            //       val temp = lh.freshLocal("temp")
-            //       codegen(arg, )
-            //     }
-            //   }
-            // }
+              val operation = values match {
+                case List(operand) => UnaryOp(translateOp(op), assignee(toAssign), operand)
+                case List(leftOp, rightOp) => BinaryOp(translateOp(op), assignee(toAssign), leftOp, rightOp)
+                case other => rc.reporter.fatalError(s"Unexpected number of arguments for operator $op. Was ${other.size} but expected 1 or 2")
+              }
+
+              (currentBlock <:> operation <:> jump, Nil)
+            }
 
             case _ => rc.reporter.fatalError(s"codegen not implemented for $inputTree")
           }
 
-        //cgModule(tree)
         rc.bench.time("Code generation"){cgModule(tree)}
     }
 }
