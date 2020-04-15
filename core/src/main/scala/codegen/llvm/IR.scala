@@ -42,10 +42,9 @@ object IR {
     override def toString(): String =  "i32"
   }
 
-  case class PointerType(tpe: Type) extends Type {
-    override def toString(): String =  s"$tpe*"
+  case class PointerType(tpe: Type) extends Type
 
-  }
+  case class PairType(firstType: Type, secondType: Type) extends Type
 
   case class FunctionReturnType(funName: Global) extends Type
 
@@ -61,6 +60,7 @@ object IR {
   case class BooleanLiteral(b: Boolean) extends Literal
   case class Nat(n: BigInt) extends Literal
   case object UnitLiteral extends Literal
+  case class PairLiteral(first: Literal, second: Literal) extends Literal
 
   //Boolean operations
   abstract class Op extends Instruction {
@@ -138,7 +138,12 @@ object IR {
   case class Jump(destination: Label) extends Instruction
   case class Return(result : Value, typee: Type) extends Instruction
 
-  case class MallocCall(size: Int) extends Instruction
+  // %sizeptr = getelementptr {i32, i32}, {i32, i32}* null, i32 1
+  //
+  // %size = ptrtoint {i32, i32}* %sizeptr to i64
+  //
+  // %pair = call noalias i8* @malloc(i64 %size)
+  case class Malloc(result: Local, temp1: Local, temp2: Local, temp3: Local, tpe: Type) extends Instruction
   case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
   case class Printf(value: Value, tpe: Type) extends Instruction
 }

@@ -40,7 +40,7 @@ object ModulePrinter {
     val Function(returnType, name, params, blocks) = fun
     val paramList = Lined(params.map(param => s"${param.tpe} ${param.local}"), ", ")
     Stacked(
-      Lined(List(s"define $returnType ${name}(", paramList, ") {")),
+      Lined(List(Raw(s"define "), printType(returnType), Raw(s" ${name}("), paramList, ") {")),
       Indented(Stacked(blocks.toList.sortBy(_.index) map printBlock, true)),
       "}"
     )
@@ -107,6 +107,14 @@ object ModulePrinter {
         printValue(value) <:>
         Raw(")")
 
+      case Malloc(res, t1, t2, t3, tpe) => {
+        Stacked(
+          Raw(s"$t1 = getelementptr ") <:> printInMemoryType(tpe, true) <:> ", " <:> printType(tpe) <:> Raw(" null, i32 1"),
+          Raw(s"$t2 = ptrtoint ") <:> printType(tpe) <:> Raw(s" $t1 to i64"),
+          Raw(s"$t3 = call i8* @malloc(i64 $t2)"),
+          Raw(s"$res = bitcast i8* $t3 to ") <:> printType(tpe)
+        )
+      }
       case other => Raw(s"PLACEHOLDER: $other")
     }
   }
@@ -117,13 +125,21 @@ object ModulePrinter {
       case UnitLiteral => "0"
       case BooleanLiteral(b) => s"$b"
       case Nat(n) => s"$n"
+      case PairLiteral(first, second) => ???
     }
     case other => Raw(s"PLACEHOLDER: $other")
   }
 
   private def printType(tpe: Type)(implicit m: Module): Document = tpe match {
     case FunctionReturnType(funName) => s"${getFunction(funName).returnType}"
+    case PointerType(tpe) => printType(tpe) <:> "*"
+    case PairType(first, second) => Raw("{") <:> printType(first) <:> Raw(", ") <:> printType(second) <:> Raw("}")
     case _ => s"$tpe"
+  }
+
+  private def printInMemoryType(tpe: Type, topLevel: Boolean)(implicit m: Module): Document = tpe match {
+    case PointerType(pointedType) => if(topLevel) printType(pointedType) else printType(tpe)
+    case _ => printType(tpe)
   }
 
   private def getFunction(funName: Global)(implicit m: Module): Function = {
