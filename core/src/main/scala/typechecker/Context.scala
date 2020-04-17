@@ -71,11 +71,15 @@ case class Context(
       case Bind(id, t) if this.termVariables.contains(id) =>
         val idN = id.freshen()
         newIds += id -> idN
-        println(id)
         Some(Bind(idN, t.replace(id, idN)))
       case _ =>
         None
     }
     Tree.replaceMany(visit(_), t)
+  }
+
+  def bindAndFreshen(id: Identifier, ty: Tree, t: Tree)(implicit rc: RunContext): (Context, Tree) = {
+    val c = this.bind(id, ty)
+    (c, c.freshen(t))
   }
 }

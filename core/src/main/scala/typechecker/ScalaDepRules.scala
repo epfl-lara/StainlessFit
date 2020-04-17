@@ -39,8 +39,8 @@ trait ScalaDepRules {
       val fgb: List[Judgment] => Goal =
         {
           case InferJudgment(_, _, _, tyv) :: Nil =>
-            val c1 = c0.bind(id, tyv)
-            InferGoal(c1, body)
+            val (c1, bodyF) = c0.bindAndFreshen(id, tyv, body)
+            InferGoal(c1, bodyF)
           case _ =>
             ErrorGoal(c0, None)
         }
@@ -64,8 +64,8 @@ trait ScalaDepRules {
       val c0 = c.incrementLevel
       val gv = CheckGoal(c0, v, tyv)
 
-      val c1 = c0.bind(id, SingletonType(tyv, v))
-      val g2: Goal = InferGoal(c1, body)
+      val (c1, bodyF) = c0.bindAndFreshen(id, SingletonType(tyv, v), body)
+      val g2: Goal = InferGoal(c1, bodyF)
 
       Some((
         List(_ => gv, _ => g2),
@@ -84,8 +84,8 @@ trait ScalaDepRules {
   val InferLambda1 = Rule("InferLambda1", {
     case g @ InferGoal(c, e @ Lambda(Some(ty1), Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLambda1")
-      val c1 = c.bind(id, ty1).incrementLevel
-      val gb = InferGoal(c1, body)
+      val (c1, bodyF) = c.incrementLevel.bindAndFreshen(id, ty1, body)
+      val gb = InferGoal(c1, bodyF)
       Some((
         List(_ => gb),
         {
@@ -607,6 +607,31 @@ trait ScalaDepRules {
       None
   })
 
+  // // NOTE: This version of SubSingletonLeft normalizes `t` to always infer an up-to-date underlying type.
+  // //       However, this is not fool-proof -- it might cause type checking to diverge.
+  // val SubSingletonLeft = Rule("SubSingletonLeft", {
+  //   case g @ SubtypeGoal(c, ty @ SingletonType(_, t), ty2) =>
+  //     TypeChecker.debugs(g, "SubSingletonLeft")
+  //
+  //     val c0 = c.incrementLevel
+  //     val v = Interpreter.evaluateWithContext(c0, t)
+  //     val g1 = InferGoal(c0, v)
+  //     val g2: List[Judgment] => Goal = {
+  //       case InferJudgment(_, _, _, SingletonType(ty1N, _)) :: Nil =>
+  //         SubtypeGoal(c0, ty1N, ty2)
+  //       case _ =>
+  //         ErrorGoal(c0, Some("Expected re-typed term to have singleton type"))
+  //     }
+  //     Some((List(_ => g1, g2), {
+  //       case _ :: SubtypeJudgment(_, _, _, _) :: Nil =>
+  //         (true, SubtypeJudgment("SubSingletonLeft", c, ty, ty2))
+  //       case _ =>
+  //         (false, ErrorJudgment("SubSingletonLeft", g, None))
+  //     }))
+  //   case g =>
+  //     None
+  // })
+
   val SubPi = Rule("SubPi", {
     case g @ SubtypeGoal(c,
       tya @ PiType(tya1, Bind(ida, tya2)),
@@ -797,8 +822,8 @@ trait ScalaDepRules {
 
       val inferT1 = InferGoal(c0, t1)
 
-      val c1 = c0.bind(id, NatType)
-      val inferT2 = InferGoal(c1, c1.freshen(t2))
+      val (c1, t2F) = c0.bindAndFreshen(id, NatType, t2)
+      val inferT2 = InferGoal(c1, t2F)
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
@@ -823,8 +848,9 @@ trait ScalaDepRules {
 
       val inferT1 = InferGoal(c0, t1)
 
-      val c1 = c0.bind(idHead, TopType).bind(idTail, LList)
-      val inferT2 = InferGoal(c1, c1.freshen(t2))
+      val c1 = c0.bind(idHead, TopType)
+      val (c2, t2F) = c1.bindAndFreshen(idTail, LList, t2)
+      val inferT2 = InferGoal(c2, t2F)
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
@@ -846,8 +872,8 @@ trait ScalaDepRules {
       TypeChecker.debugs(g, "InferFixWithDefault")
 
       val c0 = c.incrementLevel
-      val c1 = c0.bind(fIn, ty)
-      val g1 = CheckGoal(c1, tBody, ty)
+      val (c1, tBodyF) = c0.bindAndFreshen(fIn, ty, tBody)
+      val g1 = CheckGoal(c1, tBodyF, ty)
       val g2 = CheckGoal(c0, td, ty)
 
       Some((

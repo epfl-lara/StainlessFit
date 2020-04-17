@@ -23,7 +23,8 @@ val listOf = fun of (makeElem [Unit => Top]) = {
 };
 
 val makeNat = fun of (u [Unit]) = { choose[Nat] };
-// val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil);
-// val ns [{[List] listOfN makeNat 0}] = nil;
+val ns [{[List] listOfN makeNat 0}] = nil;
 val ns [{[List] listOfN makeNat 1}] = cons 1 nil;
+val ns [{[List] listOfN makeNat 2}] = cons nil (cons 2 nil);
+// val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil); // diverges during subtyping
 ()
