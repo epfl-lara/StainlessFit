@@ -188,11 +188,11 @@ object Namer {
         val (newT2, max2) = namer(t2, m, max1)
         (EqualityType(newT1, newT2), max2)
 
-      case FixWithDefault(tp, t, td) =>
+      case FixWithDefault(tp, t, td, f) =>
         val (newTp, max1) = namer(tp, m, max)
         val (newT: Bind, max2) = namer(t, m, max1)
         val (newTd, max3) = namer(td, m, max2)
-        (FixWithDefault(newTp, newT, newTd), max3)
+        (FixWithDefault(newTp, newT, newTd, f), max3)
       case ListMatch(t, tNil, tCons) =>
         val (newT, max1) = namer(t, m, max)
         val (newTNil, max2) = namer(tNil, m, max1)

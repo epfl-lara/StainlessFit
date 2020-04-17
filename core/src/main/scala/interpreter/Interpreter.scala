@@ -9,7 +9,6 @@ import typechecker.Context
 import typechecker.ScalaDepSugar._
 
 object Interpreter {
-
   val zero = BigInt(0)
 
   def evaluateWithContext(c: Context, e: Tree)(implicit rc: RunContext): Tree = {
@@ -65,7 +64,7 @@ object Interpreter {
         evaluateWithContext(c, t) match {
           case LNil() => evaluateWithContext(c, t1)
           case LCons(tHead, tTail) => evaluateWithContext(c, t2.replace(idHead, tHead).replace(idTail, tTail))
-          case nt => EitherMatch(nt, t1, b2)
+          case nt => ListMatch(nt, t1, b2)
         }
 
       // case Primitive(Not, BooleanLiteral(b) :: Nil) => BooleanLiteral(!b)
@@ -91,10 +90,11 @@ object Interpreter {
       case LeftTree(e) => LeftTree(evaluateWithContext(c, e))
       case RightTree(e) => RightTree(evaluateWithContext(c, e))
 
-      case Fix(_, Bind(_, Bind(id, tBody))) =>
-        evaluateWithContext(c, tBody.replace(id, e))
-      case FixWithDefault(_, t, td) =>
-        evaluateWithContext(c, FixWithDefault.lower(t, td))
+      case FixWithDefault(_, t, td, 0) =>
+        evaluateWithContext(c, td)
+      case FixWithDefault(ty, t @ Bind(id, tBody), td, depthFuel) =>
+        val newFixD = FixWithDefault(ty, t, td, depthFuel - 1)
+        evaluateWithContext(c, tBody.replace(id, newFixD))
 
       case _ => e
     }

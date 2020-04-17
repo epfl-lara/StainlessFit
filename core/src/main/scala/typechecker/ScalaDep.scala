@@ -15,6 +15,7 @@ class ScalaDep(implicit val rc: RunContext)
   with    MetaRules {
 
   val typeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
+    ContextSanity.t ||
     InferVar1.t ||
     InferNat1.t ||
     InferUnit.t ||
@@ -28,18 +29,21 @@ class ScalaDep(implicit val rc: RunContext)
     InferLambda1.t ||
     InferApp1.t ||
     InferPair1.t ||
+    InferNatMatch1.t ||
     InferListMatch.t ||
     CheckInfer.t ||
     NormBase.t ||
     NormSingleton.t ||
     NormSubstVar.t ||
     NormExists.t ||
+    NormNatMatch.t ||
     NormListMatch.t ||
     NormPi.t ||
     NormSigma.t ||
     SubNormalize.t ||
     SubExistsLeft.t ||
     SubExistsRight.t ||
+    SubNatMatch.t ||
     SubListMatch.t ||
     SubPi.t ||
     SubSigma.t ||

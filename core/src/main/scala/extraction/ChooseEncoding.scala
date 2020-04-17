@@ -48,10 +48,10 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       })
       (ChooseWithPath(ty, path), n)
 
-    case FixWithDefault(ty, Bind(id, t), td) =>
+    case FixWithDefault(ty, Bind(id, t), td, f) =>
       val (nTy, n2) = encodeAnnot(n, ty)
       val (Seq(nT, nTd), n3) = encode(path, n2, Seq(t, td))
-      (FixWithDefault(nTy, Bind(id, nT), nTd), n3)
+      (FixWithDefault(nTy, Bind(id, nT), nTd, f), n3)
 
     case SingletonType(ty, t) =>
       val (Seq(nTy, nt), n2) = encode(path, n, Seq(ty, t))

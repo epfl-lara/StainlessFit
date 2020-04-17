@@ -92,7 +92,7 @@ object FitLexer extends Lexers with CharRegExps {
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ word("positive") ~ elem(']')) |
     word("as") | word("fun of") | word("keep") |
     word("if") | word("else") | word("case") |
-    word("match") | word("nat_match") |
+    word("match") | word("nat_match") | word("Nat_Match") |
     word("list_match") | word("List_Match") |
     word("nil") | word("cons") | word("List") |
     word("fix") | word("fixD") | word("fun") | word("val") |
@@ -238,6 +238,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val funOfK: Syntax[Unit] = elem(KeywordClass("funof")).unit(KeywordToken("funof"))
   val matchK: Syntax[Unit] = elem(KeywordClass("match")).unit(KeywordToken("match"))
   val natMatchK: Syntax[Unit] = elem(KeywordClass("nat_match")).unit(KeywordToken("nat_match"))
+  val natMatchTypeK: Syntax[Unit] = elem(KeywordClass("Nat_Match")).unit(KeywordToken("Nat_Match"))
   val listMatchK: Syntax[Unit] = elem(KeywordClass("list_match")).unit(KeywordToken("list_match"))
   val listMatchTypeK: Syntax[Unit] = elem(KeywordClass("List_Match")).unit(KeywordToken("List_Match"))
   val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
@@ -426,7 +427,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     refinementOrSingletonType | refinementByType |
     macroTypeInst | equalityType |
     piType | sigmaType | forallType | polyForallType |
-    existsType | listMatchType
+    existsType | natMatchType | listMatchType
 
   lazy val typeExpr: Syntax[Tree] = recursive { arrows }
 
@@ -622,11 +623,11 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     (fixDK.skip ~ lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
       arrow.skip ~ expr ~ comma.skip ~ expr ~ rpar.skip).map({
       case x ~ tp ~ e ~ ed =>
-        FixWithDefault(tp, Bind(x, e), ed)
+        FixWithDefault(tp, Bind(x, e), ed, FixWithDefault.maxRecDepth)
       case _ =>
         sys.error("Unreachable")
     }, {
-      case FixWithDefault(tp, Bind(x, e), ed) =>
+      case FixWithDefault(tp, Bind(x, e), ed, _) =>
         Seq(x ~ tp ~ e ~ ed)
       case _ => Seq()
     })
@@ -769,6 +770,21 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case _ => sys.error("Unreachable")
     }, {
       case NatMatch(e, e1, Bind(id2, e2)) => Seq(e ~ e1 ~ id2 ~ e2)
+      case _ => Seq()
+    })
+
+  lazy val natMatchType: Syntax[Tree] =
+    (natMatchTypeK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ zeroK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ typeExpr ~
+      caseK.skip ~ succK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ typeExpr ~
+    rbra.skip
+    ).map({
+      case (e ~ ty1 ~ id ~ ty2) =>
+        NatMatchType(e, ty1, Bind(id, ty2))
+      case _ => sys.error("Unreachable")
+    }, {
+      case NatMatchType(e, ty1, Bind(id, ty2)) =>
+        Seq(e ~ ty1 ~ id ~ ty2)
       case _ => Seq()
     })
 

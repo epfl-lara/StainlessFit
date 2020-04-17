@@ -1,0 +1,29 @@
+// // val f [Nat => List] = fun of (n [Nat]) = {
+// //   nat_match n {
+// //     case zero => nil
+// //     case succ n => nil
+// //   }
+// // };
+
+val listOfN = fixD(
+  listOfN_ [(Unit => Top) => Nat => List] =>
+    fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
+      nat_match n {
+        case zero => nil
+        case succ n => cons (makeElem ()) (listOfN_ makeElem n)
+      }
+    } },
+  fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
+    nil
+  } }
+);
+
+val listOf = fun of (makeElem [Unit => Top]) = {
+  listOfN makeElem (choose[Nat])
+};
+
+val makeNat = fun of (u [Unit]) = { choose[Nat] };
+// val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil);
+// val ns [{[List] listOfN makeNat 0}] = nil;
+val ns [{[List] listOfN makeNat 1}] = cons 1 nil;
+()

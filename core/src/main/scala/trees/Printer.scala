@@ -74,6 +74,7 @@ object Printer {
     case (KeywordToken("cons"), _) => true
     case (KeywordToken("match"), _) => true
     case (KeywordToken("nat_match"), _) => true
+    case (KeywordToken("Nat_Match"), _) => true
     case (KeywordToken("list_match"), _) => true
     case (KeywordToken("List_Match"), _) => true
     case (KeywordToken("[returns"), _) => true
@@ -167,7 +168,7 @@ object Printer {
     else {
       asStringDebug(t)
       // Should be unreachable code:
-      throw new IllegalStateException("unreachable")
+      throw new IllegalStateException(s"unreachable $t")
     }
   }
 
@@ -224,7 +225,7 @@ object Printer {
     val syntaxes: Seq[Syntax[Tree]] = Seq(
       primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType, existsType,
       recType, refinementOrSingletonType, refinementByType, sumsAndUnions, arrows,
-      equalityType, simpleTypeExpr,
+      equalityType, simpleTypeExpr, natMatchType, listMatchType,
       typeExpr, boolean, number, termVariable, unit, literal,
       defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fixpointWithDefault, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,

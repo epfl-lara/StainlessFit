@@ -16,7 +16,7 @@ import ScalaDepSugar._
 import interpreter.Interpreter
 
 trait ScalaDepRules {
-
+  // TODO: Add freshen whenever we bind
   implicit val rc: RunContext
 
   def withExistsIfFree(id: Identifier, tpe: Tree, t: Tree): Tree =
@@ -233,6 +233,28 @@ trait ScalaDepRules {
       None
   })
 
+  val ContextSanity = {
+    def sanityCheck(c: Context, e: Tree)(implicit rc: RunContext): Boolean = {
+      var sane = true
+      e.replaceMany {
+        case Bind(id, _) if c.termVariables.contains(id) =>
+          sane = false
+          None
+        case _ => None
+      }
+      sane
+    }
+    def e(g: Goal) = Some((List(), (_: List[Judgment]) => emitErrorWithJudgment("ContextSanity", g, None)))
+    Rule("ContextSanity", {
+      case g @ InferGoal(c, t) =>
+        if (sanityCheck(c, t)) None else e(g)
+      case g @ NormalizationGoal(c, ty, _, _) =>
+        if (sanityCheck(c, ty)) None else e(g)
+      case _ =>
+        None
+    })
+  }
+
   val NormSingleton = Rule("NormSingleton", {
     case g @ NormalizationGoal(c, ty @ SingletonType(tyUnderlying, t), linearExistsVars, inPositive) =>
       TypeChecker.debugs(g, "NormSingleton")
@@ -306,6 +328,43 @@ trait ScalaDepRules {
         case _ =>
           emitErrorWithJudgment("NormExists", g, None)
       }))
+    case g =>
+      None
+  })
+
+  val NormNatMatch = Rule("NormNatMatch", {
+    case g @ NormalizationGoal(c,
+        ty @ NatMatchType(tScrut, tyZero, tySuccBind @ Bind(id, tySucc)),
+        linearExistsVars, inPositive) =>
+      TypeChecker.debugs(g, "NormNatMatch")
+      val c0 = c.incrementLevel
+      val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
+      Some(tScrutN match {
+        case NatLiteral(n) if n == 0 =>
+          val g1 = NormalizationGoal(c0, tyZero, linearExistsVars, inPositive)
+          (List(_ => g1), {
+            case NormalizationJudgment(_, _, _, tyZeroN) :: Nil =>
+              (true, NormalizationJudgment("NormNatMatch", c, ty, tyZeroN))
+            case _ =>
+              emitErrorWithJudgment("NormNatMatch", g, None)
+          })
+        case NatLiteral(n) =>
+          // TODO: Re-type here instead?
+          val c1 = c0
+            .bind(id, SingletonType(NatType, NatLiteral(n - 1)))
+          val g1 = NormalizationGoal(c1, tySucc, linearExistsVars, inPositive)
+          (List(_ => g1), {
+            case NormalizationJudgment(_, _, _, tySuccN) :: Nil =>
+              (true, NormalizationJudgment("NormNatMatch", c, ty, tySuccN))
+            case _ =>
+              emitErrorWithJudgment("NormNatMatch", g, None)
+          })
+        case _ =>
+          (List(), {
+            case _ =>
+              (true, NormalizationJudgment("NormNatMatch", c, ty, NatMatchType(tScrutN, tyZero, tySuccBind)))
+          })
+      })
     case g =>
       None
   })
@@ -422,9 +481,14 @@ trait ScalaDepRules {
           (tyN, Var(idF))
         case ListMatchType(_, _, _) =>
           // TODO: To be checked
-          val idL = Identifier.fresh("l")
-          newBindings ::= idL -> ty
-          (ty, Var(idL))
+          val idLM = Identifier.fresh("lm")
+          newBindings ::= idLM -> ty
+          (ty, Var(idLM))
+        case NatMatchType(_, _, _) =>
+          // TODO: To be checked
+          val idNM = Identifier.fresh("nm")
+          newBindings ::= idNM -> ty
+          (ty, Var(idNM))
         case SigmaType(ty1, Bind(id, ty2)) =>
           val (ty1UnderlyingN, t1) = rec(ty1)
           val (ty2UnderlyingN, t2) = rec(ty2)
@@ -473,7 +537,7 @@ trait ScalaDepRules {
         case LeftTree(t) => LeftTree(recTerm(t))
         case RightTree(t) => RightTree(recTerm(t))
         // Don't dive into terms that might use chooses referring to a different `p`:
-        case FixWithDefault(_, _, _) => t
+        case FixWithDefault(_, _, _, _) => t
         case _: NatLiteral | _: BooleanLiteral | _: UnitLiteral.type | _: Lambda => t
       }
     def recType(ty: Tree): Tree =
@@ -581,6 +645,28 @@ trait ScalaDepRules {
       None
   })
 
+  val SubNatMatch = Rule("SubNatMatch", {
+    case g @ SubtypeGoal(c,
+      tya @ NatMatchType(t, tyZero, Bind(id, tySucc)),
+      tyb
+    ) =>
+      TypeChecker.debugs(g, "SubNatMatch")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tyZero, tyb)
+      val g2 = SubtypeGoal(c0.bind(id, NatType), tySucc, tyb)
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubNatMatch", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubNatMatch", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+
   val SubListMatch = Rule("SubListMatch", {
     case g @ SubtypeGoal(c,
       tya @ ListMatchType(t, tyNil, Bind(idHead, Bind(idTail, tyCons))),
@@ -629,6 +715,10 @@ trait ScalaDepRules {
           } else {
             false
           }
+        case (LNil(), LNil(), _) =>
+          true
+        case (LCons(t11, t12), LCons(t21, t22), _) =>
+          rec(t11, t21, TopType) && rec(t12, t22, LList)
         case (Pair(t11, t12), Pair(t21, t22), SigmaType(u1, Bind(_, u2))) =>
           rec(t11, t21, u1) && rec(t12, t22, u2)
         case (First(t1), First(t2), u) =>
@@ -699,6 +789,32 @@ trait ScalaDepRules {
       None
   })
 
+  val InferNatMatch1 = Rule("InferNatMatch1", {
+    case g @ InferGoal(c, e @ NatMatch(t, t1, Bind(id, t2))) =>
+      TypeChecker.debugs(g, "InferNatMatch1")
+      val c0 = c.incrementLevel
+      val inferScrutinee = CheckGoal(c0, t, NatType)
+
+      val inferT1 = InferGoal(c0, t1)
+
+      val c1 = c0.bind(id, NatType)
+      val inferT2 = InferGoal(c1, c1.freshen(t2))
+
+      Some((
+        List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
+          case CheckJudgment(_, _, _, _) ::
+            InferJudgment(_, _, _, ty1) ::
+            InferJudgment(_, _, _, ty2) :: _ =>
+              (true, InferJudgment("InferNatMatch1", c, e,
+                NatMatchType(t, ty1, Bind(id, ty2))))
+
+          case _ => emitErrorWithJudgment("InferNatMatch1", g, None)
+        }
+      ))
+
+    case _ => None
+  })
+
   val InferListMatch = Rule("InferListMatch", {
     case g @ InferGoal(c, e @ ListMatch(t, t1, Bind(idHead, Bind(idTail, t2)))) =>
       TypeChecker.debugs(g, "InferListMatch")
@@ -708,7 +824,7 @@ trait ScalaDepRules {
       val inferT1 = InferGoal(c0, t1)
 
       val c1 = c0.bind(idHead, TopType).bind(idTail, LList)
-      val inferT2 = InferGoal(c1, t2)
+      val inferT2 = InferGoal(c1, c1.freshen(t2))
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
@@ -726,7 +842,7 @@ trait ScalaDepRules {
   })
 
   val InferFixWithDefault = Rule("InferFixWithDefault", {
-    case g @ InferGoal(c, e @ FixWithDefault(ty, t @ Bind(fIn, tBody), td)) =>
+    case g @ InferGoal(c, e @ FixWithDefault(ty, t @ Bind(fIn, tBody), td, _)) =>
       TypeChecker.debugs(g, "InferFixWithDefault")
 
       val c0 = c.incrementLevel

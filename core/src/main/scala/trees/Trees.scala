@@ -819,6 +819,8 @@ case class Identifier(id: Int, name: String) extends Positioned {
   def isTypeIdentifier: Boolean = name.size > 0 && name(0).isUpper
   def isTermIdentifier: Boolean = name.size > 0 && name(0).isLower
 
+  def freshen(): Identifier = Identifier.fresh(name)
+
   def wrap: String = {
     if (isTypeIdentifier) s"[$this]"
     else s"($this)"

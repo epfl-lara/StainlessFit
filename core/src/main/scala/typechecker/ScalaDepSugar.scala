@@ -110,6 +110,20 @@ object ScalaDepSugar {
     }
   }
 
+  object NatMatchType {
+    def apply(l: Tree, tyZero: Tree, tySucc: Tree)(implicit rc: RunContext): Tree = tySucc match {
+      case Bind(id, _) =>
+        Node("NatMatchType", Seq(l, tyZero, tySucc))
+      case _ =>
+        rc.reporter.fatalError("Expecting one bind in the third argument of `NatMatchType`")
+    }
+
+    def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
+      case Node("NatMatchType", Seq(t, tyZero, tySucc)) => Some((t, tyZero, tySucc))
+      case _ => None
+    }
+  }
+
   object Choose {
     val unusedPath = Identifier.fresh("p")
     val PathType = LList
@@ -132,18 +146,18 @@ object ScalaDepSugar {
   }
 
   object FixWithDefault {
-    val globalFuel = NatLiteral(123)
+    val maxRecDepth = 123
 
-    def apply(ty: Tree, t: Bind, td: Tree): Tree =
-      Node("FixWithDefault", Seq(ty, t, td))
-    def unapply(t: Tree): Option[(Tree, Bind, Tree)] = t match {
-      case Node("FixWithDefault", Seq(ty, t: Bind, td)) =>
-        Some((ty, t, td))
+    def apply(ty: Tree, t: Bind, td: Tree, depthFuel: Int): Tree =
+      Node("FixWithDefault", Seq(ty, t, td, NatLiteral(depthFuel)))
+    def unapply(t: Tree): Option[(Tree, Bind, Tree, Int)] = t match {
+      case Node("FixWithDefault", Seq(ty, t: Bind, td, NatLiteral(depthFuel))) =>
+        Some((ty, t, td, depthFuel.toInt))
       case _ =>
         None
     }
 
-    def lower(t: Bind, td: Tree)(implicit rc: RunContext): Tree = {
+    def lower(t: Bind, td: Tree, depthFuel: Int)(implicit rc: RunContext): Tree = {
       val Bind(fIn, tBody) = t
       val fOut = Identifier.fresh("fOut")
       val fIn2 = Identifier.fresh("fIn2")
@@ -157,7 +171,7 @@ object ScalaDepSugar {
           Bind(newFuel,
             tBody.replace(fIn, App(Var(fIn2), Var(newFuel)))))))
       val fix = Fix(None, Bind(unused, Bind(fIn2, body)))
-      LetIn(None, fix, Bind(fOut, App(Var(fOut), globalFuel)))
+      LetIn(None, fix, Bind(fOut, App(Var(fOut), NatLiteral(depthFuel))))
     }
   }
 }
