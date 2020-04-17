@@ -93,7 +93,7 @@ object FitLexer extends Lexers with CharRegExps {
     word("as") | word("fun of") | word("keep") |
     word("if") | word("else") | word("case") |
     word("match") | word("nat_match") | word("Nat_Match") |
-    word("list_match") | word("List_Match") |
+    word("list_match") | word("List_Match") | word("Cons") |
     word("nil") | word("cons") | word("List") |
     word("fix") | word("fixD") | word("fun") | word("val") |
     word("error") |
@@ -241,6 +241,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val natMatchTypeK: Syntax[Unit] = elem(KeywordClass("Nat_Match")).unit(KeywordToken("Nat_Match"))
   val listMatchK: Syntax[Unit] = elem(KeywordClass("list_match")).unit(KeywordToken("list_match"))
   val listMatchTypeK: Syntax[Unit] = elem(KeywordClass("List_Match")).unit(KeywordToken("List_Match"))
+  val consTypeK: Syntax[Unit] = elem(KeywordClass("Cons")).unit(KeywordToken("Cons"))
   val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
   val caseK: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case"))
   val valK: Syntax[Unit] = elem(KeywordClass("val")).unit(KeywordToken("val"))
@@ -427,7 +428,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     refinementOrSingletonType | refinementByType |
     macroTypeInst | equalityType |
     piType | sigmaType | forallType | polyForallType |
-    existsType | natMatchType | listMatchType
+    existsType | natMatchType | listMatchType | consType
 
   lazy val typeExpr: Syntax[Tree] = recursive { arrows }
 
@@ -815,6 +816,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     }, {
       case ListMatchType(e, ty1, Bind(idHead, Bind(idTail, ty2))) =>
         Seq(e ~ ty1 ~ idHead ~ idTail ~ ty2)
+      case _ => Seq()
+    })
+
+  lazy val consType: Syntax[Tree] =
+    (consTypeK.skip ~ lsbra.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rsbra.skip).map({
+      case (tyHead ~ tyTail) => LConsType(tyHead, tyTail)
+      case _ => sys.error("Unreachable")
+    }, {
+      case LConsType(tyHead, tyTail) => Seq(tyHead ~ tyTail)
       case _ => Seq()
     })
 

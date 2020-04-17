@@ -198,6 +198,10 @@ object Namer {
         val (newTNil, max2) = namer(tNil, m, max1)
         val (newTCons, max3) = namer(tCons, m, max2)
         (ListMatch(newT, newTNil, newTCons), max3)
+      case LConsType(t1, t2) =>
+        val (newT1, max1) = namer(t1, m, max)
+        val (newT2, max2) = namer(t2, m, max1)
+        (LConsType(newT1, newT2), max2)
 
       case _ => throw new java.lang.Exception(s"Function `namer` is not defined on tree: $t")
     }

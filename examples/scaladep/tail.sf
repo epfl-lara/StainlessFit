@@ -7,7 +7,7 @@ val tail =
   };
 
 val xs1 = cons 1 (cons 2 nil);
-val res1 [{[List] cons 2 nil}] = tail xs1;
+val res1 [{ [Cons[{[Nat] 2}, {[List] nil}]] cons 2 nil }] = tail xs1;
 
 val xs2 [List] = xs1;
 val res2 [List] = tail xs2;

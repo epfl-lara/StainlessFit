@@ -38,6 +38,7 @@ class ScalaDep(implicit val rc: RunContext)
     NormExists.t ||
     NormNatMatch.t ||
     NormListMatch.t ||
+    NormCons.t ||
     NormPi.t ||
     NormSigma.t ||
     SubNormalize.t ||
@@ -45,6 +46,7 @@ class ScalaDep(implicit val rc: RunContext)
     SubExistsRight.t ||
     SubNatMatch.t ||
     SubListMatch.t ||
+    SubCons.t ||
     SubPi.t ||
     SubSigma.t ||
     SubReflexive.t ||

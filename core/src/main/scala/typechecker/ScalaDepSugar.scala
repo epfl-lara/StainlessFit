@@ -60,12 +60,18 @@ object ScalaDepSugar {
 
   val idHead2 = Identifier.fresh("x")
   val idTail2 = Identifier.fresh("xs")
-  // cons :  (head: Top) => (tail: List) => { [List] cons head tail }
-  // val LConsType: Tree = PiType(TopType, Bind(idHead2,
-  //   PiType(LList, Bind(idTail2,
-  //     SingletonType(LList, App(App(LCons(), Var(idHead2)), Var(idTail2)))
-  //   ))
-  // ))
+
+  object LConsType {
+    def apply(tyHead: Tree, tyTail: Tree): Tree =
+      Node("ConsType", Seq(tyHead, tyTail))
+
+    def unapply(ty: Tree): Option[(Tree, Tree)] = ty match {
+      case Node("ConsType", Seq(tyHead, tyTail)) =>
+        Some((tyHead, tyTail))
+      case _ =>
+        None
+    }
+  }
 
 
   object ListMatch {

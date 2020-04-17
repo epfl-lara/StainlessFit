@@ -185,14 +185,20 @@ trait ScalaDepRules {
   })
 
   val InferCons = Rule("InferCons", {
-    case g @ InferGoal(c, e @ LCons(x, xs)) =>
+    case g @ InferGoal(c, e @ LCons(tHead, tTail)) =>
       TypeChecker.debugs(g, "InferCons")
       val c0 = c.incrementLevel
-      val g1 = InferGoal(c0, x)
-      val g2 = CheckGoal(c0, xs, LList)
-      Some((List(_ => g1, _ => g2), {
-        case InferJudgment(_, _, _, _) :: CheckJudgment(_, _, _, _) :: Nil =>
-          (true, InferJudgment("InferCons", c, e, SingletonType(LList, e)))
+      val g1 = InferGoal(c0, tHead)
+      val g2 = InferGoal(c0, tTail)
+      val g3: List[Judgment] => Goal = {
+        case _ :: InferJudgment(_, _, _, tyTail) :: Nil =>
+          NormalizedSubtypeGoal(c0, tyTail, LList)
+        case _ =>
+          ErrorGoal(c0, None)
+      }
+      Some((List(_ => g1, _ => g2, g3), {
+        case InferJudgment(_, _, _, tyHead) :: InferJudgment(_, _, _, tyTail) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, InferJudgment("InferCons", c, e, SingletonType(LConsType(tyHead, tyTail), e)))
         case _ =>
           emitErrorWithJudgment("InferCons", g, None)
       }))
@@ -407,6 +413,22 @@ trait ScalaDepRules {
       None
   })
 
+  val NormCons = Rule("NormCons", {
+    case g @ NormalizationGoal(c, ty @ LConsType(tyHead, tyTail), linearExistsVars, inPositive) =>
+      TypeChecker.debugs(g, "NormCons")
+      val c0 = c.incrementLevel
+      val g1 = NormalizationGoal(c0, tyHead, linearExistsVars, inPositive)
+      val g2 = NormalizationGoal(c0, tyTail, linearExistsVars, inPositive)
+      Some((List(_ => g1, _ => g2), {
+        case NormalizationJudgment(_, _, _, tyHeadN) :: NormalizationJudgment(_, _, _, tyTailN) :: Nil =>
+          (true, NormalizationJudgment("NormCons", c, ty, LConsType(tyHeadN, tyTailN)))
+        case _ =>
+          emitErrorWithJudgment("NormCons", g, None)
+      }))
+    case g =>
+      None
+  })
+
   val NormPi = Rule("NormPi", {
     case g @ NormalizationGoal(c, ty @ PiType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
       TypeChecker.debugs(g, "NormPi")
@@ -489,6 +511,10 @@ trait ScalaDepRules {
           val idNM = Identifier.fresh("nm")
           newBindings ::= idNM -> ty
           (ty, Var(idNM))
+        case LConsType(ty1, ty2) =>
+          val (ty1UnderlyingN, t1) = rec(ty1)
+          val (ty2UnderlyingN, t2) = rec(ty2)
+          (LConsType(ty1UnderlyingN, ty2UnderlyingN), LCons(t1, t2))
         case SigmaType(ty1, Bind(id, ty2)) =>
           val (ty1UnderlyingN, t1) = rec(ty1)
           val (ty2UnderlyingN, t2) = rec(ty2)
@@ -725,8 +751,12 @@ trait ScalaDepRules {
 
   def matchAndGenerateSubGoals(c: Context, t1: Tree, t2: Tree, ty1Underlying: Tree, bindings2: Map[Identifier, Tree]): Option[List[Goal]] = {
     var goals = List.empty[Goal]
+    def fail(msg: String): Boolean = {
+      goals += ErrorGoal(c, Some(msg))
+      true // Allows matching to pass, but derivation is guaranteed to fail in sub goal
+    }
     def rec(t1: Tree, t2: Tree, ty1Underlying: Tree): Boolean =
-      (t1, t2, ty1Underlying) match {
+      (t1, t2, widen(ty1Underlying)) match {
         case (ChooseWithPath(ty1, path1), ChooseWithPath(ty2, path2), _) =>
           Tree.areEqual(ty1, ty2) && Tree.areEqual(path1, path2)
         case (Var(id1), Var(id2), _) if id1 == id2 =>
@@ -742,10 +772,14 @@ trait ScalaDepRules {
           }
         case (LNil(), LNil(), _) =>
           true
-        case (LCons(t11, t12), LCons(t21, t22), _) =>
-          rec(t11, t21, TopType) && rec(t12, t22, LList)
+        case (LCons(t11, t12), LCons(t21, t22), LConsType(tyHead, tyTail)) =>
+          rec(t11, t21, tyHead) && rec(t12, t22, tyTail)
+        case (LCons(_, _), LCons(_, _), u) =>
+          fail(s"Expected ConsType as underlying of lhs term, found: ${asString(u)}")
         case (Pair(t11, t12), Pair(t21, t22), SigmaType(u1, Bind(_, u2))) =>
           rec(t11, t21, u1) && rec(t12, t22, u2)
+        case (Pair(_, _), Pair(_, _), u) =>
+          fail(s"Expected SigmaType as underlying of lhs term, found: ${asString(u)}")
         case (First(t1), First(t2), u) =>
           rec(t1, t2, SigmaType(u, Bind(Identifier.fresh("u"), TopType)))
         case (Second(t1), Second(t2), u) =>
@@ -865,6 +899,20 @@ trait ScalaDepRules {
       ))
 
     case _ => None
+  })
+
+  val SubCons = Rule("SubCons", {
+    case g @ SubtypeGoal(c,
+      tya @ LConsType(_, _),
+      tyb @ `LList`
+    ) =>
+      TypeChecker.debugs(g, "SubCons")
+      Some((List(), _ => {
+        (true, SubtypeJudgment("SubCons", c, tya, tyb))
+      }))
+
+    case g =>
+      None
   })
 
   val InferFixWithDefault = Rule("InferFixWithDefault", {

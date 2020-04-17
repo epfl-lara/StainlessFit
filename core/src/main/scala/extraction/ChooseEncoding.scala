@@ -115,5 +115,9 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case Second(t) =>
       val (nt, nn) = encode(path, n, t)
       (Second(nt), nn)
+
+    case LConsType(ty1, ty2) =>
+      val (Seq(nTy1, nTy2), n2) = encode(path, n, Seq(ty1, ty2))
+      (LConsType(nTy1, nTy2), n2)
   }
 }
