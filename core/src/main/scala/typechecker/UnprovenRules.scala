@@ -135,8 +135,18 @@ trait UnprovenRules {
           case Var(id) => vars = id :: vars
           case _ => ()
         }
-        // Find the first variable which has an equality binding in the context and replace its occurrences with the binding
-        collectFirst(vars, (id: Identifier) => findEquality(c.termVariables.keys.toList, c.termVariables, id).map(v => Tree.replace(id, v, t)))
+        // Find the first variable which has an equality binding such that expanding this variable changes the tree
+        collectFirst[Identifier, Tree](vars, (id: Identifier) => {
+          findEquality(c.termVariables.keys.toList, c.termVariables, id) match {
+            case Some(v) =>
+              val newt = Tree.replace(id, v, t)
+              if (newt == t)
+                None
+              else
+                Some(newt)
+            case None => None
+          }
+        })
       }
       replaceVar(t1).map(nt1 => EqualityType(nt1, t2)) orElse replaceVar(t2).map(nt2 => EqualityType(t1, nt2))
     case _ => None
