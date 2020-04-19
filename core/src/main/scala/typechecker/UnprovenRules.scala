@@ -128,17 +128,17 @@ trait UnprovenRules {
   // for all substitutions consistent with c, the denotations of ty and ty'
   // are the same.
   def expandVars(c: Context, t: Tree): Option[Tree] = t match {
-    case Var(id) => findEquality(c.termVariables.keys.toList, c.termVariables, id)
-    case Primitive(op, args) =>
-      mapFirst2(args, (arg: Tree) => expandVars(c, arg)).map(newArgs =>
-        Primitive(op, newArgs)
-      )
-    case App(t1, t2) =>
-      expandVars(c, t1).map[Tree](newT1 => App(newT1, t2)) orElse
-      expandVars(c, t2).map[Tree](newT2 => App(t1, newT2))
     case EqualityType(t1, t2) =>
-      expandVars(c, t1).map[Tree](newT1 => EqualityType(newT1, t2)) orElse
-      expandVars(c, t2).map[Tree](newT2 => EqualityType(t1, newT2))
+      def replaceVar(t: Tree): Option[Tree] = {
+        var vars: List[Identifier] = List()
+        t.traversePost {
+          case Var(id) => vars = id :: vars
+          case _ => ()
+        }
+        // Find the first variable which has an equality binding in the context and replace its occurrences with the binding
+        collectFirst(vars, (id: Identifier) => findEquality(c.termVariables.keys.toList, c.termVariables, id).map(v => Tree.replace(id, v, t)))
+      }
+      replaceVar(t1).map(nt1 => EqualityType(nt1, t2)) orElse replaceVar(t2).map(nt2 => EqualityType(t1, nt2))
     case _ => None
   }
 
