@@ -2,6 +2,8 @@ package stainlessfit
 package core
 package codegen.llvm
 
+import core.codegen.utils.LocalHandler
+
 object IR {
 
   abstract class Instruction
@@ -14,16 +16,10 @@ object IR {
   case class Label (val label: String){
     override def toString: String = s"%$label"
     def printLabel: String = s"$label:"
-    def dot(s: String): Label = {
-      new Label(label + "." + s)
-    }
   }
 
   case class Local (val name: String){
     override def toString: String = s"%$name"
-    def dot(s: String): Local = {
-      new Local(name + "." + s)
-    }
   }
 
   case class Global (val name: String){
@@ -42,9 +38,9 @@ object IR {
     override def toString(): String =  "i32"
   }
 
-  case class PointerType(tpe: Type) extends Type
-
   case class PairType(firstType: Type, secondType: Type) extends Type
+  case class FirstType(funType: Type) extends Type
+  case class SecondType(funType: Type) extends Type
 
   case class FunctionReturnType(funName: Global) extends Type
 
@@ -126,13 +122,15 @@ object IR {
     override def toString: String = "sdiv"
   }
 
+  case class Variable(local: Local) extends Instruction
+
   case class BinaryOp(op: Op, result: Local, lhs: Value, rhs: Value) extends Instruction
   case class UnaryOp(op: Op, result: Local, operand: Value) extends Instruction
 
   case class Phi(res: Local, typee: Type, candidates: List[(Local, Label)]) extends Instruction
   case class Assign(result: Local, typee: Type, from: Value) extends Instruction
+  case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
 
-  case class Variable(local: Local) extends Instruction
   //Terminator instructions
   case class Branch(condition: Value, ifTrue: Label, ifFalse: Label) extends Instruction
   case class Jump(destination: Label) extends Instruction
@@ -146,13 +144,16 @@ object IR {
   case class Store(value: Value, tpe: Type, ptr: Local) extends Instruction
   case class Load(result: Local, tpe: Type, ptr: Local) extends Instruction
 
-  case class PrintBool(bool: Local, local: Local) extends Instruction
-
   case class GepToFirst(result: Local, tpe: Type, pair: Local) extends Instruction
   case class GepToSecond(result: Local, tpe: Type, pair: Local) extends Instruction
   case class Malloc(result: Local, temp1: Local, temp2: Local, temp3: Local, tpe: Type) extends Instruction
-  case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
-  case class Printf(value: Value, tpe: Type) extends Instruction
+
+  //Pretty printing instructions
+  case class PrintResult(toPrint: Local, tpe: Type, lh: LocalHandler) extends Instruction
+
+  case class PrintNat(value: Value) extends Instruction
+  case class PrintBool(bool: Local) extends Instruction
+
   case object PrintOpen extends Instruction
   case object PrintClose extends Instruction
   case object PrintComma extends Instruction

@@ -92,15 +92,11 @@ object Core {
   def compileFile(f: File)(implicit rc: RunContext): Either[String, String] = {
     parseFile(f) flatMap { src =>
 
-      // println(s"Printing the AST before the pipeline:\n$src")
-      //
       val (t, _) = extraction.compilePipeline.transform(src)
-      //
-      // println(s"Printing the AST after the pipeline:\n$t")
-      //val module = CodeGen.genLLVM(t, true)
+
       val module = CodeGen.genLLVM(t, true, f.getName)
 
-      LLVMPrinter.run(rc)(module)
+      LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
     }
   }
 

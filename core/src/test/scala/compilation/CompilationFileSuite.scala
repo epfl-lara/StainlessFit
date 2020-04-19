@@ -18,9 +18,8 @@ class CompilationFileSuite extends FunSuite {
       (Core.evalFile(f), Core.compileFile(f)) match {
         case (Left(_), _) => assert(false)
         case (_, Left(_)) => assert(false)
-        case (Right(evalRes), Right(compileRes)) => {
+        case (Right(evalRes), Right(compileRes)) =>
           assert(Printer.exprAsString(evalRes) == compileRes)
-        }
       }
     }
   }

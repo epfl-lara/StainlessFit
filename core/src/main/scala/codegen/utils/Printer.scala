@@ -11,7 +11,7 @@ import java.io._
 
 object Printer {
 
-  def run(rc: RunContext)(module : Module): Either[String, String] = {
+  def run(rc: RunContext, printInfo: Boolean)(module : Module): Either[String, String] = {
     val outDirName = "LLVM_out"
     val filename = module.name.substring(0, module.name.lastIndexOf("."))
 
@@ -49,14 +49,18 @@ object Printer {
       (exitValue, stdoutStream.toString, stderrStream.toString)
     }
 
-    def reporterSelect(output: String) =
-      if(output.contains("warning")){
-        rc.reporter.warning(output)
-      } else if(output.contains("error")){
-        rc.reporter.fatalError(output)
-      } else if(output.size != 0){
-        rc.reporter.info(output)
+    def reporterSelect(output: String) = {
+        if(output.contains("error")){
+          rc.reporter.fatalError(output)
+        }
+
+        if(printInfo && output.contains("warning")){
+          rc.reporter.warning(output)
+        } else if(printInfo && output.size != 0){
+          rc.reporter.info(output)
+        }
       }
+
 
     def llvm(action: String) = {
       val (exec, program, errorMsg) = if(action == "optimize"){
@@ -87,7 +91,7 @@ object Printer {
       outDir.mkdir()
     }
 
-    module.printToFile(genOutput)
+    module.printToFile(genOutput)(rc)
 
     llvm("optimize")
 
@@ -95,12 +99,12 @@ object Printer {
 
     try {
       val (exitValue, standardOutput, errOutput) = rc.bench.time("Execution"){ runCommand(s"./$compiled") }
-      rc.reporter.info(standardOutput)
+      reporterSelect(standardOutput)
       reporterSelect(errOutput)
       Right(standardOutput)
     } catch {
       case _: RuntimeException =>
-      rc.reporter.warning(s"Could not run the file: $compiled. Check permissions")
+      rc.reporter.fatalError(s"Could not run the file: $compiled. Check permissions")
       Left("")
     }
   }
