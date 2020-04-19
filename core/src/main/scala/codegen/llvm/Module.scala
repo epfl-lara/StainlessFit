@@ -14,20 +14,14 @@ case class Module(name: String, main: Function, functions: List[Function]) {
   //TODO add external functions
   import java.io.{File, FileWriter}
 
-  def printToFile(filename: String) = {
+  def printToFile(filename: String)(implicit rc: RunContext) = {
     val writer = new FileWriter(new File(filename))
-    writer.write(ModulePrinter(this))
+    writer.write(ModulePrinter.run(this))
     writer.flush()
   }
 
   def add(block: Block): Unit = main.add(block)
 }
-
-// object Module {
-//   def apply(name: String): Module =
-//     //Module(name, Function.main(tpe), ArrayBuffer.empty[Function])
-//     Module(name, Function.main(tpe), Nil)
-// }
 
 class TargetTriple {
   //TODO

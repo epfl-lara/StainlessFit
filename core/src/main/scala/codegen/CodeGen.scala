@@ -19,7 +19,7 @@ class CodeGen(implicit val rc: RunContext) extends Phase[Module] {
 }
 
 object CodeGen {
-    def genLLVM(tree: Tree, isMain: Boolean, moduleName: String)(implicit rc: RunContext): Module = {
+    def genLLVM(tree: Tree, isMainModule: Boolean, moduleName: String)(implicit rc: RunContext): Module = {
 
         def cgModule(inputTree: Tree): Module = {
           val lh = new LocalHandler(rc)
@@ -27,13 +27,6 @@ object CodeGen {
           val (defFunctions, body) = extractDefFun(inputTree)
 
           val functions = defFunctions map cgDefFunction
-
-          // val mainReturnType = resultType(body)(lh) match {
-          //   case FunctionReturnType(funName) => functions.filter(_.name == funName).head.returnType
-          //   case otherType => otherType
-          // }
-          //
-          // val main = cgFunction(mainReturnType, Global("main"), Nil, body, true)
 
           val main = cgFunction(IRNatType, Global("main"), Nil, body, true)
 
@@ -53,7 +46,8 @@ object CodeGen {
 
           val (funId, body) = extractBody(bind)
 
-          val returnType = translateType(optReturnType.getOrElse(rc.reporter.fatalError("")))
+          val returnType = translateType(optReturnType.getOrElse(rc.reporter.fatalError("No return type found")))
+
           cgFunction(returnType, Global(funId.name), params, body)
         }
 
@@ -73,43 +67,17 @@ object CodeGen {
           function.add(entryBlock)
 
           val endBlock = lh.newBlock(end)
+
           val (print, returnValue) = if(isMain){
             val printType = resultType(body)(lh)
-            (customPrint(result, printType, true)(lh), Value(Nat(0)))
+
+            (List(PrintResult(result, printType, lh)), Value(Nat(0)))
           } else {
             (Nil, Value(result))
           }
 
           function.add(endBlock <:> phi <:> print <:> Return(returnValue, returnType))
           function
-        }
-
-        def customPrint(toPrint: Local, tpe: Type, parentheses: Boolean)(implicit lh: LocalHandler): List[Instruction] = tpe match {
-          case PointerType(PairType(firstType, secondType)) => {
-
-            val (firstLocal, secondLocal) = (lh.freshLocal("first"), lh.freshLocal("second"))
-
-            val (firstPtr, secondPtr) = (lh.freshLocal(".first.gep"), lh.freshLocal(".second.gep"))
-
-            val prep = List(
-              GepToFirst(firstPtr, tpe, toPrint),
-              Load(firstLocal, PointerType(firstType), firstPtr),
-              GepToSecond(secondPtr, tpe, toPrint),
-              Load(secondLocal, PointerType(secondType), secondPtr)
-            )
-
-            val printFirst = customPrint(firstLocal, firstType, true)
-            val printSecond = customPrint(secondLocal, secondType, false)
-
-            val pair = printFirst ++ List(PrintComma) ++ printSecond
-            val (open, close) = if(parentheses) (List(PrintOpen), List(PrintClose)) else (Nil, Nil)
-            open ++ prep ++ pair ++ close
-          }
-
-          case BooleanType => List(PrintBool(toPrint, lh.freshLocal(".boolean")))
-
-          case _ => List(Printf(Value(toPrint), tpe))
-          //TODO add case for Left and Right type
         }
 
         def extractDefFun(t: Tree): (List[DefFunction], Tree) = t match {
@@ -152,7 +120,8 @@ object CodeGen {
           case NatType => IRNatType
           case UnitType => IRUnitType
           case Bind(_, rest) => translateType(rest) //TODO Is this necessary
-          case _ => rc.reporter.fatalError(s"Unkown type $tpe")
+          case SigmaType(tpe, bind) => PairType(translateType(tpe), translateType(bind))
+          case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
         }
 
         def translateValue(t: Tree)(implicit lh: LocalHandler): Value = t match {
@@ -163,7 +132,8 @@ object CodeGen {
           case _ => rc.reporter.fatalError(s"This tree isn't a value: $t")
         }
 
-        def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local])(implicit lh: LocalHandler): List[Instruction] = {
+        def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local])
+        (implicit lh: LocalHandler): List[Instruction] = {
           val jump = jumpTo(next)
           val assign = List(Assign(assignee(toAssign), tpe, value))
           if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
@@ -185,14 +155,6 @@ object CodeGen {
           case _ => rc.reporter.fatalError(s"flattenPrimitive is not defined for $t")
         }
 
-        def flattenParams(t: Tree): List[Tree] = t match {
-          //TODO might not be needed at all (flattenApp is what is being used)
-          case BooleanLiteral(_) | NatLiteral(_) | UnitLiteral => List(t)
-          case Pair(first, second) => first +: flattenParams(second)
-          case Primitive(_, _) => List(t)
-          case _ => rc.reporter.fatalError(s"flattenParams is not defined fo $t")
-        }
-
         def flattenApp(t: Tree): (Identifier, List[Tree]) = t match {
           case App(Var(id), arg) => (id, List(arg))
           case App(recApp @ App(_, _), arg) => {
@@ -211,18 +173,26 @@ object CodeGen {
           case LetIn(_, _, Bind(_, rest)) => resultType(rest)
           case Primitive(op, _) => translateOp(op).returnType
           case IfThenElse(_, thenn, _) => resultType(thenn)
-          case App(Var(funId), _) => FunctionReturnType(Global(funId.name))
+
           case app @ App(_, _) => FunctionReturnType(Global(flattenApp(app)._1.name))
-          case Pair(first, second) => PointerType(PairType(resultType(first), resultType(second)))
+
+          case Pair(first, second) => PairType(resultType(first), resultType(second))
+
           case First(pair) => resultType(pair) match {
-            case PointerType(PairType(firstType, _)) => firstType
+            case tpe @ FunctionReturnType(_) => FirstType(tpe)
+            case PairType(firstType, _) => firstType
+            case nested @ FirstType(_) => FirstType(nested)
+            case nested @ SecondType(_) => FirstType(nested)
             case other => rc.reporter.fatalError(s"Unexpected operation: calling First on type $other")
           }
-
           case Second(pair) => resultType(pair) match {
-            case PointerType(PairType(_, secondType)) => secondType
+            case tpe @ FunctionReturnType(_) => SecondType(tpe)
+            case PairType(_, secondType) => secondType
+            case nested @ FirstType(_) => SecondType(nested)
+            case nested @ SecondType(_) => SecondType(nested)
             case other => rc.reporter.fatalError(s"Unexpected operation: calling Second on type $other")
           }
+
           case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
         }
 
@@ -272,7 +242,7 @@ object CodeGen {
           }
 
         def filterErasable(t: Tree): Tree = t match {
-          case //LetIn(_, _, _) |
+          case
             MacroTypeDecl(_, _) |
             MacroTypeInst(_, _) |
             ErasableApp(_, _) |
@@ -302,29 +272,30 @@ object CodeGen {
             case call @ App(_, _) => cgFunctionCall(call, block, next, toAssign)
 
             case Pair(first, second) => {
-              val firstLocal = lh.freshLocal("first")
-              val secondLocal = lh.freshLocal("second")
-
-              val (firstBlock, firstPhi) = codegen(first, block, None, Some(firstLocal))
-              val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal))
-
-              val t1 = lh.freshLocal(".malloc.gep")
-              val t2 = lh.freshLocal(".malloc.size")
-              val t3 = lh.freshLocal(".malloc.ptr")
               val pair = assignee(toAssign)
+              val firstLocal = lh.dot(pair, "first")
+              val secondLocal = lh.dot(pair, "second")
+
+              val t1 = lh.dot(pair, "malloc.gep")
+              val t2 = lh.dot(pair, "malloc.size")
+              val t3 = lh.dot(pair, "malloc")
+
               val pairType = resultType(inputTree)
               val malloc = Malloc(pair, t1, t2, t3, pairType) //will assigne toAssign
 
-              val (firstPtr, secondPtr) = (lh.freshLocal(".first.gep"), lh.freshLocal(".second.gep"))
+              val (firstBlock, firstPhi) = codegen(first, block <:> malloc, None, Some(firstLocal))
+              val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal))
+
+              val (firstPtr, secondPtr) = (lh.dot(pair, "first.gep"), lh.dot(pair, "second.gep"))
 
               val initialise = List(
                 GepToFirst(firstPtr, pairType, pair),
-                Store(Value(firstLocal), PointerType(resultType(first)), firstPtr),
+                Store(Value(firstLocal), resultType(first), firstPtr),
                 GepToSecond(secondPtr, pairType, pair),
-                Store(Value(secondLocal), PointerType(resultType(second)), secondPtr)
+                Store(Value(secondLocal), resultType(second), secondPtr)
               )
 
-              (secondBlock <:> secondPhi <:> malloc <:> initialise <:> jumpTo(next), Nil)
+              (secondBlock <:> secondPhi <:> initialise <:> jumpTo(next), Nil)
             }
 
             case First(pair) => { //TODO refactor first and second since they are identical?
@@ -332,11 +303,12 @@ object CodeGen {
               val (currentBlock, phi) = codegen(pair, block, None, Some(pairLocal))
 
               val pairType = resultType(pair)
-              val firstPtr = lh.freshLocal(".first.gep")
+              val assignLocal = assignee(toAssign)
+              val firstPtr = lh.dot(assignLocal, "first.gep")
 
               val prep = List(
                 GepToFirst(firstPtr, pairType, pairLocal),
-                Load(assignee(toAssign), PointerType(resultType(inputTree)), firstPtr)
+                Load(assignLocal, resultType(inputTree), firstPtr)
               )
 
               (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
@@ -347,12 +319,14 @@ object CodeGen {
               val pairLocal = lh.freshLocal("pair")
               val (currentBlock, phi) = codegen(pair, block, None, Some(pairLocal))
 
+              val assignLocal = assignee(toAssign)
+
               val pairType = resultType(pair)
-              val secondPtr = lh.freshLocal(".second.gep")
+              val secondPtr = lh.dot(pairLocal, "second.gep")
 
               val prep = List(
                 GepToSecond(secondPtr, pairType, pairLocal),
-                Load(assignee(toAssign), PointerType(resultType(inputTree)), secondPtr)
+                Load(assignLocal, resultType(inputTree), secondPtr)
               )
 
               (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
@@ -368,12 +342,12 @@ object CodeGen {
 
             case IfThenElse(cond, thenn, elze) => {
 
-              val condLocal = lh.freshLocal()
+              val condLocal = lh.freshLocal("cond")
 
-              val trueLocal = lh.freshLocal()
+              val trueLocal = lh.freshLocal("phi")
               val tBlock = lh.newBlock("then")
 
-              val falseLocal = lh.freshLocal()
+              val falseLocal = lh.freshLocal("phi")
               val fBlock = lh.newBlock("else")
 
               val afterLocal = lh.freshLocal()
@@ -419,7 +393,7 @@ object CodeGen {
               val operation = values match {
                 case List(operand) => UnaryOp(translateOp(op), assignee(toAssign), operand)
                 case List(leftOp, rightOp) => BinaryOp(translateOp(op), assignee(toAssign), leftOp, rightOp)
-                case other => rc.reporter.fatalError(s"Unexpected number of arguments for operator $op. Was ${other.size} but expected 1 or 2")
+                case other => rc.reporter.fatalError(s"Unexpected number of arguments for operator $op. Expected 1 or 2 but was ${other.size}")
               }
 
               (currentBlock <:> operation <:> jump, Nil)
