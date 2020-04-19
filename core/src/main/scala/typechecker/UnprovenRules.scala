@@ -127,35 +127,36 @@ trait UnprovenRules {
   // For a type ty, it should hold that if expandVars(c, ty) = Some(ty'), then
   // for all substitutions consistent with c, the denotations of ty and ty'
   // are the same.
-  def expandVars(c: Context, t: Tree): Option[Tree] = t match {
-    case EqualityType(t1, t2) =>
-      def replaceVar(t: Tree): Option[Tree] = {
-        var vars: List[Identifier] = List()
-        t.traversePost {
-          case Var(id) => vars = id :: vars
-          case _ => ()
-        }
-        // Find the first variable which has an equality binding such that expanding this variable changes the tree
-        collectFirst[Identifier, Tree](vars, (id: Identifier) => {
-          findEquality(c.termVariables.keys.toList, c.termVariables, id) match {
-            case Some(v) =>
-              val newt = Tree.replace(id, v, t)
-              if (newt == t)
-                None
-              else
-                Some(newt)
-            case None => None
-          }
-        })
+  def expandVarsInTerm(c: Context, t: Tree): Option[Tree] = {
+    var vars: List[Identifier] = List()
+    t.traversePost {
+      case Var(id) => vars = id :: vars
+      case _ => ()
+    }
+    // Find the first variable which has an equality binding such that expanding this variable changes the tree
+    collectFirst[Identifier, Tree](vars, (id: Identifier) => {
+      findEquality(c.termVariables.keys.toList, c.termVariables, id) match {
+        case Some(v) =>
+          val newt = Tree.replace(id, v, t)
+          if (newt == t)
+            None
+          else
+            Some(newt)
+        case None => None
       }
-      replaceVar(t1).map(nt1 => EqualityType(nt1, t2)) orElse replaceVar(t2).map(nt2 => EqualityType(t1, nt2))
+    })
+  }
+
+  def expandVarsInType(c: Context, t: Tree): Option[Tree] = t match {
+    case EqualityType(t1, t2) => expandVarsInTerm(c, t1).map(nt1 => EqualityType(nt1, t2)) orElse
+      expandVarsInTerm(c, t2).map(nt2 => EqualityType(t1, nt2))
     case _ => None
   }
 
   def expandVars(c: Context, l: List[Identifier]): Option[Context] = l match {
     case Nil => None
     case v :: vs if c.termVariables.contains(v) =>
-      expandVars(c.copy(termVariables = c.termVariables - v), c.termVariables(v)).map(
+      expandVarsInType(c.copy(termVariables = c.termVariables - v), c.termVariables(v)).map(
         ty => c.copy(termVariables = c.termVariables.updated(v, ty))
       ) orElse expandVars(c, vs)
     case _ :: vs => expandVars(c, vs)
@@ -166,18 +167,18 @@ trait UnprovenRules {
   def expandVars(g: Goal): Option[Goal] = g match {
     case InferGoal(c, t) =>
       expandVars(c).map(newC => InferGoal(newC, t): Goal) orElse
-      expandVars(c, t).map(newT => InferGoal(c, newT): Goal)
+        expandVarsInTerm(c, t).map(newT => InferGoal(c, newT): Goal)
     case CheckGoal(c, t, tp) =>
       expandVars(c).map(newC => CheckGoal(newC, t, tp): Goal) orElse
-      expandVars(c, t).map(newT => CheckGoal(c, newT, tp): Goal) orElse
-      expandVars(c, tp).map(newTp => CheckGoal(c, t, newTp): Goal)
+        expandVarsInTerm(c, t).map(newT => CheckGoal(c, newT, tp): Goal) orElse
+        expandVarsInType(c, tp).map(newTp => CheckGoal(c, t, newTp): Goal)
     case EqualityGoal(c, t1, t2) =>
       expandVars(c).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
-      expandVars(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
-      expandVars(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
+        expandVarsInTerm(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
+        expandVarsInTerm(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
     case SynthesisGoal(c, tp) =>
       expandVars(c).map(newC => SynthesisGoal(newC, tp): Goal) orElse
-      expandVars(c, tp).map(newTp => SynthesisGoal(c, newTp): Goal)
+        expandVarsInType(c, tp).map(newTp => SynthesisGoal(c, newTp): Goal)
     case _ => None
   }
 
