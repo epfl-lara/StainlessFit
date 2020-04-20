@@ -752,7 +752,7 @@ trait ScalaDepRules {
   def matchAndGenerateSubGoals(c: Context, t1: Tree, t2: Tree, ty1Underlying: Tree, bindings2: Map[Identifier, Tree]): Option[List[Goal]] = {
     var goals = List.empty[Goal]
     def fail(msg: String): Boolean = {
-      goals += ErrorGoal(c, Some(msg))
+      goals = ErrorGoal(c, Some(msg)) :: goals
       true // Allows matching to pass, but derivation is guaranteed to fail in sub goal
     }
     def rec(t1: Tree, t2: Tree, ty1Underlying: Tree): Boolean =
@@ -802,7 +802,7 @@ trait ScalaDepRules {
         // case FixWithDefault(_, _, _) => t
         // case _: NatLiteral | _: BooleanLiteral | _: UnitLiteral.type | _: Lambda => t
       }
-    if (rec(t1, t2, ty1Underlying)) Some(goals) else None
+    if (rec(t1, t2, ty1Underlying)) Some(goals.reverse) else None
   }
 
   val SubExistsLeft = Rule("SubExistsLeft", {
