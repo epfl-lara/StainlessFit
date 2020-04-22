@@ -37,20 +37,25 @@ class LocalHandler(val rc : RunContext) {
     Block(blockIndex, label, Nil)
   }
 
-  def freshLocal(name: String): Local = Local(name + counter.next(name))
+  def nextIndex(name: String): String = counter.next(name) match {
+    case -1 => ""
+    case idx => s"$idx"
+  }
+
+  def freshLocal(name: String): Local = Local(name + nextIndex(name))
   def freshLocal(id: SfIdentifier): Local = Local(translateId(id))
   def freshLocal(): Local = freshLocal("local")
   def dot(local: Local, s: String) = freshLocal(s"${local.name}.$s")
 
-  def freshLabel(name: String): Label = Label(name + counter.next(name))
+  def freshLabel(name: String): Label = Label(name + nextIndex(name))
   def freshLabel(id: SfIdentifier): Label = Label(translateId(id))
   def freshLabel(): Label = freshLabel("label")
   def dot(label: Label, s: String) = freshLabel(s"${label.label}.$s")
 
-  def freshGlobal(name: String): Global = Global(name + counter.next(name))
-  def freshGlobal(id: SfIdentifier): Global = Global(translateId(id))
-  def freshGlobal(): Global = freshGlobal("global")
-  def dot(global: Global, s: String) = freshGlobal(s"${global.name}.$s")
+  // def freshGlobal(name: String): Global = Global(name + counter.next(name))
+  // def freshGlobal(id: SfIdentifier): Global = Global(translateId(id))
+  // def freshGlobal(): Global = freshGlobal("global")
+  def dot(global: Global, s: String) = freshLocal(s"${global.name}.$s")
 
   def translateId(id: SfIdentifier): String = id.toString.replace("#", "_")
 }

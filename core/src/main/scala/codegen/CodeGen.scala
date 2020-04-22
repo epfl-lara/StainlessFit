@@ -121,6 +121,7 @@ object CodeGen {
           case UnitType => IRUnitType
           case Bind(_, rest) => translateType(rest) //TODO Is this necessary
           case SigmaType(tpe, bind) => PairType(translateType(tpe), translateType(bind))
+          case SumType(leftType ,rightType) => EitherType(translateType(leftType), translateType(rightType))
           case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
         }
 
@@ -135,10 +136,10 @@ object CodeGen {
         def cgValue(tpe: Type, value: Value, next: Option[Label], toAssign: Option[Local])
         (implicit lh: LocalHandler): List[Instruction] = {
           val jump = jumpTo(next)
-          val assign = List(Assign(assignee(toAssign), tpe, value))
+          val assign = Assign(assignee(toAssign), tpe, value)
           if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
 
-          assign ++ jump
+          assign +: jump
         }
 
         def isValue(t: Tree): Boolean = t match {
@@ -193,52 +194,28 @@ object CodeGen {
             case other => rc.reporter.fatalError(s"Unexpected operation: calling Second on type $other")
           }
 
+          case LeftTree(either) => LeftType(resultType(either))
+          case RightTree(either) => RightType(resultType(either))
+
           case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
         }
 
-        def cgIntermediateBlocks(flatArgs: List[Tree], initialBlock: Block)(implicit lh: LocalHandler, f: Function): (Block, List[Value]) = {
-
-          val argLocals = flatArgs.map{
-            case arg if isValue(arg) => Left(translateValue(arg))
-            case arg => Right(lh.freshLocal())
-          }
-
-          val init: (Block, List[Value]) = (initialBlock, Nil)
-
-          val (cB, valueList: List[Value]) = argLocals.zip(flatArgs).foldLeft(init) {
-            case ((currentBlock, values), (Left(value), arg)) => {
-              (currentBlock, values :+ value)
-            }
-
-            case ((currentBlock, values), (Right(local), arg)) => {
-              //TODO check if an intermediate block is necessary (or let it be removed by clang)
-              val tempLabel = lh.freshLabel("tempBlock")
-              val tempBlock = lh.newBlock(tempLabel)
-
-              val afterLabel = lh.freshLabel("afterBlock")
-              val afterBlock = lh.newBlock(afterLabel)
-
-              f.add(currentBlock <:> Jump(tempLabel))
-
-              val (otherBlock, phi) = codegen(arg, tempBlock, Some(afterLabel), Some(local))
-              f.add(otherBlock)
-              (afterBlock <:> phi, values :+ Value(local))
-            }
-          }
-
-          (cB, valueList)
-        }
-
-        def cgFunctionCall(call: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
+        def cgFunctionBodyCall(call: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
           (implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) = {
             val (funId, flatArgs) = flattenApp(call)
-
-            val (cB, valueList) = cgIntermediateBlocks(flatArgs, block)
+            val init: (Block, List[Value]) = (block, Nil)
+            val (currentBlock, values) = flatArgs.zipWithIndex.map{ case (arg, index) => (arg, lh.freshLocal(s"arg_$index")) }
+            .foldLeft(init){
+              case ((currentBlock, values), (arg, temp)) => {
+                val (nextBlock, phi) = codegen(arg, currentBlock, None, Some(temp))
+                (nextBlock <:> phi, values :+ Value(temp))
+              }
+            }
 
             val result = assignee(toAssign)
-
             val jump = jumpTo(next)
-            (cB <:> Call(result, Global(funId.name), valueList) <:> jump, Nil)
+
+            (currentBlock <:> Call(result, Global(funId.name), values) <:> NoOp <:> jump, Nil)
           }
 
         def filterErasable(t: Tree): Tree = t match {
@@ -262,14 +239,14 @@ object CodeGen {
         def assignee(toAssign: Option[Local])(implicit lh: LocalHandler) = toAssign getOrElse lh.freshLocal
         def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
 
-        def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
+        def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local], eitherType: Option[EitherType] = None)
           (implicit lh: LocalHandler, f: Function): (Block, List[Instruction]) =
 
           filterErasable(inputTree) match {
 
             case value if isValue(value) => (block <:> cgValue(resultType(value), translateValue(value), next, toAssign), Nil)
 
-            case call @ App(_, _) => cgFunctionCall(call, block, next, toAssign)
+            case call @ App(_, _) => cgFunctionBodyCall(call, block, next, toAssign)
 
             case Pair(first, second) => {
               val pair = assignee(toAssign)
@@ -283,16 +260,18 @@ object CodeGen {
               val pairType = resultType(inputTree)
               val malloc = Malloc(pair, t1, t2, t3, pairType) //will assigne toAssign
 
-              val (firstBlock, firstPhi) = codegen(first, block <:> malloc, None, Some(firstLocal))
+              val (firstBlock, firstPhi) = codegen(first, block <:> malloc <:> NoOp, None, Some(firstLocal))
               val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal))
 
               val (firstPtr, secondPtr) = (lh.dot(pair, "first.gep"), lh.dot(pair, "second.gep"))
 
               val initialise = List(
-                GepToFirst(firstPtr, pairType, pair),
+                GepToIdx(firstPtr, pairType, Value(pair), Some(0)),
                 Store(Value(firstLocal), resultType(first), firstPtr),
-                GepToSecond(secondPtr, pairType, pair),
-                Store(Value(secondLocal), resultType(second), secondPtr)
+                NoOp,
+                GepToIdx(secondPtr, pairType, Value(pair), Some(1)),
+                Store(Value(secondLocal), resultType(second), secondPtr),
+                NoOp
               )
 
               (secondBlock <:> secondPhi <:> initialise <:> jumpTo(next), Nil)
@@ -307,8 +286,9 @@ object CodeGen {
               val firstPtr = lh.dot(assignLocal, "first.gep")
 
               val prep = List(
-                GepToFirst(firstPtr, pairType, pairLocal),
-                Load(assignLocal, resultType(inputTree), firstPtr)
+                GepToIdx(firstPtr, pairType, Value(pairLocal), Some(0)),
+                Load(assignLocal, resultType(inputTree), firstPtr),
+                NoOp
               )
 
               (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
@@ -325,18 +305,21 @@ object CodeGen {
               val secondPtr = lh.dot(pairLocal, "second.gep")
 
               val prep = List(
-                GepToSecond(secondPtr, pairType, pairLocal),
-                Load(assignLocal, resultType(inputTree), secondPtr)
+                GepToIdx(secondPtr, pairType, Value(pairLocal), Some(1)),
+                Load(assignLocal, resultType(inputTree), secondPtr),
+                NoOp
               )
 
               (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
             }
 
-            case LetIn(_, valueBody, Bind(newVar, rest)) => {
+            case LetIn(optTpe, valueBody, Bind(newVar, rest)) => {
                 val local = lh.freshLocal(newVar)
 
+                val tpe = optTpe.fold(resultType(valueBody))(translateType)
+
                 val (tempBlock, phi) = codegen(valueBody, block, None, Some(local))
-                lh.add(newVar, ParamDef(resultType(valueBody), local))
+                lh.add(newVar, ParamDef(tpe, local))
                 codegen(rest, tempBlock <:> phi, next, toAssign)
             }
 
@@ -399,6 +382,20 @@ object CodeGen {
               (currentBlock <:> operation <:> jump, Nil)
             }
 
+            case EitherMatch(t, t1, t2) => ???
+
+            case LeftTree(either) => {
+              if(eitherType.isDefined){
+                //e.type = getelementptr eitherType, eitherType* i32 0, i32 0
+                //e.left = getelementptr eitherType, eitherType* i32 0, i32 1
+                //e.right = getelementptr eitherType, eitherType* i32 0, i32 2
+                //store 0 in the first position
+                //store either in the second position
+              }
+
+              ???
+            }
+            case RightTree(either) => ???
             case _ => rc.reporter.fatalError(s"codegen not implemented for $inputTree")
           }
 

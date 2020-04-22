@@ -39,8 +39,12 @@ object IR {
   }
 
   case class PairType(firstType: Type, secondType: Type) extends Type
-  case class FirstType(funType: Type) extends Type
-  case class SecondType(funType: Type) extends Type
+  case class FirstType(nested: Type) extends Type
+  case class SecondType(nested: Type) extends Type
+
+  case class EitherType(leftType: Type, rightType: Type) extends Type
+  case class LeftType(either: Type) extends Type
+  case class RightType(either: Type) extends Type
 
   case class FunctionReturnType(funName: Global) extends Type
 
@@ -144,8 +148,9 @@ object IR {
   case class Store(value: Value, tpe: Type, ptr: Local) extends Instruction
   case class Load(result: Local, tpe: Type, ptr: Local) extends Instruction
 
-  case class GepToFirst(result: Local, tpe: Type, pair: Local) extends Instruction
-  case class GepToSecond(result: Local, tpe: Type, pair: Local) extends Instruction
+  // case class GepToFirst(result: Local, tpe: Type, pair: Local) extends Instruction
+  // case class GepToSecond(result: Local, tpe: Type, pair: Local) extends Instruction
+  case class GepToIdx(result: Local, tpe: Type, ptr: Value, idx: Option[Int]) extends Instruction
   case class Malloc(result: Local, temp1: Local, temp2: Local, temp3: Local, tpe: Type) extends Instruction
 
   //Pretty printing instructions
@@ -159,4 +164,5 @@ object IR {
   case object PrintComma extends Instruction
   case object PrintTrue extends Instruction
   case object PrintFalse extends Instruction
+  case object NoOp extends Instruction
 }
