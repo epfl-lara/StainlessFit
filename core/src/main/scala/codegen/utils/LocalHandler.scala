@@ -52,10 +52,5 @@ class LocalHandler(val rc : RunContext) {
   def freshLabel(): Label = freshLabel("label")
   def dot(label: Label, s: String) = freshLabel(s"${label.label}.$s")
 
-  // def freshGlobal(name: String): Global = Global(name + counter.next(name))
-  // def freshGlobal(id: SfIdentifier): Global = Global(translateId(id))
-  // def freshGlobal(): Global = freshGlobal("global")
-  def dot(global: Global, s: String) = freshLocal(s"${global.name}.$s")
-
   def translateId(id: SfIdentifier): String = id.toString.replace("#", "_")
 }

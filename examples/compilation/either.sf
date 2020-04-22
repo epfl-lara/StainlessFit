@@ -1,4 +1,4 @@
-fun test [returns (Bool + Nat)] = {
+fun test(boolean [Bool]) [returns (Bool + Nat)] = {
 
   val bs [Bool + Nat] = if(true){
     left true
@@ -8,9 +8,11 @@ fun test [returns (Bool + Nat)] = {
 
   val n = 3;
 
-if(true){
+if(boolean){
     left true
   } else {
     right 3
   }
 }
+
+right (left (test(false)))

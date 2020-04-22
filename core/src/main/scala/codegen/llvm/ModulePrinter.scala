@@ -14,34 +14,36 @@ object ModulePrinter {
    implicit def s2d(s: String) = Raw(s)
 
    val openGlobal = "@.open"
-   val open = " unnamed_addr constant [2 x i8] c\"(\\00\", align 1"
+   val open = "unnamed_addr constant [2 x i8] c\"(\\00\", align 1"
 
    val closeGlobal = "@.close"
-   val close = " unnamed_addr constant [2 x i8] c\")\\00\", align 1"
+   val close = "unnamed_addr constant [2 x i8] c\")\\00\", align 1"
 
    val commaGlobal = "@.comma"
-   val comma = " unnamed_addr constant [3 x i8] c\", \\00\", align 1"
+   val comma = "unnamed_addr constant [3 x i8] c\", \\00\", align 1"
 
    val natGlobal = "@.nat"
-   val nat = " unnamed_addr constant [3 x i8] c\"%d\\00\", align 1"
+   val nat = "unnamed_addr constant [3 x i8] c\"%d\\00\", align 1"
 
    val trueGlobal = "@.true"
-   val true_ = " unnamed_addr constant [6 x i8] c\"true\\00\\00\", align 1"
+   val true_ = "unnamed_addr constant [6 x i8] c\"true\\00\\00\", align 1"
 
    val falseGlobal = "@.false"
-   val false_ = " unnamed_addr constant [6 x i8] c\"false\\00\", align 1"
+   val false_ = "unnamed_addr constant [6 x i8] c\"false\\00\", align 1"
 
    val leftGlobal = "@.left"
-   val left = " unnamed_addr constant [6 x i8] c\"left\\00\\00\", align 1"
+   val left = " unnamed_addr constant [7 x i8] c\"left \\00\\00\", align 1"
 
    val rightGlobal = "@.right"
-   val right = " unnamed_addr constant [6 x i8] c\"right\\00\", align 1"
+   val right = "unnamed_addr constant [7 x i8] c\"right \\00\", align 1"
 
   def printChar(c: String) = {
     val (global, size) = c match {
       case "(" => (openGlobal, 2)
       case ")" => (closeGlobal, 2)
       case "," => (commaGlobal, 3)
+      case "left" => (leftGlobal, 7)
+      case "right" => (rightGlobal, 7)
     }
     Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([$size x i8], [$size x i8]* $global, i64 0, i64 0))")
   }
@@ -150,6 +152,8 @@ object ModulePrinter {
         case PrintOpen => printChar("(")
         case PrintClose => printChar(")")
         case PrintComma => printChar(",")
+        case PrintLeft => printChar("left")
+        case PrintRight => printChar("right")
 
         case PrintBool(cond) => {
           Stacked(
@@ -159,15 +163,11 @@ object ModulePrinter {
           )
         }
 
-        case PrintResult(result, printType, lh) => Stacked(
-          ResultPrinter(result, extractNestedType(printType), lh, rc) map printInstr
-        )
-
-        case Malloc(res, t1, t2, t3, tpe) => {
+        case Malloc(res, temp, tpe) => {
           val typeString = printType(tpe, false).print
           Stacked(
-            Raw(s"$t3 = call i8* @malloc(i64 ptrtoint ($typeString* getelementptr ($typeString, $typeString* null, i32 1) to i64))"),
-            Raw(s"$res = bitcast i8* $t3 to $typeString*")
+            Raw(s"$temp = call i8* @malloc(i64 ptrtoint ($typeString* getelementptr ($typeString, $typeString* null, i32 1) to i64))"),
+            Raw(s"$res = bitcast i8* $temp to $typeString*")
           )
         }
 
@@ -175,7 +175,7 @@ object ModulePrinter {
           Lined(List(
             Raw(s"$result = getelementptr"),
             printType(tpe, false) <:> Raw(","),
-            printType(tpe),
+            printPointerType(tpe),
             printValue(ptr) <:> Raw(","),
             Raw("i32 0"),
             idx.fold(Raw(""))(n => s", i32 $n")
@@ -183,10 +183,10 @@ object ModulePrinter {
         }
 
         case Store(value, tpe, ptr) => Lined(List(
-          "store", printType(tpe), printValue(value), ",", printType(tpe) <:> "*", s"$ptr"), " ")
+          "store", printType(tpe), printValue(value) <:> ",", printType(tpe) <:> "*", s"$ptr"), " ")
 
         case Load(result, tpe, ptr) => Lined(List(
-          s"$result = load", printType(tpe), ",", printType(tpe) <:> "*", s"$ptr"), " ")
+          s"$result = load", printType(tpe) <:> ",", printType(tpe) <:> "*", s"$ptr"), " ")
 
         case NoOp => ""
 
@@ -210,16 +210,21 @@ object ModulePrinter {
 
 
     def printType(tpe: Type, ptr: Boolean = true): Document = extractNestedType(tpe) match {
-      case PairType(first, second) =>
-        Raw("{") <:> printType(first) <:> Raw(", ") <:> printType(second) <:> Raw("}") <:> (if(ptr) "*" else "")
       case NatType => "i32"
       case BooleanType | UnitType => "i1"
-      case EitherType(left, right) => //{i1, left, right} TODO store allocate only {i1, max(left, right)}
+      case PairType(first, second) =>
+        Raw("{") <:> printType(first) <:> Raw(", ") <:> printType(second) <:> Raw("}") <:> (if(ptr) "*" else "")
+      case EitherType(left, right) =>
         Raw("{i1, ") <:> printType(left) <:> Raw(", ") <:> printType(right) <:> Raw("}") <:> (if(ptr) "*" else "")
       case LeftType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
       case RightType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
 
       case other=> Raw(s"PLACEHOLDER: $other")
+    }
+
+    def printPointerType(tpe: Type): Document = tpe match {
+      case NatType | BooleanType | UnitType => printType(tpe) <:> "*"
+      case _ => printType(tpe)
     }
 
     def extractNestedType(tpe: Type): Type = tpe match {
@@ -236,10 +241,6 @@ object ModulePrinter {
 
       case LeftType(nested) => LeftType(extractNestedType(nested))
       case RightType(nested) => RightType(extractNestedType(nested))
-      // case RightType(nested) => extractNestedType(nested) match {
-      //   case EitherType(_, right) => right
-      //   case other => rc.reporter.fatalError(s"Cannot apply right to $other")
-      // }
 
       case other => other
     }
