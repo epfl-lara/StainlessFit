@@ -31,20 +31,25 @@ object PartialErasure {
     case ErasableLambda(_, Bind(id, body)) => erase(body)
     case Fix(_, bind) => Fix(None, erase(bind))
 
-    case LetIn(_, t1, bind) => {
-      println(s"LetIn = $t")
-      t
-    } //App(Lambda(None, erase(bind)), erase(t1))  //Let(None, erase(t1), erase(bind))
+    case LetIn(tpe, t1, bind) => LetIn(tpe, erase(t1), erase(bind)) //App(Lambda(None, erase(bind)), erase(t1))  //Let(None, erase(t1), erase(bind))
 
-    case DefFunction(_, _, _, _, _) => t
+    case DefFunction(args, optReturnType, optMeasure, body, rest) =>
+      DefFunction(args, optReturnType, optMeasure, erase(body), erase(rest))
+
     case MacroTypeDecl(tpe, Bind(id, body)) => erase(body)
     case NatMatch(t, t0, bind) => NatMatch(erase(t), erase(t0), erase(bind))
+
+    // case NatMatch(t, t0, bind) => {
+    //   val cond = Primitive(Eq, List(t, NatLiteral(BigInt(0))))
+    //   erase(IfThenElse(cond, t0, bind))
+    // }
+
     case EitherMatch(t, bind1, bind2) => EitherMatch(erase(t), erase(bind1), erase(bind2))
     case Primitive(op, args) => Primitive(op, args.map(erase(_)))
     case ErasableApp(t1, _) => erase(t1)
     case Fold(_, t) => erase(t)
-    case Unfold(t1, bind) => erase(LetIn(None, t1, bind)) //like a LetIn => erase(LetIn(None, t1, bind))
-    case UnfoldPositive(t1, bind) => erase(LetIn(None, t1, bind)) //like a LetIn => erase(LetIn(None, t1, bind))
+    case Unfold(t1, bind) => erase(LetIn(None, t1, bind))
+    case UnfoldPositive(t1, bind) => erase(LetIn(None, t1, bind))
     case Abs(Bind(id, body)) => erase(body)
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)

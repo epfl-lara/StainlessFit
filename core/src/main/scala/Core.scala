@@ -76,14 +76,23 @@ object Core {
   }
 
   def compileFile(f: File)(implicit rc: RunContext): Either[String, String] = {
-    parseFile(f) flatMap { src =>
 
-      val (t, _) = extraction.compilePipeline.transform(src)
+      typeCheckFile(f) match {
+        case Left(error) => Left(error)
+        case Right((false, _)) => Left(s"There was an error while typechecking file '$f'.")
+        case Right((true, _)) =>
+        parseFile(f) flatMap { src =>
+          val (t, _) = extraction.compilePipeline.transform(src)
 
-      val module = CodeGen.genLLVM(t, true, f.getName)
+          // println(s"Printing the ast: $t")
+          // Right("")
 
-      LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
-    }
+          rc.bench.time("Code generation"){
+            val module = CodeGen.genLLVM(t, true, f.getName)
+            LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
+          }
+        }
+      }
   }
 
   def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =

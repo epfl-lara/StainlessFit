@@ -402,6 +402,6 @@ object CodeGen {
             case _ => rc.reporter.fatalError(s"codegen not implemented for $inputTree")
           }
 
-        rc.bench.time("Code generation"){cgModule(tree)}
+        cgModule(tree)
     }
 }
