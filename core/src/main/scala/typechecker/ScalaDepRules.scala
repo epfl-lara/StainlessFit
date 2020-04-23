@@ -240,7 +240,13 @@ trait ScalaDepRules {
   })
 
   val ContextSanity = {
-    def sanityCheck(c: Context, e: Tree)(implicit rc: RunContext): Boolean = {
+    val MaxLevel = 20
+
+    def error(g: Goal, msg: String) =
+      Some((List(), (_: List[Judgment]) =>
+        emitErrorWithJudgment("ContextSanity", g, Some(msg))))
+
+    def hasBadBinding(c: Context, e: Tree)(implicit rc: RunContext): Boolean = {
       var sane = true
       e.replaceMany {
         case Bind(id, _) if c.termVariables.contains(id) =>
@@ -248,16 +254,21 @@ trait ScalaDepRules {
           None
         case _ => None
       }
-      sane
+      !sane
     }
-    def e(g: Goal) = Some((List(), (_: List[Judgment]) => emitErrorWithJudgment("ContextSanity", g, None)))
+    def checkBindings(g: Goal, t: Tree) =
+      if (hasBadBinding(g.c, t)) error(g, "Has a bad binding") else None
+
+    def checkDepth(g: Goal) =
+      if (g.c.level > MaxLevel) error(g, s"Exceeds the maximum level ($MaxLevel)") else None
+
     Rule("ContextSanity", {
       case g @ InferGoal(c, t) =>
-        if (sanityCheck(c, t)) None else e(g)
+        checkDepth(g).orElse(checkBindings(g, t))
       case g @ NormalizationGoal(c, ty, _, _) =>
-        if (sanityCheck(c, ty)) None else e(g)
-      case _ =>
-        None
+        checkDepth(g).orElse(checkBindings(g, ty))
+      case g =>
+        checkDepth(g)
     })
   }
 
@@ -291,10 +302,10 @@ trait ScalaDepRules {
       None
   })
 
-  val NormSubstVar = Rule("NormSubstVar", {
+  val NormExists1 = Rule("NormExists1", {
     case g @ NormalizationGoal(c, ty @ ExistsType(ty1 @ SingletonType(_, _), Bind(id, ty2)),
         linearExistsVars, inPositive) =>
-      TypeChecker.debugs(g, "NormSubstVar")
+      TypeChecker.debugs(g, "NormExists1")
       val c0 = c.incrementLevel
       val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
       val g2: List[Judgment] => Goal = {
@@ -306,18 +317,18 @@ trait ScalaDepRules {
       }
       Some((List(_ => g1, g2), {
         case NormalizationJudgment(_, _, _, _) :: NormalizationJudgment(_, _, _, tyN2) :: Nil =>
-          (true, NormalizationJudgment("NormSubstVar", c, ty, tyN2))
+          (true, NormalizationJudgment("NormExists1", c, ty, tyN2))
         case _ =>
-          emitErrorWithJudgment("NormSubstVar", g, None)
+          emitErrorWithJudgment("NormExists1", g, None)
       }))
     case g =>
       None
   })
 
   // NOTE: This rule should have lower priority than `NormSubstVar`.
-  val NormExists = Rule("NormExists", {
+  val NormExists2 = Rule("NormExists2", {
     case g @ NormalizationGoal(c, ty @ ExistsType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
-      TypeChecker.debugs(g, "NormExists")
+      TypeChecker.debugs(g, "NormExists2")
       val c0 = c.incrementLevel
       val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
       val g2: List[Judgment] => Goal = {
@@ -330,9 +341,9 @@ trait ScalaDepRules {
       }
       Some((List(_ => g1, g2), {
         case NormalizationJudgment(_, _, _, tyN1) :: NormalizationJudgment(_, _, _, tyN2) :: Nil =>
-          (true, NormalizationJudgment("NormExists", c, ty, ExistsType(tyN1, Bind(id, tyN2))))
+          (true, NormalizationJudgment("NormExists2", c, ty, ExistsType(tyN1, Bind(id, tyN2))))
         case _ =>
-          emitErrorWithJudgment("NormExists", g, None)
+          emitErrorWithJudgment("NormExists2", g, None)
       }))
     case g =>
       None

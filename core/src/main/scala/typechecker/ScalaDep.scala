@@ -34,8 +34,8 @@ class ScalaDep(implicit val rc: RunContext)
     CheckInfer.t ||
     NormBase.t ||
     NormSingleton.t ||
-    NormSubstVar.t ||
-    NormExists.t ||
+    NormExists1.t ||
+    NormExists2.t ||
     NormNatMatch.t ||
     NormListMatch.t ||
     NormCons.t ||
