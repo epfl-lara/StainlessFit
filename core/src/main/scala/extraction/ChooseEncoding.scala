@@ -61,6 +61,10 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       val (Seq(nt1, nt2), n2) = encode(path, n, Seq(t1, t2))
       (LCons(nt1, nt2), n2)
 
+    case SigmaType(ty1, Bind(id, ty2)) =>
+      val (Seq(nty1, nty2), n2) = encode(path, n, Seq(ty1, ty2))
+      (SigmaType(nty1, Bind(id, nty2)), n2)
+
     case PiType(ty1, Bind(id, ty2)) =>
       val path = Identifier.fresh("p")
       val (Seq(nty1, nty2), n2) = encode(Var(path), n, Seq(ty1, ty2))

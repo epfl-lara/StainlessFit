@@ -1,0 +1,7 @@
+val m = choose[Nat];
+
+val n1 [{[Nat] m}] = m;
+
+val n2 [{[Nat] choose[Nat]}] = choose[Nat];
+
+()

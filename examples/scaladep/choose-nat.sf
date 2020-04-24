@@ -3,6 +3,4 @@ val n1 [{[Nat] choose[Nat]}] = 0;
 val m [Nat] = 1;
 val n2 [{[Nat] choose[Nat]}] = m;
 
-val n3 [{[Nat] choose[Nat]}] = choose[Nat];
-
 ()
