@@ -789,13 +789,13 @@ trait ScalaDepRules {
       case _ => None
     }
 
-  val SubExistsRightInst = Rule("SubExistsRightInst", {
+  val SubExistsInst = Rule("SubExistsInst", {
     case g @ SubtypeGoal(c,
       tya @ SingletonType(ty1Underlying, t),
       tyb @ ExistsTypes(bindings2,
         SingletonType(ty2Underlying, Var(id)))
     ) if bindings2.toMap.contains(id) =>
-      TypeChecker.debugs(g, "SubExistsRightInst")
+      TypeChecker.debugs(g, "SubExistsInst")
 
       val ty2Base = bindings2.toMap.apply(id)
 
@@ -813,8 +813,8 @@ trait ScalaDepRules {
       Some((
         List(_ => g1, _ => g2), {
           case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-            (true, SubtypeJudgment("SubExistsRightInst", c, tya, tyb))
-          case _ => emitErrorWithJudgment("SubExistsRightInst", g, None)
+            (true, SubtypeJudgment("SubExistsInst", c, tya, tyb))
+          case _ => emitErrorWithJudgment("SubExistsInst", g, None)
         }
       ))
 
@@ -842,12 +842,12 @@ trait ScalaDepRules {
     (SubtypeGoal(c, tyLeft, tyRightWrapped), usedExistentials)
   }
 
-  val SubExistsRightCons = Rule("SubExistsRightCons", {
+  val SubExistsCons = Rule("SubExistsCons", {
     case g @ SubtypeGoal(c,
       tya @ SingletonType(tyU, LCons(ta1, ta2)),
       tyb @ ExistsTypes(bindings2, SingletonType(tyV, LCons(tb1, tb2)))
     ) if bindings2.nonEmpty =>
-      TypeChecker.debugs(g, "SubExistsRightCons")
+      TypeChecker.debugs(g, "SubExistsCons")
 
       (widen(tyU), widen(tyV)) match {
         case (LConsType(tyU1, tyU2), LConsType(tyV1, tyV2)) =>
@@ -858,8 +858,8 @@ trait ScalaDepRules {
           Some((
             List(_ => g1, _ => g2), {
               case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-                (true, SubtypeJudgment("SubExistsRightCons", c, tya, tyb))
-              case _ => emitErrorWithJudgment("SubExistsRightCons", g, None)
+                (true, SubtypeJudgment("SubExistsCons", c, tya, tyb))
+              case _ => emitErrorWithJudgment("SubExistsCons", g, None)
             }
           ))
 
@@ -871,12 +871,12 @@ trait ScalaDepRules {
       None
   })
 
-  val SubExistsRightPair = Rule("SubExistsRightPair", {
+  val SubExistsPair = Rule("SubExistsPair", {
     case g @ SubtypeGoal(c,
       tya @ SingletonType(tyU, Pair(ta1, ta2)),
       tyb @ ExistsTypes(bindings2, SingletonType(tyV, Pair(tb1, tb2)))
     ) if bindings2.nonEmpty =>
-      TypeChecker.debugs(g, "SubExistsRightPair")
+      TypeChecker.debugs(g, "SubExistsPair")
 
       (widen(tyU), widen(tyV)) match {
         case (SigmaType(tyU1, Bind(id, tyU2)), SigmaType(tyV1, Bind(idRight, tyV2))) =>
@@ -889,8 +889,8 @@ trait ScalaDepRules {
           Some((
             List(_ => g1, _ => g2), {
               case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-                (true, SubtypeJudgment("SubExistsRightPair", c, tya, tyb))
-              case _ => emitErrorWithJudgment("SubExistsRightPair", g, None)
+                (true, SubtypeJudgment("SubExistsPair", c, tya, tyb))
+              case _ => emitErrorWithJudgment("SubExistsPair", g, None)
             }
           ))
 

@@ -43,9 +43,9 @@ class ScalaDep(implicit val rc: RunContext)
     NormSigma.t ||
     SubNormalize.t ||
     SubExistsLeft.t ||
-    SubExistsRightInst.t ||
-    SubExistsRightCons.t ||
-    SubExistsRightPair.t ||
+    SubExistsInst.t ||
+    SubExistsCons.t ||
+    SubExistsPair.t ||
     SubNatMatch.t ||
     SubListMatch.t ||
     SubCons.t ||
