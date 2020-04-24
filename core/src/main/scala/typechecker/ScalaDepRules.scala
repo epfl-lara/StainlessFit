@@ -822,27 +822,6 @@ trait ScalaDepRules {
       None
   })
 
-  val SubExistsRightDrop = Rule("SubExistsRightDrop", {
-    case g @ SubtypeGoal(c,
-      tya,
-      tyb @ ExistsType(Choose.PathType, Bind(id, ty2))
-    ) if !id.isFreeIn(ty2) =>
-      TypeChecker.debugs(g, "SubExistsRightDrop")
-
-      val c0 = c.incrementLevel
-      val g1 = SubtypeGoal(c0, tya, ty2)
-      Some((
-        List(_ => g1), {
-          case SubtypeJudgment(_, _, _, _) :: Nil =>
-            (true, SubtypeJudgment("SubExistsRightDrop", c, tya, tyb))
-          case _ => emitErrorWithJudgment("SubExistsRightDrop", g, None)
-        }
-      ))
-
-    case g =>
-      None
-  })
-
   def existsRightSubgoal(c: Context, tyU: Tree, tLeft: Tree, tyV: Tree, tRight: Tree, bindingsRight: Seq[(Identifier, Tree)]): (Goal, Set[Identifier]) = {
     def usedExistentialsOf(t: Tree): Set[Identifier] = {
       val bindingsRightMap = bindingsRight.toMap
