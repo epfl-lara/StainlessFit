@@ -66,9 +66,9 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       (SigmaType(nty1, Bind(id, nty2)), n2)
 
     case PiType(ty1, Bind(id, ty2)) =>
-      val path = Identifier.fresh("p")
-      val (Seq(nty1, nty2), n2) = encode(Var(path), n, Seq(ty1, ty2))
-      (PiType(Choose.PathType, Bind(path, PiType(nty1, Bind(id, nty2)))), n2)
+      val (Seq(nty1, nty2), n2) = encode(path, n, Seq(ty1, ty2))
+      val newPathId = Identifier.fresh("p")
+      (PiType(Choose.PathType, Bind(newPathId, PiType(nty1, Bind(id, nty2)))), n2)
 
     case NatMatch(t, t0, Bind(id, ts)) =>
       val (Seq(nt, nt0, nts), n2) = encode(path, n, Seq(t, t0, ts))
