@@ -855,6 +855,7 @@ trait ScalaDepRules {
           val (g1, usedExistentials1) = existsRightSubgoal(c0, tyU1, ta1, tyV1, tb1, bindings2)
           val (g2, usedExistentials2) = existsRightSubgoal(c0, tyU2, ta2, tyV2, tb2, bindings2)
           assert(usedExistentials1.intersect(usedExistentials2).isEmpty)
+          assert(usedExistentials1 ++ usedExistentials2 == bindings2.toMap.keys.toSet)
           Some((
             List(_ => g1, _ => g2), {
               case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
@@ -886,6 +887,7 @@ trait ScalaDepRules {
           val (g1, usedExistentials1) = existsRightSubgoal(c0, tyU1, ta1, tyV1, tb1, bindings2)
           val (g2, usedExistentials2) = existsRightSubgoal(c1, tyU2, ta2, tyV2.replace(idRight, Var(id)), tb2.replace(idRight, Var(id)), bindings2)
           assert(usedExistentials1.intersect(usedExistentials2).isEmpty)
+          assert(usedExistentials1 ++ usedExistentials2 == bindings2.toMap.keys.toSet)
           Some((
             List(_ => g1, _ => g2), {
               case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
