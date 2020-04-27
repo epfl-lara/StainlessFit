@@ -781,124 +781,91 @@ trait ScalaDepRules {
       None
   })
 
-  def pathPrefixIdent(t: Tree): Option[Identifier] =
-    t match {
-      case LCons(_, tTail) => pathPrefixIdent(tTail)
-      case Var(id) => Some(id)
-      case _ => None
+  def matchExistentials(t1: Tree, t2: Tree, ty1Underlying: Tree, bindings2: Map[Identifier, Tree]): Option[Map[Identifier, (Tree, Tree)]] = {
+    var matched: Map[Identifier, (Tree, Tree)] = Map.empty
+    def fail(msg: String): Boolean = {
+      rc.reporter.warning(s"Couldn't match terms (with existentials): $msg")
+      false
     }
-
-  val SubExistsInst = Rule("SubExistsInst", {
-    case g @ SubtypeGoal(c,
-      tya @ SingletonType(ty1Underlying, t),
-      tyb @ ExistsTypes(bindings2,
-        SingletonType(ty2Underlying, Var(id)))
-    ) if bindings2.toMap.contains(id) =>
-      TypeChecker.debugs(g, "SubExistsInst")
-
-      val ty2Base = bindings2.toMap.apply(id)
-
-      // Replace `id` by `t`
-      val ty2UnderlyingInst = ty2Underlying.replace(id, t)
-      val bindings2Rest = bindings2.filterNot(_._1 == id)
-      val ty2UnderlyingInstWrapped =
-        bindings2Rest.foldRight(ty2UnderlyingInst) { case ((id, ty), acc) =>
-          ExistsType(ty, Bind(id, acc))
-        }
-
-      val c0 = c.incrementLevel
-      val g1 = SubtypeGoal(c0, tya, ty2UnderlyingInstWrapped)
-      val g2 = SubtypeGoal(c0, tya, ty2Base)
-      Some((
-        List(_ => g1, _ => g2), {
-          case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-            (true, SubtypeJudgment("SubExistsInst", c, tya, tyb))
-          case _ => emitErrorWithJudgment("SubExistsInst", g, None)
-        }
-      ))
-
-    case g =>
-      None
-  })
-
-  def existsRightSubgoal(c: Context, tyU: Tree, tLeft: Tree, tyV: Tree, tRight: Tree, bindingsRight: Seq[(Identifier, Tree)]): (Goal, Set[Identifier]) = {
-    def usedExistentialsOf(t: Tree): Set[Identifier] = {
-      val bindingsRightMap = bindingsRight.toMap
-      var ids = Set.empty[Identifier]
-      t.replaceMany {
-        case Var(id) if bindingsRightMap.contains(id) => ids += id; None
-        case _ => None
+    def rec(t1: Tree, t2: Tree, ty1Underlying: Tree): Boolean =
+      (t1, t2, widen(ty1Underlying)) match {
+        case (ChooseWithPath(ty1, path1), ChooseWithPath(ty2, path2), _) =>
+          Tree.areEqual(ty1, ty2) && Tree.areEqual(path1, path2)
+        case (Var(id1), Var(id2), _) if id1 == id2 =>
+          true
+        case (t1, Var(id2), ty1Underlying) =>
+          if (bindings2.contains(id2)) {
+            if (!matched.contains(id2))
+              matched += id2 -> (ty1Underlying, t1)
+            true
+          } else {
+            false
+          }
+        case (LNil(), LNil(), _) =>
+          true
+        case (LCons(t11, t12), LCons(t21, t22), LConsType(tyHead, tyTail)) =>
+          rec(t11, t21, tyHead) && rec(t12, t22, tyTail)
+        case (LCons(_, _), LCons(_, _), u) =>
+          fail(s"Expected ConsType as underlying of lhs term, found: ${asString(u)}")
+        case (Pair(t11, t12), Pair(t21, t22), SigmaType(u1, Bind(id, u2))) =>
+          // FIXME: Should replace `id` by `t11` in `t22`?
+          rec(t11, t21, u1) && rec(t12, t22, u2)
+        case (Pair(_, _), Pair(_, _), u) =>
+          fail(s"Expected SigmaType as underlying of lhs term, found: ${asString(u)}")
+        case (First(t1), First(t2), u) =>
+          rec(t1, t2, SigmaType(u, Bind(Identifier.fresh("u"), TopType)))
+        case (Second(t1), Second(t2), u) =>
+          rec(t1, t2, SigmaType(TopType, Bind(Identifier.fresh("u"), u)))
+        case (LeftTree(t1), LeftTree(t2), u) =>
+          rec(t1, t2, SumType(u, TopType))
+        case (RightTree(t1), RightTree(t2), u) =>
+          rec(t1, t2, SumType(TopType, u))
+        case (NatLiteral(n1), NatLiteral(n2), _) => n1 == n2
+        case (BooleanLiteral(b1), BooleanLiteral(b2), _) => b1 == b2
+        case (UnitLiteral, UnitLiteral, _) => true
+        case _ => false // TODO: Implement rest
+        // TODO: Take care of `exists Path`
+        // case (App(t11, t12), App(t21, t22)) => rec(t11, t21) && rec(t12, t22)
+        // case LetIn(optTy, value, Bind(id, body)) =>
+        //   LetIn(optTy, recTerm(value), Bind(id, recTerm(body)))
+        // case NatMatch(t, t1, Bind(id2, t2)) =>
+        //   NatMatch(recTerm(t), recTerm(t1), Bind(id2, recTerm(t2)))
+        // case EitherMatch(t, Bind(id1, t1), Bind(id2, t2)) =>
+        //   EitherMatch(recTerm(t), Bind(id1, recTerm(t1)), Bind(id2, recTerm(t2)))
+        // case ListMatch(t, t1, Bind(idHead, Bind(idTail, t2))) =>
+        //   ListMatch(recTerm(t), recTerm(t1), Bind(idHead, Bind(idTail, recTerm(t2))))
+        // // Don't dive into terms that might use chooses referring to a different `p`:
+        // case FixWithDefault(_, _, _) => t
+        // case _: Lambda => t
       }
-      ids
+    if (rec(t1, t2, ty1Underlying)) {
+      assert(matched.keys.toSet == bindings2.keys.toSet)
+      Some(matched)
+    } else {
+      None
     }
-
-    val tyLeft = SingletonType(tyU, tLeft)
-    val tyRight = SingletonType(tyV, tRight)
-    val usedExistentials = usedExistentialsOf(tyRight)
-    val tyRightWrapped = bindingsRight
-      .filter { case (id, _ ) => usedExistentials.contains(id) }
-      .foldRight(tyRight) { case ((id, ty), acc) => ExistsType(ty, Bind(id, acc)) }
-    (SubtypeGoal(c, tyLeft, tyRightWrapped), usedExistentials)
   }
 
-  val SubExistsCons = Rule("SubExistsCons", {
+  val SubExistsRight = Rule("SubExistsRight", {
     case g @ SubtypeGoal(c,
-      tya @ SingletonType(tyU, LCons(ta1, ta2)),
-      tyb @ ExistsTypes(bindings2, SingletonType(tyV, LCons(tb1, tb2)))
+      tya @ SingletonType(ty1Underlying, t1),
+      tyb @ ExistsTypes(bindings2, SingletonType(_, t2))
     ) if bindings2.nonEmpty =>
-      TypeChecker.debugs(g, "SubExistsCons")
+      TypeChecker.debugs(g, "SubExistsRight")
 
-      (widen(tyU), widen(tyV)) match {
-        case (LConsType(tyU1, tyU2), LConsType(tyV1, tyV2)) =>
-          val c0 = c.incrementLevel
-          val (g1, usedExistentials1) = existsRightSubgoal(c0, tyU1, ta1, tyV1, tb1, bindings2)
-          val (g2, usedExistentials2) = existsRightSubgoal(c0, tyU2, ta2, tyV2, tb2, bindings2)
-          assert(usedExistentials1.intersect(usedExistentials2).isEmpty)
-          assert(usedExistentials1 ++ usedExistentials2 == bindings2.toMap.keys.toSet)
-          Some((
-            List(_ => g1, _ => g2), {
-              case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-                (true, SubtypeJudgment("SubExistsCons", c, tya, tyb))
-              case _ => emitErrorWithJudgment("SubExistsCons", g, None)
-            }
-          ))
-
-        case _ =>
-          None
+      matchExistentials(t1, t2, ty1Underlying, bindings2.toMap).map { matched =>
+        val c0 = c.incrementLevel
+        val goals = bindings2.map { case (id, tyRight) =>
+          val (tyUnderLeft, tLeft) = matched(id)
+          SubtypeGoal(c0, SingletonType(tyUnderLeft, tLeft), tyRight)
+        }
+        (goals.map(g => (_: List[Judgment]) => g), { judgments: List[Judgment] =>
+          if (judgments.forall { case SubtypeJudgment(_, _, _, _) => true; case _ => false })
+            (true, SubtypeJudgment("SubExistsRight", c, tya, tyb))
+          else
+            emitErrorWithJudgment("SubExistsRight", g, None)
+        })
       }
-
-    case _ =>
-      None
-  })
-
-  val SubExistsPair = Rule("SubExistsPair", {
-    case g @ SubtypeGoal(c,
-      tya @ SingletonType(tyU, Pair(ta1, ta2)),
-      tyb @ ExistsTypes(bindings2, SingletonType(tyV, Pair(tb1, tb2)))
-    ) if bindings2.nonEmpty =>
-      TypeChecker.debugs(g, "SubExistsPair")
-
-      (widen(tyU), widen(tyV)) match {
-        case (SigmaType(tyU1, Bind(id, tyU2)), SigmaType(tyV1, Bind(idRight, tyV2))) =>
-          val c0 = c.incrementLevel
-          // TODO: Freshen in tyV1, tb1, tyV2 and tb2?
-          val c1 = c0.bind(id, tyU1)
-          val (g1, usedExistentials1) = existsRightSubgoal(c0, tyU1, ta1, tyV1, tb1, bindings2)
-          val (g2, usedExistentials2) = existsRightSubgoal(c1, tyU2, ta2, tyV2.replace(idRight, Var(id)), tb2.replace(idRight, Var(id)), bindings2)
-          assert(usedExistentials1.intersect(usedExistentials2).isEmpty)
-          assert(usedExistentials1 ++ usedExistentials2 == bindings2.toMap.keys.toSet)
-          Some((
-            List(_ => g1, _ => g2), {
-              case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
-                (true, SubtypeJudgment("SubExistsPair", c, tya, tyb))
-              case _ => emitErrorWithJudgment("SubExistsPair", g, None)
-            }
-          ))
-
-        case _ =>
-          None
-      }
-
     case _ =>
       None
   })
