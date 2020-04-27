@@ -276,12 +276,11 @@ trait ScalaDepRules {
     case g @ NormalizationGoal(c, ty @ SingletonType(tyUnderlying, t), linearExistsVars, inPositive) =>
       TypeChecker.debugs(g, "NormSingleton")
       val c0 = c.incrementLevel
+      Interpreter.shouldRetype = false // FIXME: Hack
       val v = Interpreter.evaluateWithContext(c, t)
 
       // Re-type if we performed any delta reductions during evaluation:
-      // TODO: Compute this more efficiently (e.g. output from evaluateWithContext)
-      val shouldRetype = c.termVariables.exists { case (id, SingletonType(_, _)) => id.isFreeIn(t); case _ => false }
-      if (shouldRetype) {
+      if (Interpreter.shouldRetype) {
         val g1 = InferGoal(c0, v)
         Some((List(_ => g1), {
           case InferJudgment(_, _, _, tyV) :: Nil =>

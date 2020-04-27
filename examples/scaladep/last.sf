@@ -12,5 +12,5 @@ val last =
         }
       },
     fun of (xs [List]) = { 0 });
-val x [{[Top] 0}] = last (cons 0 nil);
+val x [{[Nat] 0}] = last (cons 0 nil);
 ()

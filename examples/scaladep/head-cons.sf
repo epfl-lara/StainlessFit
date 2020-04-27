@@ -5,6 +5,6 @@ fun headOrElse(l [List])(default [Top])  [returns Top] = {
   }
 }
 
-fun example (l [List]) (default [Top])  [returns { [Top] 1 }] = {
+fun example (l [List]) (default [Top])  [returns { [Nat] 1 }] = {
   headOrElse (cons 1 l) default
 }

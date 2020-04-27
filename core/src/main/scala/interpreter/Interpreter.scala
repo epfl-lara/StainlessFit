@@ -10,6 +10,7 @@ import typechecker.ScalaDepSugar._
 
 object Interpreter {
   val zero = BigInt(0)
+  var shouldRetype = false // FIXME: Hack
 
   def evaluateWithContext(c: Context, e: Tree)(implicit rc: RunContext): Tree = {
     e match {
@@ -18,7 +19,7 @@ object Interpreter {
       // case IfThenElse(t, tt, tf) => IfThenElse(evaluateWithContext(c, t), tt, tf)
 
       case Var(id) => c.termVariables(id) match {
-        case SingletonType(_, t) => evaluateWithContext(c, t)
+        case SingletonType(_, t) => shouldRetype = true; evaluateWithContext(c, t)
         case _ => e
       }
 
@@ -37,7 +38,7 @@ object Interpreter {
       case App(f, t) =>
         val nt = evaluateWithContext(c, t)
         evaluateWithContext(c, f) match {
-          case Lambda(_, Bind(id, body)) => evaluateWithContext(c, body.replace(id, nt))
+          case Lambda(_, Bind(id, body)) => shouldRetype = true; evaluateWithContext(c, body.replace(id, nt))
           case nf => App(nf, nt)
         }
 
