@@ -806,8 +806,12 @@ trait ScalaDepRules {
       rc.reporter.warning(s"Couldn't match terms (with existentials): $msg")
       false
     }
+    def stripSingleton(ty: Tree): Tree = ty match {
+      case SingletonType(ty, _) => stripSingleton(ty)
+      case _ => ty
+    }
     def rec(t1: Tree, t2: Tree, ty1Underlying: Tree): Boolean =
-      (t1, t2, widen(ty1Underlying)) match {
+      (t1, t2, stripSingleton(ty1Underlying)) match {
         case (ChooseWithPath(ty1, path1), ChooseWithPath(ty2, path2), _) =>
           Tree.areEqual(ty1, ty2) && Tree.areEqual(path1, path2)
         case (Var(id1), Var(id2), _) if id1 == id2 =>
