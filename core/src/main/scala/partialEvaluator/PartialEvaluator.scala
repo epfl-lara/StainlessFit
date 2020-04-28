@@ -9,7 +9,7 @@ import parser.FitParser
 import stainlessfit.core.util.Utils
 
 object PartialEvaluator {
-  val BigZero = BigInt(0)
+  val zero = BigInt(0)
   def subError(a: BigInt,b: BigInt) = s"Substraction between ${a} and ${b} will yield a negative value"
   def divError = s"Attempt to divide by zero"
 
@@ -20,34 +20,34 @@ object PartialEvaluator {
     def transform(e: Tree): Option[Tree] = {
       e match {
         case Var(id) => vars.get(id)
-        case IfThenElse(cond, t1, t2) => 
-          cond match{
-            case BooleanLiteral(true) => Some(t1)
-            case BooleanLiteral(false) => Some(t2)
-            case _ => None
-          }
+        case IfThenElse(BooleanLiteral(true), t1, _) =>  
+          Some(t1)
+        case IfThenElse(BooleanLiteral(false), _, t2) => 
+          Some(t2)
+        
         case First(Pair(t1,t2)) => 
           Some(t1)
         case Second(Pair(t1,t2)) => 
           Some(t2)
 
-        case EitherMatch(LeftTree(lt), bl@Bind(idLeft,bodyLeft), _) => 
-          //TODO: reference counting, or other means of avoiding code explosion
-          Some(Tree.replaceBind(bl, lt))
-
-        case EitherMatch(RightTree(rt), _, br@Bind(idRight,bodyRight)) =>
-          //TODO: reference counting, or other means of avoiding code explosion
-          Some(Tree.replaceBind(br, rt))
+        case EitherMatch(LeftTree(lt), bl: Bind, _) => 
+          Some(App(Lambda(None, bl), lt))
+          //Some(Tree.replaceBind(bl, lt))
+        case EitherMatch(RightTree(rt), _, br: Bind) =>
+          Some(App(Lambda(None, br), rt))
+          //Some(Tree.replaceBind(br, rt))
         
         case App(Lambda(_, bind), t2) => 
           //TODO: reference counting, or other means of avoiding code explosion
           Some(Tree.replaceBind(bind, t2))
 
-        case ErasableApp(t1, t2) => Some(t1)//smallStep(t1)
+        case ErasableApp(t1, t2) => 
+          Some(t1)//smallStep(t1)
         //case Size(t) => ???
         //case Lambda(None, bind) => ???
         //case Lambda(Some(tp), bind) => ???
-        case ErasableLambda(tp, Bind(_,body)) => Some(body)//smallStep(body)
+        case ErasableLambda(tp, Bind(_,body)) => 
+          Some(body)//smallStep(body)
         case Fix(_, bind) => 
           //TODO: avoid infinite loops
           //TODO: reference counting, or other means of avoiding code explosion
@@ -57,6 +57,11 @@ object PartialEvaluator {
         //case MacroTypeDecl(tpe, bind) => ???
         //case MacroTypeInst(v1, args) => ???
         //case NatMatch(t, t0, bind) => ???
+
+        case NatMatch(NatLiteral(`zero`), t0, _) => 
+          Some(t0)
+        case NatMatch(NatLiteral(n), _, bind: Bind) => 
+          Some(App(Lambda(None,bind),NatLiteral(n-1)))
 
         case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          Some(BooleanLiteral(!a))
 
