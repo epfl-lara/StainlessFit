@@ -99,9 +99,10 @@ object Printer {
 
     try {
       val (exitValue, standardOutput, errOutput) = rc.bench.time("Execution"){ runCommand(s"./$compiled") }
-      reporterSelect(standardOutput)
+      val result = standardOutput.dropRight(1)
+      reporterSelect(result)
       reporterSelect(errOutput)
-      Right(standardOutput)
+      Right(result)
     } catch {
       case _: RuntimeException =>
       rc.reporter.fatalError(s"Could not run the file: $compiled. Check permissions")
