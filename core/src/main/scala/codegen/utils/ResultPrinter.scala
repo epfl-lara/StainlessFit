@@ -2,11 +2,13 @@ package stainlessfit
 package core
 package codegen.utils
 
-import core.codegen.llvm.IR.{UnitType => IRUnitType, NatType => IRNatType, _}
+import codegen.llvm.IR.{UnitType => IRUnitType, NatType => IRNatType, _}
 import codegen.llvm._
-import core.util.RunContext
+import codegen.CodeGen
+import util.RunContext
 
 class ResultPrinter(rc: RunContext) {
+
   def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
 
   def customPrint(block: Block, toPrint: Local, tpe: Type, flattenPairs: Boolean, next: Option[Label])
@@ -36,10 +38,15 @@ class ResultPrinter(rc: RunContext) {
       secondPrinted <:> close <:> jumpTo(next)
     }
 
-
     case EitherType(leftType, rightType) => {
       //Dynamically choose between Left and Right
-      val (printLeft, printRight) = cgEitherChoose(block, toPrint, tpe)
+      val leftBlockLabel = lh.dot(block.label, "left")
+      val leftBlockStart = lh.newBlock(leftBlockLabel)
+      val rightBlockLabel = lh.dot(block.label, "right")
+      val rightBlockStart = lh.newBlock(rightBlockLabel)
+
+      val choose = new CodeGen(rc).cgEitherChoose(toPrint, tpe, leftBlockLabel, rightBlockLabel)
+      f.add(block <:> choose)
 
       val afterPrinting = lh.dot(block.label, "keep.printing")
 
@@ -50,7 +57,7 @@ class ResultPrinter(rc: RunContext) {
         GepToIdx(eitherLeftPtr, tpe, Value(toPrint), Some(1)),
         Load(leftLocal, leftType, eitherLeftPtr))
 
-      val leftBlock = lh.newBlock(printLeft) <:> prepLeft
+      val leftBlock = leftBlockStart <:> prepLeft
       val leftPrinted = customPrint(leftBlock, leftLocal, LeftType(leftType), false, Some(afterPrinting))
       f.add(leftPrinted)
 
@@ -61,7 +68,7 @@ class ResultPrinter(rc: RunContext) {
         GepToIdx(eitherRightPtr, tpe, Value(toPrint), Some(2)),
         Load(rightLocal, rightType, eitherRightPtr))
 
-      val rightBlock = lh.newBlock(printRight) <:> prepRight
+      val rightBlock = rightBlockStart <:> prepRight
       val rightPrinted = customPrint(rightBlock, rightLocal, RightType(rightType), false, Some(afterPrinting))
       f.add(rightPrinted)
 
@@ -90,22 +97,4 @@ class ResultPrinter(rc: RunContext) {
 
     case other => rc.reporter.fatalError(s"Pretty printing not implemented for $other yet")
   }
-
-
-  def cgEitherChoose(block: Block, either: Local, eitherType: Type)(implicit lh: LocalHandler, f: Function): (Label, Label) = {
-    val eitherTypePtr = lh.dot(either, "type.gep")
-    val eitherCond = lh.dot(either, "type")
-
-    val chooseLeft = lh.dot(block.label, "left")
-    val chooseRight = lh.dot(block.label, "right")
-
-    val eitherChoose = List(
-      GepToIdx(eitherTypePtr, eitherType, Value(either), Some(0)),
-      Load(eitherCond, BooleanType, eitherTypePtr),
-      Branch(Value(eitherCond), chooseRight, chooseLeft)  //false => left
-    )
-    f.add(block <:> eitherChoose)
-    (chooseLeft, chooseRight)
-  }
-
 }

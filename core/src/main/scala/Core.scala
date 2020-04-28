@@ -102,7 +102,7 @@ object Core {
           // Right("")
 
           rc.bench.time("Code generation"){
-            val module = CodeGen.genLLVM(t, true, f.getName)
+            val module = new CodeGen(rc).genLLVM(t, true, f.getName)
             LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
           }
         }

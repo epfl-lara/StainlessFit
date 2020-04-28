@@ -1,0 +1,12 @@
+fun random(choose [Bool]) [returns Nat + Bool] = {
+  if(choose){
+    left 5
+  } else {
+    right false
+  }
+}
+
+match random(true) {
+  case left a => a + 10
+  case right b => 0
+}
