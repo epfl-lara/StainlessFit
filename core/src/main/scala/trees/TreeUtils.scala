@@ -3,8 +3,17 @@ package core
 package trees
 
 import stainlessfit.core.util.Utils._
+import stainlessfit.core.util.RunContext
 
 object TreeUtils{
+
+
+  /* Traverses the Tree <body>, 
+   * replaces the first subtree <t> for which p(t)=Some(newT),
+   * By newT
+   * Returns Some(the transformed tree) 
+   *         or None, if no subtree was matched by p
+   */
   def replaceSmallStep(p: Tree => Option[Tree], body: Tree): Option[Tree] ={
     def rss(body: Tree) = replaceSmallStep(p, body)
     p(body) match {
@@ -122,5 +131,18 @@ object TreeUtils{
         case _ => throw new java.lang.Exception(s"Function `replaceSmallStep` is not implemented on $body (${body.getClass}).")
       }
     }
+  }
+  def replaceBindSmallStep(bind: Bind, v: Tree)(implicit rc: RunContext): Option[Tree] = {
+    val (id, body) = bind match{ case Bind(id, body) => (id, body)}
+    def p(body: Tree) = body match {
+      case Var(id2) if id2 == id => Some(v)
+      case Bind(id2, t) if id2!=id && id2.isFreeIn(v) =>
+        rc.reporter.fatalError(
+            s"""Replacing ${Printer.asString(id)} by ${Printer.exprOrTypeAsString(v)} in
+              |$body would capture variable ${Printer.asString(id2)}""".stripMargin
+          )
+      case _ => None
+    }
+    replaceSmallStep(p,body)
   }
 }
