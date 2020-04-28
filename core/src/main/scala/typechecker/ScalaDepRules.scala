@@ -706,6 +706,25 @@ trait ScalaDepRules {
       None
   })
 
+  val SubSigma = Rule("SubSigma", {
+    case g @ SubtypeGoal(c,
+      tya @ SigmaType(tya1, Bind(ida, tya2)),
+      tyb @ SigmaType(tyb1, Bind(idb, tyb2))) =>
+      TypeChecker.debugs(g, "SubSigma")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tya1, tyb1)
+      val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubSigma", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubSigma", g, None)
+      }))
+    case g =>
+      None
+  })
+
   val SubNatMatch = Rule("SubNatMatch", {
     case g @ SubtypeGoal(c,
       tya @ NatMatchType(t, tyZero, Bind(id, tySucc)),
@@ -849,16 +868,20 @@ trait ScalaDepRules {
   val SubExistsRight = Rule("SubExistsRight", {
     case g @ SubtypeGoal(c,
       tya @ SingletonType(ty1Underlying, t1),
-      tyb @ ExistsTypes(bindings2, SingletonType(_, t2))
+      tyb @ ExistsTypes(bindings2, SingletonType(ty2Underlying, t2))
     ) if bindings2.nonEmpty =>
       TypeChecker.debugs(g, "SubExistsRight")
 
       matchExistentials(t1, t2, ty1Underlying, bindings2.toMap).map { matched =>
         val c0 = c.incrementLevel
-        val goals = bindings2.map { case (id, tyRight) =>
+        val goals0 = bindings2.map { case (id, tyRight) =>
           val (tyUnderLeft, tLeft) = matched(id)
           SubtypeGoal(c0, SingletonType(tyUnderLeft, tLeft), tyRight)
         }
+        val ty2UnderlyingInst = bindings2.foldLeft(ty2Underlying) { case (ty, (id, _)) =>
+          ty.replace(id, matched(id)._2)
+        }
+        val goals = goals0 :+ SubtypeGoal(c0, tya, ty2UnderlyingInst)
         (goals.map(g => (_: List[Judgment]) => g), { judgments: List[Judgment] =>
           if (judgments.forall { case SubtypeJudgment(_, _, _, _) => true; case _ => false })
             (true, SubtypeJudgment("SubExistsRight", c, tya, tyb))
@@ -923,17 +946,35 @@ trait ScalaDepRules {
     case _ => None
   })
 
-  val SubCons = Rule("SubCons", {
+  val SubCons1 = Rule("SubCons1", {
     case g @ SubtypeGoal(c,
       tya @ LConsType(_, _),
       tyb @ `LList`
     ) =>
-      TypeChecker.debugs(g, "SubCons")
+      TypeChecker.debugs(g, "SubCons1")
       Some((List(), _ => {
-        (true, SubtypeJudgment("SubCons", c, tya, tyb))
+        (true, SubtypeJudgment("SubCons1", c, tya, tyb))
       }))
 
-    case g =>
+    case _ =>
+      None
+  })
+
+  val SubCons2 = Rule("SubCons2", {
+    case g @ SubtypeGoal(c,
+      tya @ LConsType(ty11, ty12),
+      tyb @ LConsType(ty21, ty22),
+    ) =>
+      TypeChecker.debugs(g, "SubCons2")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, ty11, ty21)
+      val g2 = SubtypeGoal(c0, ty12, ty22)
+      Some((List(_ => g1, _ => g2), _ => {
+        (true, SubtypeJudgment("SubCons2", c, tya, tyb))
+      }))
+
+    case _ =>
       None
   })
 

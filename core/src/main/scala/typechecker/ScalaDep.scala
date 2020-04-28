@@ -46,7 +46,9 @@ class ScalaDep(implicit val rc: RunContext)
     SubExistsRight.t ||
     SubNatMatch.t ||
     SubListMatch.t ||
-    SubCons.t ||
+    SubSigma.t ||
+    SubCons1.t ||
+    SubCons2.t ||
     SubPi.t ||
     SubReflexive.t ||
     SubSingletonLeft.t ||
