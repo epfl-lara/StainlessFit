@@ -43,29 +43,51 @@ object PartialEvaluator {
       case Pair(t1, t2) =>
         smallStep(t1).map(Pair(_,t2)) orElse
         smallStep(t2).map(Pair(t1,_))
-      case EitherMatch(t, bind1, bind2) =>
-        smallStep(t).map(EitherMatch(_,bind1,bind2)) orElse {
+      case EitherMatch(t, bl@Bind(idLeft,bodyLeft), br@Bind(idRight,bodyRight)) =>
+        smallStep(t).map(EitherMatch(_,bl,br)) orElse {
           t match {
-            case LeftTree(lt) => ???
-            case RightTree(rt) => ???
-            case _ => ???
+            case LeftTree(lt) =>
+              //TODO: reference counting, or other means of avoiding code explosion
+              Some(Tree.replaceBind(bl, lt))
+            case RightTree(rt) =>
+              //TODO: reference counting, or other means of avoiding code explosion
+              Some(Tree.replaceBind(br, rt))
+            case _ => smallStep(bodyLeft).map(newE  => EitherMatch(t,Bind(idLeft,newE),br)) orElse
+                      smallStep(bodyRight).map(newE => EitherMatch(t,bl,Bind(idRight,newE)))
           }
         }
       case LeftTree(t) => smallStep(t).map(LeftTree(_))
       case RightTree(t) => smallStep(t).map(RightTree(_))
-      case App(t1, t2) => ???
-      case ErasableApp(t1, t2) => smallStep(t1)
+      case Bind(id, body) => smallStep(body)
+      case App(t1, t2) => 
+        smallStep(t1).map(App(_,t2)) orElse
+        smallStep(t2).map(App(t1,_)) orElse {
+          t1 match{
+            case Lambda(_, bind) => 
+              //TODO: reference counting, or other means of avoiding code explosion
+              Some(Tree.replaceBind(bind, t2))
+            case _ => None
+          }
+        }
+
+      case ErasableApp(t1, t2) => Some(t1)//smallStep(t1)
       case Size(t) => ???
       case Lambda(None, bind) => ???
       case Lambda(Some(tp), bind) => ???
-      case ErasableLambda(tp, Bind(_,body)) => smallStep(body)
-      case Fix(None, bind) => ???
-      case Fix(Some(tp), bind) => ???
+      case ErasableLambda(tp, Bind(_,body)) => Some(body)//smallStep(body)
+      case Fix(_, bind) => 
+        //TODO: avoid infinite loops
+        //TODO: reference counting, or other means of avoiding code explosion
+        Some(Tree.replaceBind(bind,e))
       case LetIn(None, v1, bind) => ???
       case LetIn(Some(tp), v1, bind) => ???
       case MacroTypeDecl(tpe, bind) => ???
       case MacroTypeInst(v1, args) => ???
-      case NatMatch(t, t0, bind) => ???
+      case NatMatch(t, t0, bind) =>
+        smallStep(t).map(NatMatch(_, t0, bind)) orElse
+        smallStep(t0).map(NatMatch(t, _, bind)) orElse
+        ???
+
       case Primitive(op, arg1 :: rest) =>
         smallStep(arg1).map(x => Primitive(op, x :: rest)) orElse
         {(op, arg1, rest) match {
@@ -101,7 +123,7 @@ object PartialEvaluator {
       case Error(_, _) => ???
       
 
-      case _ => throw new java.lang.Exception(s"Function `PartialEvaluator.smallStep` is not implemented on $e (${e.getClass}).")
+      //case _ => throw new java.lang.Exception(s"Function `PartialEvaluator.smallStep` is not implemented on $e (${e.getClass}).")
     }
   }
 
