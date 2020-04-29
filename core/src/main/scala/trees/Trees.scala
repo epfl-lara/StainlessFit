@@ -706,7 +706,18 @@ object Tree {
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
-  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext): Boolean = {
+  trait Solver {
+    def targets: Map[Identifier, Option[Tree]]
+    def recordSolution(x: Identifier, t: Tree): Unit
+    def addTarget(x: Identifier): Unit
+  }
+  object Solver {
+    implicit val defaultSolver: Solver = null
+    def targets(x: Identifier)(implicit solver: Solver) =
+      if (solver ne null) solver.targets.contains(x) else false
+  }
+
+  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext, solver: Solver): Boolean = {
     (t1, t2) match {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
         areEqual(cond1, cond2) && areEqual(t11, t21) && areEqual(t12, t22)
@@ -750,10 +761,17 @@ object Tree {
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (ExistsType(t1, bind1), ExistsType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
-      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) =>
+        if (solver eq null)
+          areEqual(t1, t2) && areEqual(bind1, bind2)
+        else
+          areEqual(bind1, bind2)
+      case (EqualityType(t11, t12), EqualityType(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
       case (Node(name1, args1), Node(name2, args2)) => name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
+      case (Var(x), _) if Solver.targets(x) => solver.recordSolution(x, t2); true
+      case (_, Var(x)) if Solver.targets(x) => solver.recordSolution(x, t1); true
       case _ => t1 == t2
     }
   }

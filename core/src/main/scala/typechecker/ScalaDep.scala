@@ -14,7 +14,7 @@ class ScalaDep(implicit val rc: RunContext)
   with    ControlRules
   with    MetaRules {
 
-  val typeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
+  def typeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     ContextSanity.t ||
     InferVar1.t ||
     InferNat1.t ||
@@ -50,6 +50,7 @@ class ScalaDep(implicit val rc: RunContext)
     SubCons1.t ||
     SubCons2.t ||
     SubPi.t ||
+    SubSingletonReflexive.t ||
     SubReflexive.t ||
     SubSingletonLeft.t ||
     SubTop.t
@@ -63,6 +64,35 @@ class ScalaDep(implicit val rc: RunContext)
 
   def infer(t: Tree, max: Int) = {
     val g = InferGoal(Context.empty(max), t)
+    tactic.apply(g, sg => None)
+  }
+}
+
+class ScalaDepSolver(var targets: Map[Identifier, Option[Tree]])(implicit rc: RunContext) extends ScalaDep with Tree.Solver {
+  def SubReflexiveSolve = Rule("SubReflexiveSolve", {
+    case g @ SubtypeGoal(c, ty1, ty2) if Tree.areEqual(ty1, ty2)(rc, this) =>
+      TypeChecker.debugs(g, "SubReflexiveSolve")
+      Some((List(), _ => (true, SubtypeJudgment("SubReflexiveSolve", c, ty1, ty2))))
+    case g =>
+      None
+  })
+
+  override def typeChecking: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
+    SubReflexiveSolve.t || super.typeChecking
+
+  def addTarget(x: Identifier): Unit = {
+    assert(!targets.contains(x))
+    targets += x -> None
+  }
+
+  def recordSolution(x: Identifier, tSol: Tree): Unit = {
+    assert(targets.contains(x))
+    if (targets(x) == None)
+      targets += x -> Some(tSol)
+  }
+
+  def solve(c: Context, ty1: Tree, ty2: Tree) = {
+    val g = SubtypeGoal(c, ty1, ty2)
     tactic.apply(g, sg => None)
   }
 }
