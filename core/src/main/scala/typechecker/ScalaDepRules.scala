@@ -240,7 +240,7 @@ trait ScalaDepRules {
   })
 
   val ContextSanity = {
-    val MaxLevel = 40
+    val MaxLevel = 80
 
     def error(g: Goal, msg: String) =
       Some((List(), (_: List[Judgment]) =>
