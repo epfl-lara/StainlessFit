@@ -8,6 +8,7 @@ import trees._
 
 import typechecker.ScalaDepSugar._
 
+// TODO: Get rid of natural numbers passed around
 class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
 
   def transform(t: Tree): (Tree, Unit) = (encode(LNil(), 0, t)._1, ())
@@ -18,13 +19,41 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     }, n + ts.length)
   }
 
-  def encodeAnnot(n: Int, ty: Tree): (Tree, Int) = {
-    val path = Identifier.fresh("p")
-    val (nTy, n2) = encode(Var(path), n, ty)
-    if (path.isFreeIn(nTy))
-      (ExistsType(Choose.PathType, Bind(path, nTy)), n2)
+  def encodeAnnot(n: Int, ty: Tree): (Tree, Int) =
+    (encodeType(ty), n)
+
+  def encodeTermFromType(t: Tree)(f: Tree => Tree): Tree = {
+    val pathId = Identifier.fresh("p")
+    val (nT, _) = encode(Var(pathId), 0, t)
+    if (pathId.isFreeIn(nT))
+      ExistsType(Choose.PathType, Bind(pathId, f(nT)))
     else
-      (nTy, n2)
+      f(nT)
+  }
+
+  def encodeType(ty: Tree): Tree = ty match {
+    case BaseType() =>
+      ty
+
+    case SingletonType(ty, t) =>
+      encodeTermFromType(t)(SingletonType(encodeType(ty), _))
+
+    case SigmaType(ty1, Bind(id, ty2)) =>
+      SigmaType(encodeType(ty1), Bind(id, encodeType(ty2)))
+
+    case PiType(ty1, Bind(id, ty2)) =>
+      val newPathId = Identifier.fresh("p")
+      val tyN1 = encodeType(ty1)
+      val tyN2 = encodeType(ty2)
+      PiType(Choose.PathType, Bind(newPathId, PiType(tyN1, Bind(id, tyN2))))
+
+    case LConsType(ty1, ty2) =>
+      LConsType(encodeType(ty1), encodeType(ty2))
+
+    case ListMatchType(t, ty2, ty3) =>
+      encodeTermFromType(t)(ListMatchType(_, encodeType(ty2), encodeType(ty3)))
+    case NatMatchType(t, ty2, ty3) =>
+      encodeTermFromType(t)(NatMatchType(_, encodeType(ty2), encodeType(ty3)))
   }
 
   def encode(path: Tree, n: Int, t: Tree): (Tree, Int) = t match {
@@ -33,19 +62,11 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case NatLiteral(_) => (t, n)
     case BooleanLiteral(_) => (t, n)
 
-    case `LList` => (t, n)
-    case TopType => (t, n)
-    case NatType => (t, n)
-    case UnitType => (t, n)
-    case BoolType => (t, n)
     case LNil() => (t, n)
 
     case Choose(ty) =>
       // TODO: Lift this restriction?
-      assert(ty match {
-        case `LList` | TopType | NatType | UnitType | BoolType => true
-        case _ => false
-      })
+      assert(BaseType.unapply(ty))
       (ChooseWithPath(ty, path), n)
 
     case FixWithDefault(ty, Bind(id, t), td, f) =>
@@ -53,22 +74,9 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       val (Seq(nT, nTd), n3) = encode(path, n2, Seq(t, td))
       (FixWithDefault(nTy, Bind(id, nT), nTd, f), n3)
 
-    case SingletonType(ty, t) =>
-      val (Seq(nTy, nt), n2) = encode(path, n, Seq(ty, t))
-      (SingletonType(nTy, nt), n2)
-
     case LCons(t1, t2) =>
       val (Seq(nt1, nt2), n2) = encode(path, n, Seq(t1, t2))
       (LCons(nt1, nt2), n2)
-
-    case SigmaType(ty1, Bind(id, ty2)) =>
-      val (Seq(nty1, nty2), n2) = encode(path, n, Seq(ty1, ty2))
-      (SigmaType(nty1, Bind(id, nty2)), n2)
-
-    case PiType(ty1, Bind(id, ty2)) =>
-      val (Seq(nty1, nty2), n2) = encode(path, n, Seq(ty1, ty2))
-      val newPathId = Identifier.fresh("p")
-      (PiType(Choose.PathType, Bind(newPathId, PiType(nty1, Bind(id, nty2)))), n2)
 
     case NatMatch(t, t0, Bind(id, ts)) =>
       val (Seq(nt, nt0, nts), n2) = encode(path, n, Seq(t, t0, ts))
@@ -119,9 +127,5 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case Second(t) =>
       val (nt, nn) = encode(path, n, t)
       (Second(nt), nn)
-
-    case LConsType(ty1, ty2) =>
-      val (Seq(nTy1, nTy2), n2) = encode(path, n, Seq(ty1, ty2))
-      (LConsType(nTy1, nTy2), n2)
   }
 }

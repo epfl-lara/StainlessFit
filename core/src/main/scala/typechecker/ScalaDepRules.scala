@@ -288,6 +288,19 @@ trait ScalaDepRules {
           case _ =>
             emitErrorWithJudgment("NormSingleton", g, None)
         }))
+        // TODO: Also normalize type after reinferring it?
+        // val fg2: List[Judgment] => Goal = {
+        //   case InferJudgment(_, _, _, tyV) :: Nil =>
+        //     NormalizationGoal(c0, tyV)
+        //   case _ =>
+        //     ErrorGoal(c0, Some(s"Expected normalized type"))
+        // }
+        // Some((List(_ => g1, fg2), {
+        //   case InferJudgment(_, _, _, _)  :: NormalizationJudgment(_, _, _, tyVN) :: Nil =>
+        //     (true, NormalizationJudgment("NormSingleton", c, ty, tyVN))
+        //   case _ =>
+        //     emitErrorWithJudgment("NormSingleton", g, None)
+        // }))
       } else {
         val g1 = NormalizationGoal(c0, tyUnderlying)
         Some((List(_ => g1), {
@@ -544,22 +557,31 @@ trait ScalaDepRules {
         case Var(id) => Some(id)
         case _ => None
       }
+    object PathOf {
+      def unapply(t: Tree) = pathPrefixIdent(t)
+    }
+    def processPath(path: Tree, tOriginal: Tree, name: String, ty: Tree): Tree =
+      pathToBinding.get(path) match {
+        case Some((id, _)) =>
+          Var(id)
+        case None =>
+          pathPrefixIdent(path) match {
+            case Some(pathId) if potentialPathVars.contains(pathId) =>
+              val id = Identifier.fresh(name)
+              pathToBinding += path -> (id, ty)
+              // if (name == "q")
+              //   println(s"INTRODUCED fresh existential for App path:   ${asString(path)}  >  $id : ${asString(ty)}")
+              Var(id)
+            case _ =>
+              tOriginal
+          }
+      }
     def recTerm(t: Tree): Tree =
       t match {
         case ChooseWithPath(ty, path) =>
-          pathToBinding.get(path) match {
-            case Some((id, _)) =>
-              Var(id)
-            case None =>
-              pathPrefixIdent(path) match {
-                case Some(pathId) if potentialPathVars.contains(pathId) =>
-                  val id = Identifier.fresh("v")
-                  pathToBinding += path -> (id, ty)
-                  Var(id)
-                case _ =>
-                  t
-              }
-          }
+          processPath(path, t, "v", ty)
+        case App(f, path @ PathOf(_)) =>
+          App(recTerm(f), processPath(path, path, "q", Choose.PathType))
         case Var(id) => t
         case Pair(t1, t2) => Pair(recTerm(t1), recTerm(t2))
         case First(t) => First(recTerm(t))
@@ -584,13 +606,26 @@ trait ScalaDepRules {
         case SingletonType(tyUnderlying, t) =>
           SingletonType(recType(tyUnderlying), recTerm(t))
         case ExistsType(ty1, Bind(id, ty2)) =>
+          // TODO: Implement a rigorous way to identify path existentials
           if (ty1 == LList && id.name == "p")
             potentialPathVars += id
           val ty2N = recType(ty2)
-          if (id.isFreeIn(ty2N))
-            ExistsType(ty1, Bind(id, ty2N))
+          val (pathToBindingIn, pathToBindingOut) = pathToBinding.partition {
+            case (path, _) => pathPrefixIdent(path) == Some(id)
+          }
+          pathToBinding = pathToBindingOut
+          val ty2NN = pathToBindingIn.iterator.foldLeft(ty2N) {
+            case (tyAcc, (path, (id, ty))) =>
+              val tyAccN = tyAcc.replaceMany {
+                case t if t == path => Some(Var(id))
+                case _ => None
+              }
+              ExistsType(ty, Bind(id, tyAccN))
+          }
+          if (id.isFreeIn(ty2NN))
+            ExistsType(ty1, Bind(id, ty2NN))
           else
-            ty2N
+            ty2NN
 
         case TopType | BoolType | NatType | `UnitType` | `LList` =>
           ty
@@ -606,7 +641,12 @@ trait ScalaDepRules {
           SigmaType(recType(ty1), Bind(id, recType(ty2)))
       }
     val tyN = recType(ty)
-    pathToBinding.values.foldLeft(tyN) { case (tyAcc, (id, ty)) => ExistsType(ty, Bind(id, tyAcc)) }
+    assert(pathToBinding.isEmpty, {
+      val bindingsStr = pathToBinding
+        .map { case (path, (id, ty)) => s"${asString(path)} -> $id : ${asString(ty)}" }
+      s"Expected no new bindings to remain, got: $bindingsStr in ${asString(ty)}"
+    })
+    tyN
   }
 
   // NOTE: This only matches on NormalizedSubtypeGoal, which is not a SubtypeGoal,
@@ -860,6 +900,14 @@ trait ScalaDepRules {
       // }
 
       solver.targets(id2) match {
+        // TODO: Add this check (implement Tree.freeVars)
+        // case Some(tSol) if !Tree.freeVars(tSol).forall(id => c0.termVariables.contains(id)) =>
+        //   val msg = s"Solver found a candidate solution for $id2, " +
+        //     s"but it's not expressible in the outside context: ${asString(tSol)}"
+        //   Some((List(), {
+        //       case _ => emitErrorWithJudgment("SubExistsRight", g, Some(msg))
+        //     }))
+
         case Some(tSol) =>
           // rc.reporter.info(s"Solver found candidate solution for $id2: ${asString(tSol)}")
           // FIXME: Check that `tSol` is well-formed in `c0`

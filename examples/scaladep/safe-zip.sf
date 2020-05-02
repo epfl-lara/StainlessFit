@@ -1,0 +1,99 @@
+// fun pair (x [Top]) (y [Top]) [returns List] = {
+//   cons x (cons y nil)
+// }
+
+val sizedLike = fixD(
+  sizedLike_ [List => List] =>
+    fun of (xs [List]) = {
+      list_match xs {
+        case nil => nil
+        // case cons x ys => cons (choose[Top]) (sizedLike_ ys)
+        case cons x ys => cons 0 (sizedLike_ ys)
+        // case cons x ys => sizedLike_ ys
+      }
+    },
+  fun of (xs [List]) = { nil }
+);
+
+
+// val zipImpl [List => List => List] = { ... }
+// { [List] id } <: { [List] sizedLike }
+
+fun bla (bs [List]) = {
+  val safeZip [{[List] sizedLike bs} => List] =
+    fun of (cs [{[List] sizedLike bs}]) = {
+      cs
+    };
+  ()
+}
+
+// // val safeZip = fixD(
+// //   safeZip_ [List => List => List] =>
+// //     fun of (bs [List]) (cs [{[List] sizedLike bs}]) = {
+// //       list_match bs {
+// //         case nil => nil
+// //         case cons b bs0 =>
+// //           list_match cs {
+// //             case nil => nil
+// //             case cons c cs0 => cons (pair b c) nil  // (safeZip_ bs0 cs0)
+// //           }
+// //       }
+// //     },
+// //   fun of (bs [List]) (cs [{[List] sizedLike bs}]) = { nil }
+// // );
+
+
+// // val safeZip [Pi(bs: List, {[List] sizedLike bs} => List)] = fun of (bs [List]) (cs [{[List] sizedLike bs}]) = {
+// //   nil
+// // };
+
+// val listId [Pi(bs: List, {[List] sizedLike bs})] =
+//   fun of (bs [List]) = { bs };
+
+// // val safeZip = fun of (as [List]) (bs [{[List] sizedLike arg1}]) = {
+// //   list_match arg1 {
+// //     case nil => nil
+// //     case cons a as0 =>
+// //       list_match bs {
+// //         case nil => nil
+// //         case cons b bs0 => cons (pair a b) ()
+// //       }
+// //   }
+// // };
+
+
+// // fun sizedLike (xs [List]) [returns List] = {
+// //   list_match xs {
+// //     case nil => nil
+// //     case cons x1 xs1 =>
+// //       list_match xs1 {
+// //         case nil => cons (choose[Top]) nil
+// //         case cons x2 xs2 =>
+// //           list_match xs2 {
+// //             case nil => cons (choose[Top]) (cons (choose[Top]) nil)
+// //             case cons x3 xs3 => nil  // default
+// //           }
+// //       }
+// //   }
+// // }
+
+// // val safeZip = fun of (ax [List]) (bx [{[List] sizedLike ax}]) = {
+// //   list_match ax {
+// //     case nil => nil
+// //     case cons a1 as1 =>
+// //       list_match bx {
+// //         case nil => nil  // unreachable
+// //         case cons b1 bs1 =>
+// //           list_match as1 {
+// //             case nil => cons (pair a1 b1) nil
+// //             case cons a2 as2 =>
+// //               list_match bs1 {
+// //                 case nil => nil  // unreachable
+// //                 case cons b2 bs2 => cons (pair a1 b1) (cons (pair a2 b2) nil)
+// //               }
+// //           }
+// //       }
+// //   }
+// // };
+
+()
