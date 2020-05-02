@@ -29,12 +29,15 @@ class CodeGen(val rc: RunContext) {
       val functions = emptyFunctions.map{ case (fun, lh, funBody) => cgFunction(fun, lh, funBody, fh) }
 
       val mainFunction = Function(IRNatType, Global("main"), Nil)
-      val main = cgFunction(mainFunction, new LocalHandler(rc), mainBody, fh, true)
+      val main = cgFunction(mainFunction, new LocalHandler(rc), mainBody, fh, Nil, true)
+
+      val lambdas = fh.getLambdas()
 
       Module(
         moduleName,
         main,
-        functions)
+        functions,
+        lambdas)
     }
 
     def translateDefFunction(defFun: DefFunction, fh: FunctionHandler): (Function, LocalHandler, Tree) = {
@@ -58,9 +61,10 @@ class CodeGen(val rc: RunContext) {
       (function, lh, body)
     }
 
-    def cgFunction(function: Function, lh: LocalHandler, body: Tree, fh: FunctionHandler, isMain: Boolean = false): Function = {
+    def cgFunction(function: Function, lh: LocalHandler, body: Tree, fh: FunctionHandler,
+        firstInstructions: List[Instruction] = Nil, isMain: Boolean = false): Function = {
 
-      val initBlock = lh.newBlock("Entry")
+      val initBlock = lh.newBlock("Entry") <:> firstInstructions
       val returnType = if(isMain) typeOf(body)(lh, fh) else function.returnType
 
       val end = if(isMain) lh.freshLabel("Print.and.exit") else lh.freshLabel("End")
@@ -77,7 +81,7 @@ class CodeGen(val rc: RunContext) {
       val endBlock = lh.newBlock(end)
 
       val (lastBlock, returnValue) = if(isMain){
-
+        //TODO add printing of lambdas
         val resultPrinter = new ResultPrinter(rc)
         (resultPrinter.customPrint(endBlock, result, returnType, false, None)(lh, function), Value(Nat(0)))
       } else {
@@ -306,6 +310,104 @@ class CodeGen(val rc: RunContext) {
         (rightLocal, prepRight)
     }
 
+    def prepEnvironment(freeVariables: List[Identifier], freeTypes: List[Type], assign: Local)
+      (implicit lh: LocalHandler): (List[Instruction], Value) = {
+
+      val envType = EnvironmentType(freeTypes)
+
+      //Environment passing ================================================
+      if(freeVariables.isEmpty){
+        (Nil, Value(NullLiteral))
+      } else {
+        //Create enviroment
+        val env = lh.dot(assign, "env")
+        val mallocEnv = Malloc(env, lh.dot(env, "malloc"), envType)
+
+        //Store free variables into the environment
+        val storeIntoEnv = freeVariables.zipWithIndex.flatMap{
+          case (freeVar, index) => {
+            val freeType = lh.getType(freeVar)
+            val freeLocal = lh.getLocal(freeVar)
+            val capturedLocalGep = lh.dot(env, s"$index.gep")
+
+            List(
+              GepToIdx(capturedLocalGep, envType, Value(env), Some(index)),
+              Store(Value(freeLocal), freeType, capturedLocalGep)
+            )
+          }
+        }
+
+        (mallocEnv +: storeIntoEnv, Value(env))
+      }
+    }
+
+    def cgLambda(body: Tree, argId: Identifier, freeVariables: List[Identifier], freeTypes: List[Type], resultType: Type)
+      (implicit lh: LocalHandler, fh: FunctionHandler): Global = {
+
+      //Environment receiving ==============================================
+      val lambdaLH = new LocalHandler(rc)
+      val capturedEnv = lambdaLH.freshLocal("env")
+      val envType = EnvironmentType(freeTypes)
+
+      //Load captured variables from the enviroment into locals
+      val loadFromEnv = freeVariables.zipWithIndex.flatMap{
+        case (freeVar, index) => {
+          val capturedType = lh.getType(freeVar)
+          val capturedLocal = lambdaLH.dot(capturedEnv, s"$index")
+          val capturedLocalGep = lambdaLH.dot(capturedLocal, "gep")
+
+          lambdaLH.add(freeVar, ParamDef(capturedType, capturedLocal))
+
+          List(
+            GepToIdx(capturedLocalGep, envType, Value(capturedEnv), Some(index)),
+            Load(capturedLocal, capturedType, capturedLocalGep))
+        }
+      }
+
+      //Codgen the lambda body
+      val (lambdaArgType, lambdaRetType) = resultType match {
+        case FunctionType(argType, retType) => (argType, retType)
+        case other => rc.reporter.fatalError(s"Expected lambda of type A => B, but got $resultType")
+      }
+
+      val envDef = ParamDef(envType, capturedEnv)
+      val argDef = ParamDef(lambdaArgType, lambdaLH.freshLocal(argId))
+      lambdaLH.add(argId, argDef)
+
+      val lambdaName = Global(s"lambda.${fh.nextLambda()}")
+      val emptyLambda = Function(lambdaRetType, lambdaName, List(argDef, envDef))
+
+      val completeLambda = cgFunction(emptyLambda, lambdaLH, body, fh, loadFromEnv)
+      fh.addLambda(completeLambda)
+
+      lambdaName
+    }
+
+    def extractFreeVariables(t: Tree)(implicit closedVariables: List[Identifier]): List[Identifier] = t match {
+      case Var(id) if !closedVariables.contains(id) => List(id)
+      case LetIn(_, _, Bind(id, rest)) => extractFreeVariables(rest)(id +: closedVariables)
+
+      case Primitive(op, args) => args.flatMap(arg => extractFreeVariables(arg))
+
+      case IfThenElse(cond, thenn, elze) =>
+        extractFreeVariables(cond) ++
+        extractFreeVariables(thenn) ++
+        extractFreeVariables(elze)
+
+      case app @ App(_, _) => {
+        val (_, flatArgs) = flattenApp(app)
+        flatArgs.flatMap(arg => extractFreeVariables(arg))
+      }
+
+      case Pair(first, second) => extractFreeVariables(first) ++ extractFreeVariables(second)
+      case First(pair) => extractFreeVariables(pair)
+      case Second(pair) => extractFreeVariables(pair)
+      case LeftTree(either) => extractFreeVariables(either)
+      case RightTree(either) => extractFreeVariables(either)
+      case Bind(_, body) => extractFreeVariables(body)
+      case _ => Nil
+    }
+
     def filterErasable(t: Tree): Tree = t match {
       case
         MacroTypeDecl(_, _) |
@@ -414,12 +516,28 @@ class CodeGen(val rc: RunContext) {
 
             val prep = valueTpe match {
               case EitherType(_, _) => List(Malloc(local, lh.dot(local, "malloc"), valueTpe), NoOp)
+              // case PiType(argType, Bind(argId, retType)) => ??? //Might not need to do anything here
               case _ => Nil
             }
 
             val (tempBlock, phi) = codegen(valueBody, block <:> prep, None, Some(local), valueTpe)
             lh.add(newVar, ParamDef(valueTpe, local))
             codegen(rest, tempBlock <:> phi, next, toAssign, resultType)
+        }
+
+        case Lambda(opt, Bind(argId, body)) => {
+          val assign = assignee(toAssign)
+
+          val freeVariables: List[Identifier] = extractFreeVariables(body)(List(argId))
+          val freeTypes: List[Type] = freeVariables.map(freeVar => lh.getType(freeVar))
+
+          val (prepEnv, envToPass) = prepEnvironment(freeVariables, freeTypes, assign)
+
+          val lambdaName = cgLambda(body, argId, freeVariables, freeTypes, resultType)
+          ???
+          // //assign = (cgLambda*, env)
+          // Assign(assign, ???, Value(LambdaLiteral(lambdaName, envToPass)))
+          // (block <:> prepEnv <:> ???, Nil)
         }
 
         case IfThenElse(cond, thenn, elze) => {

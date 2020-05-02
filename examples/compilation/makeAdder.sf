@@ -1,0 +1,10 @@
+fun makeAdder [returns Nat => (Nat => Nat)] = {
+  fun of x = {
+    fun of y = {
+      x + y
+    }
+  }
+}
+
+val increment = makeAdder(1);
+increment(41)

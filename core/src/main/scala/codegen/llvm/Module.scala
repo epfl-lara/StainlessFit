@@ -10,7 +10,7 @@ import core.codegen.utils._
 import scala.language.implicitConversions
 import scala.collection.mutable.ArrayBuffer
 
-case class Module(name: String, main: Function, functions: List[Function]) {
+case class Module(name: String, main: Function, functions: List[Function], lambdas: List[Function]) {
   //TODO add external functions
   import java.io.{File, FileWriter}
 

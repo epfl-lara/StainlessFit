@@ -7,11 +7,11 @@ import parser.FitParser
 import trees._
 
 class PartialErasure(implicit val rc: RunContext) extends Phase[Unit] {
-  def transform(t: Tree): (Tree, Unit) = (PartialErasure.erase(t), ())
+  def transform(t: Tree): (Tree, Unit) = (PartialErasure.erase(t, true), ())
 }
 
 object PartialErasure {
-  def erase(t: Tree)(implicit rc: RunContext): Tree = t match {
+  def erase(t: Tree, topLevel: Boolean = false)(implicit rc: RunContext): Tree = t match {
     case Var(_) => t
     case UnitLiteral => t
     case NatLiteral(_) => t
@@ -26,15 +26,32 @@ object PartialErasure {
     case LeftTree(t) => LeftTree(erase(t))
     case RightTree(t) => RightTree(erase(t))
     case Because(t1, t2) => erase(t1)
-    case Bind(id2, e) => Bind(id2, erase(e))
+    case Bind(id2, e) => Bind(id2, erase(e, topLevel))
     case Lambda(_, bind) => Lambda(None, erase(bind))
     case ErasableLambda(_, Bind(id, body)) => erase(body)
     case Fix(_, bind) => Fix(None, erase(bind))
 
     case LetIn(tpe, t1, bind) => LetIn(tpe, erase(t1), erase(bind)) //App(Lambda(None, erase(bind)), erase(t1))  //Let(None, erase(t1), erase(bind))
 
-    case DefFunction(args, optReturnType, optMeasure, body, rest) =>
-      DefFunction(args, optReturnType, optMeasure, erase(body), erase(rest))
+    case deff @ DefFunction(args, optReturnType, optMeasure, body, Bind(funId, rest)) => {
+      // println(s"$deff")
+      // println(s"is top level $topLevel")
+      // println("=============================================================================")
+      val nextIsTopLevel = rest match {
+        case DefFunction(_, _, _, _, _) => topLevel
+        case _ => false
+      }
+      // println(s"rest is $rest")
+      // println(s"rest is top level $nextIsTopLevel")
+      // println("=============================================================================")
+      // println("********************************************************************************")
+
+      val next = if(nextIsTopLevel) rest else new DefFunctionElimination().transform(rest)._1
+      DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(Bind(funId, next), nextIsTopLevel))
+    }
+
+    // case DefFunction(args, optReturnType, optMeasure, body, rest) =>
+    //   DefFunction(args, optReturnType, optMeasure, erase(body), erase(rest))
 
     case MacroTypeDecl(tpe, Bind(id, body)) => erase(body)
     case NatMatch(t, t0, bind) => NatMatch(erase(t), erase(t0), erase(bind))

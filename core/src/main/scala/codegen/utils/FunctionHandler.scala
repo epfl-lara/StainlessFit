@@ -10,6 +10,8 @@ import trees.Identifier
 class FunctionHandler(val rc: RunContext) {
 
   private val functions = mutable.Map[Identifier, Function]()
+  private val lambdas = mutable.ArrayBuffer[Function]()
+  private var lambdaIndex : Int = -1
 
   private def getFunction(funId: Identifier) =
     functions.getOrElse(funId, rc.reporter.fatalError(s"Unknown function $funId"))
@@ -22,4 +24,15 @@ class FunctionHandler(val rc: RunContext) {
 
   def add(funId: Identifier, fun: Function) =
     functions.put(funId, fun)
+
+  def addLambda(lambda: Function) = {
+    lambdas += lambda
+  }
+
+  def getLambdas() = lambdas.toList
+
+  def nextLambda() = {
+    lambdaIndex += 1
+    lambdaIndex
+  }
 }

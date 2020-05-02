@@ -48,6 +48,10 @@ object IR {
 
   case class FunctionReturnType(funName: Global) extends Type
 
+  case class EnvironmentType(types: List[Type]) extends Type
+  case class FunctionType(paramType: Type, returnType: Type) extends Type
+  case class FunctionPointer(funGlobal: Global, funType: FunctionType) extends Instruction
+
   case class ParamDef(tpe: Type, local: Local)
 
   class Value(val v: Either[Local, Literal])
@@ -61,6 +65,8 @@ object IR {
   case class Nat(n: BigInt) extends Literal
   case object UnitLiteral extends Literal
   case class PairLiteral(first: Literal, second: Literal) extends Literal
+  case object NullLiteral extends Literal
+  case class LambdaLiteral(lambdaName: Global, env: Value) extends Literal
 
   //Boolean operations
   abstract class Op extends Instruction {
