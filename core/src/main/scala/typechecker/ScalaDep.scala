@@ -41,7 +41,7 @@ class ScalaDep(implicit val rc: RunContext)
     NormCons.t ||
     NormPi.t ||
     NormSigma.t ||
-    (SubNormalizeUnforced.t orRecover SubNormalize.t) ||
+    (SubNormalizeWiden.t orRecover SubNormalize.t) ||
     SubSingletonReflexive.t ||
     SubReflexive.t ||
     SubExistsLeft.t ||

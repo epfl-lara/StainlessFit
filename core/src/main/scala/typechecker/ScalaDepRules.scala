@@ -674,16 +674,16 @@ trait ScalaDepRules {
   })
 
   // NOTE: Same as SubNormalize; should have higher priority than it
-  val SubNormalizeUnforced = Rule("SubNormalizeUnforced", {
+  val SubNormalizeWiden = Rule("SubNormalizeWiden", {
     case g @ NormalizedSubtypeGoal(c, ty1, ty2 @ BaseType()) =>
-      TypeChecker.debugs(g, "SubNormalizeUnforced")
+      TypeChecker.debugs(g, "SubNormalizeWiden")
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, widen(ty1), ty2)
       Some((List(_ => g1), {
         case SubtypeJudgment(_, _, _, _) :: Nil =>
-          (true, SubtypeJudgment("SubNormalizeUnforced", c, ty1, ty2))
+          (true, SubtypeJudgment("SubNormalizeWiden", c, ty1, ty2))
         case _ =>
-          emitErrorWithJudgment("SubNormalizeUnforced", g, None)
+          emitErrorWithJudgment("SubNormalizeWiden", g, None)
       }))
     case g =>
       None
