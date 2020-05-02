@@ -43,12 +43,12 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def freshLocal(name: String): Local = Local(name + nextIndex(name))
-  def freshLocal(id: SfIdentifier): Local = Local(translateId(id))
+  def freshLocal(id: SfIdentifier): Local = freshLocal(translateId(id))
   def freshLocal(): Local = freshLocal("local")
   def dot(local: Local, s: String) = freshLocal(s"${local.name}.$s")
 
   def freshLabel(name: String): Label = Label(name + nextIndex(name))
-  def freshLabel(id: SfIdentifier): Label = Label(translateId(id))
+  def freshLabel(id: SfIdentifier): Label = freshLabel(translateId(id))
   def freshLabel(): Label = freshLabel("label")
   def dot(label: Label, s: String) = freshLabel(s"${label.label}.$s")
 
