@@ -36,7 +36,7 @@ object HTMLOutput {
     case CheckGoal(c, t, tp) => termOutput(t) + " ⇓ " + typeOutput(tp)
     case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <: " + typeOutput(ty2)
     case NormalizedSubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <:‖ " + typeOutput(ty2)
-    case NormalizationGoal(c, ty, _, _) => typeOutput(ty) + s" ⇥ ?"
+    case NormalizationGoal(c, ty) => typeOutput(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>

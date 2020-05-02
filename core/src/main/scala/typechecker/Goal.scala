@@ -62,11 +62,9 @@ case class NormalizedSubtypeGoal(c: Context, tp1: Tree, tp2: Tree) extends Goal 
   def updateContext(newC: Context): Goal = copy(c = newC)
 }
 
-case class NormalizationGoal(c: Context, ty: Tree,
-    linearExistsVars: Set[Identifier] = Set.empty,
-    inPositive: Boolean = true) extends Goal {
+case class NormalizationGoal(c: Context, ty: Tree) extends Goal {
   override def toString: String = {
-    s"Normalizing $ty (linearExistsVars: $linearExistsVars, inPositive: $inPositive)"
+    s"Normalizing $ty"
   }
 
   def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Goal = {

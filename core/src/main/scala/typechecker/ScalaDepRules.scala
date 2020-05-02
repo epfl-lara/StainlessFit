@@ -265,7 +265,7 @@ trait ScalaDepRules {
     Rule("ContextSanity", {
       case g @ InferGoal(c, t) =>
         checkDepth(g).orElse(checkBindings(g, t))
-      case g @ NormalizationGoal(c, ty, _, _) =>
+      case g @ NormalizationGoal(c, ty) =>
         checkDepth(g).orElse(checkBindings(g, ty))
       case g =>
         checkDepth(g)
@@ -273,7 +273,7 @@ trait ScalaDepRules {
   }
 
   val NormSingleton = Rule("NormSingleton", {
-    case g @ NormalizationGoal(c, ty @ SingletonType(tyUnderlying, t), linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, ty @ SingletonType(tyUnderlying, t)) =>
       TypeChecker.debugs(g, "NormSingleton")
       val c0 = c.incrementLevel
       Interpreter.shouldRetype = false // FIXME: Hack
@@ -289,7 +289,7 @@ trait ScalaDepRules {
             emitErrorWithJudgment("NormSingleton", g, None)
         }))
       } else {
-        val g1 = NormalizationGoal(c0, tyUnderlying, linearExistsVars, inPositive)
+        val g1 = NormalizationGoal(c0, tyUnderlying)
         Some((List(_ => g1), {
           case NormalizationJudgment(_, _, _, tyUnderlyingN) :: Nil =>
             (true, NormalizationJudgment("NormSingleton", c, ty, SingletonType(tyUnderlyingN, v)))
@@ -302,15 +302,14 @@ trait ScalaDepRules {
   })
 
   val NormExists1 = Rule("NormExists1", {
-    case g @ NormalizationGoal(c, ty @ ExistsType(ty1 @ SingletonType(_, _), Bind(id, ty2)),
-        linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, ty @ ExistsType(ty1 @ SingletonType(_, _), Bind(id, ty2))) =>
       TypeChecker.debugs(g, "NormExists1")
       val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
+      val g1 = NormalizationGoal(c0, ty1)
       val g2: List[Judgment] => Goal = {
         case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
           val c1 = c0.bind(id, tyN1)
-          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
+          NormalizationGoal(c1, ty2)
         case _ =>
           ErrorGoal(c0, Some(s"Expected normalized type"))
       }
@@ -326,15 +325,15 @@ trait ScalaDepRules {
 
   // NOTE: This rule should have lower priority than `NormSubstVar`.
   val NormExists2 = Rule("NormExists2", {
-    case g @ NormalizationGoal(c, ty @ ExistsType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, ty @ ExistsType(ty1, Bind(id, ty2))) =>
       TypeChecker.debugs(g, "NormExists2")
       val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
+      val g1 = NormalizationGoal(c0, ty1)
       val g2: List[Judgment] => Goal = {
         case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
           // TODO: Assert tyN1 is not singleton? (Otherwise we might want to strip the Exists as in NormSubstVar)
           val c1 = c0.bind(id, tyN1)
-          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
+          NormalizationGoal(c1, ty2)
         case _ =>
           ErrorGoal(c0, Some(s"Expected normalized type"))
       }
@@ -350,14 +349,13 @@ trait ScalaDepRules {
 
   val NormNatMatch = Rule("NormNatMatch", {
     case g @ NormalizationGoal(c,
-        ty @ NatMatchType(tScrut, tyZero, tySuccBind @ Bind(id, tySucc)),
-        linearExistsVars, inPositive) =>
+        ty @ NatMatchType(tScrut, tyZero, tySuccBind @ Bind(id, tySucc))) =>
       TypeChecker.debugs(g, "NormNatMatch")
       val c0 = c.incrementLevel
       val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
       Some(tScrutN match {
         case NatLiteral(n) if n == 0 =>
-          val g1 = NormalizationGoal(c0, tyZero, linearExistsVars, inPositive)
+          val g1 = NormalizationGoal(c0, tyZero)
           (List(_ => g1), {
             case NormalizationJudgment(_, _, _, tyZeroN) :: Nil =>
               (true, NormalizationJudgment("NormNatMatch", c, ty, tyZeroN))
@@ -368,7 +366,7 @@ trait ScalaDepRules {
           // TODO: Re-type here instead?
           val c1 = c0
             .bind(id, SingletonType(NatType, NatLiteral(n - 1)))
-          val g1 = NormalizationGoal(c1, tySucc, linearExistsVars, inPositive)
+          val g1 = NormalizationGoal(c1, tySucc)
           (List(_ => g1), {
             case NormalizationJudgment(_, _, _, tySuccN) :: Nil =>
               (true, NormalizationJudgment("NormNatMatch", c, ty, tySuccN))
@@ -387,14 +385,13 @@ trait ScalaDepRules {
 
   val NormListMatch = Rule("NormListMatch", {
     case g @ NormalizationGoal(c,
-        ty @ ListMatchType(tScrut, tyNil, tyConsBind @ Bind(idHead, Bind(idTail, tyCons))),
-        linearExistsVars, inPositive) =>
+        ty @ ListMatchType(tScrut, tyNil, tyConsBind @ Bind(idHead, Bind(idTail, tyCons)))) =>
       TypeChecker.debugs(g, "NormListMatch")
       val c0 = c.incrementLevel
       val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
       Some(tScrutN match {
         case LNil() =>
-          val g1 = NormalizationGoal(c0, tyNil, linearExistsVars, inPositive)
+          val g1 = NormalizationGoal(c0, tyNil)
           (List(_ => g1), {
             case NormalizationJudgment(_, _, _, tyNilN) :: Nil =>
               (true, NormalizationJudgment("NormListMatch", c, ty, tyNilN))
@@ -406,7 +403,7 @@ trait ScalaDepRules {
           val c1 = c0
             .bind(idHead, SingletonType(TopType, tHead))
             .bind(idTail, SingletonType(LList, tTail))
-          val g1 = NormalizationGoal(c1, tyCons, linearExistsVars, inPositive)
+          val g1 = NormalizationGoal(c1, tyCons)
           (List(_ => g1), {
             case NormalizationJudgment(_, _, _, tyConsN) :: Nil =>
               (true, NormalizationJudgment("NormListMatch", c, ty, tyConsN))
@@ -424,11 +421,11 @@ trait ScalaDepRules {
   })
 
   val NormCons = Rule("NormCons", {
-    case g @ NormalizationGoal(c, ty @ LConsType(tyHead, tyTail), linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, ty @ LConsType(tyHead, tyTail)) =>
       TypeChecker.debugs(g, "NormCons")
       val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, tyHead, linearExistsVars, inPositive)
-      val g2 = NormalizationGoal(c0, tyTail, linearExistsVars, inPositive)
+      val g1 = NormalizationGoal(c0, tyHead)
+      val g2 = NormalizationGoal(c0, tyTail)
       Some((List(_ => g1, _ => g2), {
         case NormalizationJudgment(_, _, _, tyHeadN) :: NormalizationJudgment(_, _, _, tyTailN) :: Nil =>
           (true, NormalizationJudgment("NormCons", c, ty, LConsType(tyHeadN, tyTailN)))
@@ -440,14 +437,14 @@ trait ScalaDepRules {
   })
 
   val NormPi = Rule("NormPi", {
-    case g @ NormalizationGoal(c, ty @ PiType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, ty @ PiType(ty1, Bind(id, ty2))) =>
       TypeChecker.debugs(g, "NormPi")
       val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive = false)
+      val g1 = NormalizationGoal(c0, ty1)
       val g2: List[Judgment] => Goal = {
         case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
           val c1 = c0.bind(id, tyN1)
-          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
+          NormalizationGoal(c1, ty2)
         case _ =>
           ErrorGoal(c0, None)
       }
@@ -462,14 +459,14 @@ trait ScalaDepRules {
   })
 
   val NormSigma = Rule("NormSigma", {
-    case g @ NormalizationGoal(c, ty @ SigmaType(ty1, Bind(id, ty2)), linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, ty @ SigmaType(ty1, Bind(id, ty2))) =>
       TypeChecker.debugs(g, "NormSigma")
       val c0 = c.incrementLevel
-      val g1 = NormalizationGoal(c0, ty1, linearExistsVars, inPositive)
+      val g1 = NormalizationGoal(c0, ty1)
       val g2: List[Judgment] => Goal = {
         case NormalizationJudgment(_, _, _, tyN1) :: Nil =>
           val c1 = c0.bind(id, tyN1)
-          NormalizationGoal(c1, ty2, linearExistsVars, inPositive)
+          NormalizationGoal(c1, ty2)
         case _ =>
           ErrorGoal(c0, None)
       }
@@ -484,7 +481,7 @@ trait ScalaDepRules {
   })
 
   val NormBase = Rule("NormBase", {
-    case g @ NormalizationGoal(c, TopType | BoolType | NatType | `UnitType` | `LList`, linearExistsVars, inPositive) =>
+    case g @ NormalizationGoal(c, TopType | BoolType | NatType | `UnitType` | `LList`) =>
       TypeChecker.debugs(g, "NormBase")
       val c0 = c.incrementLevel
       Some((List(), {

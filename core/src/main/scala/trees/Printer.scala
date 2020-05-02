@@ -212,7 +212,7 @@ object Printer {
     case CheckGoal(c, t, tp) => exprAsString(t) + " ⇓ " + typeAsString(tp)
     case SubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <: " + typeAsString(ty2)
     case NormalizedSubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <:‖ " + typeAsString(ty2)
-    case NormalizationGoal(c, ty, _, _) => typeAsString(ty) + s" ⇥ ?"
+    case NormalizationGoal(c, ty) => typeAsString(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeAsString(tp)}"
     case EqualityGoal(c, t1, t2) =>
