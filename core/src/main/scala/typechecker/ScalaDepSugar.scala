@@ -7,6 +7,14 @@ import stainlessfit.core.util.RunContext
 
 object ScalaDepSugar {
 
+  object BaseType {
+    def unapply(ty: Tree): Boolean =
+      ty match {
+        case TopType | BoolType | NatType | `UnitType` | `LList` => true
+        case _ => false
+      }
+  }
+
   object SingletonType {
     def apply(ty: Tree, t: Tree): Tree = {
       val id = Identifier.fresh("x")

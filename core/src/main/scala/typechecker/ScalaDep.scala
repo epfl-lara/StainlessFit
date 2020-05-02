@@ -41,7 +41,9 @@ class ScalaDep(implicit val rc: RunContext)
     NormCons.t ||
     NormPi.t ||
     NormSigma.t ||
-    SubNormalize.t ||
+    (SubNormalizeUnforced.t orRecover SubNormalize.t) ||
+    SubSingletonReflexive.t ||
+    SubReflexive.t ||
     SubExistsLeft.t ||
     SubExistsRight.t ||
     SubNatMatch.t ||
@@ -50,14 +52,22 @@ class ScalaDep(implicit val rc: RunContext)
     SubCons1.t ||
     SubCons2.t ||
     SubPi.t ||
-    SubSingletonReflexive.t ||
-    SubReflexive.t ||
     SubSingletonLeft.t ||
     SubTop.t
+
+  // Like FailRule, but only on SubtypeGoals and doesn't report an error.
+  // This way we can try alternatives in SubNormalize* without printing spurious errors.
+  val SubtypeFailRule = Rule("SubtypeFailRule", {
+    case g @ SubtypeGoal(_, _, _) => Some((List(), _ =>
+      (false, ErrorJudgment("SubtypeFailRule", g, Some("Goal is not handled")))
+    ))
+    case _ => None
+  })
 
   val control: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CatchErrorGoal.t ||
     CatchEmptyGoal.t ||
+    SubtypeFailRule.t ||
     FailRule.t
 
   val tactic = (typeChecking || control).repeat
