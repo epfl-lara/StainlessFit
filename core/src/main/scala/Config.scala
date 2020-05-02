@@ -21,6 +21,7 @@ case class Config(
   verbose: Boolean                 = false,
   info: Boolean                    = true,
   printUniqueIds: Boolean          = false,
+  printUnderlying: Boolean         = false,
   debugSections: Set[DebugSection] = Set.empty,
 )
 

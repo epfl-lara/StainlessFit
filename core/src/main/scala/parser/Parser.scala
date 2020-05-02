@@ -368,7 +368,11 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case Left(x ~ ty ~ p) => RefinementType(ty, Bind(x, p))
       case Right(ty ~ t) => SingletonType(ty, t)
     }, {
-      case SingletonType(ty, t) => Seq(Right(ty ~ t))
+      case SingletonType(ty, t) =>
+        if (rc.config.printUnderlying)
+          Seq(Right(ty ~ t))
+        else
+          Seq(Right(TopType ~ t))
       case RefinementType(ty, Bind(x, p)) => Seq(Left(x ~ ty ~ p))
       case _ => Seq()
     })

@@ -48,6 +48,9 @@ object ConfigParser {
       opt[Unit]("print-ids")
         .action((_, c) => c.copy(printUniqueIds = true))
         .text("Print unique identifiers"),
+      opt[Unit]("print-underlying")
+        .action((_, c) => c.copy(printUnderlying = true))
+        .text("Print underlying types of singleton types"),
 
       note(""),
       cmd("eval")
