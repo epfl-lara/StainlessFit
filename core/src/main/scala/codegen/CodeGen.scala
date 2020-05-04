@@ -71,8 +71,19 @@ class CodeGen(val rc: RunContext) {
       val result = lh.freshLocal("result")
 
       val prep = function.returnType match {
-        case EitherType(_, _) => List(Malloc(result, lh.dot(result, "malloc"), function.returnType), NoOp)
+        case EitherType(_, _) => List(Malloc(result, lh.dot(result, "malloc"), function.returnType))
+        // case funType @ FunctionType(argType, retType) => {
+        //   List(Malloc(result, lh.dot(result, "malloc"), LambdaType(funType)))
+        // }
+        case LambdaValue(argType, retType) => {
+          List(Malloc(result, lh.dot(result, "malloc"), function.returnType))
+        }
         case _ => Nil
+      } //TODO preAllocate
+
+      val closedRetType = function.returnType match {
+        // case funType @ FunctionType(_, _) => LambdaType(funType)
+        case other => other
       }
 
       val (entryBlock, phi) = codegen(body, initBlock <:> prep, Some(end), Some(result), returnType)(lh, function, fh)
@@ -88,10 +99,10 @@ class CodeGen(val rc: RunContext) {
         (endBlock, Value(result))
       }
 
-      val ret = Return(returnValue, function.returnType)
+      val ret = Return(returnValue, closedRetType)
       function.add(lastBlock <:> ret)
 
-      function
+      Function(closedRetType, function.name, function.params, function.blocks)
     }
 
     def extractDefFun(t: Tree): (List[DefFunction], Tree) = t match {
@@ -136,6 +147,9 @@ class CodeGen(val rc: RunContext) {
       case UnitType => IRUnitType
       case Bind(_, rest) => translateType(rest) //TODO Is this necessary
       case SigmaType(tpe, bind) => PairType(translateType(tpe), translateType(bind))
+      // case PiType(argType, Bind(_, retType)) => FunctionType(translateType(argType), translateType(retType))
+      case PiType(argType, Bind(_, retType)) => LambdaValue(translateType(argType), translateType(retType))
+
       case SumType(leftType ,rightType) => EitherType(translateType(leftType), translateType(rightType))
       case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
     }
@@ -226,31 +240,57 @@ class CodeGen(val rc: RunContext) {
       case _ => rc.reporter.fatalError(s"Result type not yet implemented for $t")
     }
 
-    def cgFunctionBodyCall(call: Tree, block: Block, next: Option[Label], toAssign: Option[Local])
+    def cgTopLevelFunCall(funId: Identifier, args: List[Tree], block: Block, next: Option[Label], toAssign: Option[Local])
       (implicit lh: LocalHandler, f: Function, fh: FunctionHandler): (Block, List[Instruction]) = {
-
-        val (funId, flatArgs) = flattenApp(call)
-        val init: (Block, List[Value]) = (block, Nil)
-
-        val (currentBlock, values) = flatArgs.zipWithIndex.foldLeft(init){
-          case ((currentBlock, values), (arg, index)) => {
-            val temp = lh.freshLocal(s"arg_$index")
-            val argType = fh.getArgType(funId, index)
-
-            val prepArg = argType match {
-              case EitherType(_, _) => List(Malloc(temp, lh.dot(temp, "malloc"), argType), NoOp)
-              case _ => Nil
-            }
-
-            val (nextBlock, phi) = codegen(arg, currentBlock <:> prepArg, None, Some(temp), argType)
-            (nextBlock <:> phi, values :+ Value(temp))
-          }
-        }
 
         val result = assignee(toAssign)
         val jump = jumpTo(next)
 
-        (currentBlock <:> Call(result, Global(funId.name), values) <:> NoOp <:> jump, Nil)
+        // if(fh.hasFunction(id)){
+
+          val init: (Block, List[Value]) = (block, Nil)
+
+          val (currentBlock, values) = args.zipWithIndex.foldLeft(init){
+            case ((currentBlock, values), (arg, index)) => {
+              val temp = lh.freshLocal(s"arg_$index")
+              val argType = fh.getArgType(funId, index)
+
+              val prepArg = argType match {
+                case EitherType(_, _) => List(Malloc(temp, lh.dot(temp, "malloc"), argType))
+                case LambdaValue(_, _) => ???
+                case _ => Nil
+              } //TODO preallocate
+
+              val (nextBlock, phi) = codegen(arg, currentBlock <:> prepArg, None, Some(temp), argType)
+              (nextBlock <:> phi, values :+ Value(temp))
+            }
+          }
+
+          (currentBlock <:> CallTopLevel(result, Global(funId.name), values) <:> jump, Nil)
+        // } else {
+        //   val (argType, retType) = lh.getType(id) match {
+        //     case LambdaValue(argType, retType) => (argType, retType)
+        //     case other => rc.reporter.fatalError(s"Cannot apply $flatArgs to $id")
+        //   }
+        //
+        //   val currentBlock = flatArgs.zipWithIndex.foldLeft(block){
+        //     case (currentBlock, (arg, index)) => {
+        //       val temp = lh.freshLocal(s"arg_$index")
+        //       val res = lh.freshLocal(s"res_$index")
+        //
+        //       //TODO prepArg
+        //       val (argBlock, phi) = codegen(arg, currentBlock <:> prepArg, None, Some(temp), argType)
+        //
+        //       val (fun, loadFun) = getLambdaFunction(id, argType, retType)
+        //       val (env, loadEnv) = getLambdaEnv(id, argType, retType)
+        //
+        //       argBlock <:> phi <:>
+        //       loadFun <:> loadEnv <:>
+        //       Call(res, Right(fun), List(Value(temp), Value(env)))
+        //     }
+        //   }
+        //   ???
+        // }
     }
 
     def cgEitherChoose(either: Local, eitherType: Type, chooseLeft: Label, chooseRight: Label)
@@ -272,7 +312,7 @@ class CodeGen(val rc: RunContext) {
         val assign = assignee(toAssign)
 
         val (trueLocal, falseLocal) = resultType match {
-          case EitherType(_, _) => (assign, assign)
+          case EitherType(_, _) | LambdaValue(_, _) => (assign, assign)
           case _ => (lh.freshLocal("phi"), lh.freshLocal("phi"))
         }
 
@@ -285,7 +325,7 @@ class CodeGen(val rc: RunContext) {
         f.add(falseBlock)
 
         val nextPhi = resultType match {
-          case EitherType(_, _) => Nil
+          case EitherType(_, _) | LambdaValue(_, _) => Nil
           case _ => List(Phi(assign, resultType, List((trueLocal, trueBlock.label), (falseLocal, falseBlock.label))))
         }
 
@@ -310,6 +350,32 @@ class CodeGen(val rc: RunContext) {
         (rightLocal, prepRight)
     }
 
+    def getLambdaFunction(lambda: Local, argType: Type, retType: Type)(implicit lh: LocalHandler): (Local, List[Instruction]) = {
+      val funPtr = lh.dot(lambda, "function.gep")
+      val fun = lh.dot(lambda, "function")
+      val loadFun = List(
+        GepToIdx(funPtr, LambdaValue(argType, retType), Value(lambda), Some(0)),
+        Load(fun, FunctionType(argType, retType), funPtr)
+      )
+      (fun, loadFun)
+    }
+
+    def getLambdaEnv(lambda: Local, argType: Type, retType: Type)(implicit lh: LocalHandler): (Local, List[Instruction]) = {
+      val envPtr = lh.dot(lambda, "env.gep")
+      val env = lh.dot(lambda, "env")
+      val loadEnv = List(
+        GepToIdx(envPtr, LambdaValue(argType, retType), Value(lambda), Some(1)),
+        Load(env, RawEnvType, envPtr)
+      )
+      (env, loadEnv)
+    }
+
+    def preAllocate(local: Local, tpe: Type)(implicit lh: LocalHandler): List[Instruction] = tpe match {
+      case EitherType(_, _) |
+        LambdaValue(_, _) => List(Malloc(local, lh.dot(local, "malloc"), tpe))
+      case _ => Nil
+    }
+
     def prepEnvironment(freeVariables: List[Identifier], freeTypes: List[Type], assign: Local)
       (implicit lh: LocalHandler): (List[Instruction], Value) = {
 
@@ -321,7 +387,8 @@ class CodeGen(val rc: RunContext) {
       } else {
         //Create enviroment
         val env = lh.dot(assign, "env")
-        val mallocEnv = Malloc(env, lh.dot(env, "malloc"), envType)
+        val rawEnv = lh.dot(env, "malloc")
+        val mallocEnv = Malloc(env, rawEnv, envType)
 
         //Store free variables into the environment
         val storeIntoEnv = freeVariables.zipWithIndex.flatMap{
@@ -337,7 +404,7 @@ class CodeGen(val rc: RunContext) {
           }
         }
 
-        (mallocEnv +: storeIntoEnv, Value(env))
+        (mallocEnv +: storeIntoEnv, Value(rawEnv))
       }
     }
 
@@ -346,8 +413,11 @@ class CodeGen(val rc: RunContext) {
 
       //Environment receiving ==============================================
       val lambdaLH = new LocalHandler(rc)
+      val rawEnv = lambdaLH.freshLocal("raw.env")
       val capturedEnv = lambdaLH.freshLocal("env")
       val envType = EnvironmentType(freeTypes)
+
+      val translateEnv = Bitcast(capturedEnv, rawEnv, envType)
 
       //Load captured variables from the enviroment into locals
       val loadFromEnv = freeVariables.zipWithIndex.flatMap{
@@ -365,19 +435,17 @@ class CodeGen(val rc: RunContext) {
       }
 
       //Codgen the lambda body
-      val (lambdaArgType, lambdaRetType) = resultType match {
-        case FunctionType(argType, retType) => (argType, retType)
-        case other => rc.reporter.fatalError(s"Expected lambda of type A => B, but got $resultType")
-      }
+      val (lambdaArgType, lambdaRetType) = getLambdaPrototype(resultType)
 
-      val envDef = ParamDef(envType, capturedEnv)
+      val envDef = ParamDef(RawEnvType, rawEnv)
       val argDef = ParamDef(lambdaArgType, lambdaLH.freshLocal(argId))
       lambdaLH.add(argId, argDef)
 
-      val lambdaName = Global(s"lambda.${fh.nextLambda()}")
+      val lambdaName = Global(s"lambda.${fh.nextLambda()}") //TODO use a name according to top-level name (i.e. makeAdder#1)
       val emptyLambda = Function(lambdaRetType, lambdaName, List(argDef, envDef))
 
-      val completeLambda = cgFunction(emptyLambda, lambdaLH, body, fh, loadFromEnv)
+      val firstInstr = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
+      val completeLambda = cgFunction(emptyLambda, lambdaLH, body, fh, firstInstr)
       fh.addLambda(completeLambda)
 
       lambdaName
@@ -426,6 +494,92 @@ class CodeGen(val rc: RunContext) {
       case _ => t
     }
 
+    def getLambdaPrototype(tpe: Type) = tpe match {
+      case LambdaValue(argType, retType) => (argType, retType)
+      case other => rc.reporter.fatalError(s"Type $tpe isn't a lambda")
+    }
+
+    def cgLambdaCall(lambda: Local, args: List[Tree], block: Block, next: Option[Label], toAssign: Option[Local], lambdaType: Type)
+      (implicit lh: LocalHandler, f: Function, fh: FunctionHandler): Block = {
+
+        def applyOneArg(arg: Tree, res: Local, lambdaType: Type): Block = {
+
+          val (argType, retType) = getLambdaPrototype(lambdaType)
+
+          val argLocal = lh.freshLocal("arg")
+          val prepArg = preAllocate(argLocal, argType)
+          val (currentBlock, phi) = codegen(arg, block <:> prepArg, None, Some(argLocal), argType)
+
+          val (funLocal, loadFun) = getLambdaFunction(lambda, argType, lambdaType)
+          val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, lambdaType)
+
+          val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
+          prep <:> CallLambda(res, funLocal, Value(argLocal), argType, envLocal, retType)
+        }
+
+        args match {
+          case arg :: Nil =>  applyOneArg(arg, assignee(toAssign), lambdaType) <:> jumpTo(next)
+          case arg :: rest => {
+            val tempRes = lh.freshLocal("nested.lambda")
+            val currentBlock = applyOneArg(arg, tempRes, lambdaType)
+
+            val (argType, retType) = getLambdaPrototype(lambdaType)
+            cgLambdaCall(tempRes, rest, currentBlock, next, toAssign, retType)
+          }
+
+          case Nil => rc.reporter.fatalError("Cannot apply a lambda to nothing")
+        }
+      }
+
+      //   args match {
+      //   case arg :: Nil => {
+      //     val argLocal = lh.freshLocal("arg")
+      //     val argType = ???
+      //     val prepArg = preAllocate(argLocal, argType)
+      //     val (currentBlock, phi) = codegen(arg, block <:> prepArg, None, Some(argLocal), argType)
+      //
+      //     val (funLocal, loadFun) = getLambdaFunction(lambda, argType, ???)
+      //     val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, ???)
+      //
+      //     val lambdaArgs = List(Value(argLocal), Value(envLocal))
+      //     val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
+      //     (prep <:> Call(assignee(toAssign), funLocal, lambdaArgs), Nil)
+      //   }
+      //
+      //   case arg :: rest => {
+      //     val argLocal = lh.freshLocal("arg")
+      //     val argType = ???
+      //     val prepArg = preAllocate(argLocal, argType)
+      //     val (currentBlock, phi) = codegen(arg, block <:> prepArg, None, Some(argLocal), argType)
+      //
+      //     val nestedLambda = lh.freshLocal("nested.lambda")
+      //
+      //     val (funLocal, loadFun) = getLambdaFunction(lambda, argType, ???) //LambdaType
+      //     val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, ???)
+      //
+      //     val lambdaArgs = List(Value(argLocal), Value(envLocal))
+      //     val continue = currentBlock <:> phi <:> loadFun <:> loadEnv <:> Call(nestedLambda, funLocal, lambdaArgs)
+      //     cgLambdaCall(???, rest, continue, next, toAssign)
+      //   }
+      // }
+
+    //     {
+    //
+    //   val recAppRes = lh.freshLocal("app")
+    //   val (recBlock, recPhi) = codegen(rec, block, None, Some(recAppRes), typeOf(recApp))
+    //
+    //   val argLocal = lh.freshLocal("arg")
+    //   val argType = ???
+    //   val prepArg = preAllocate(argLocal, argType)
+    //   val (currentBlock, phi) = codegen(arg, recBlock <:> recPhi <:> prepArg, None, Some(argLocal), argType)
+    //
+    //   val (funLocal, loadFun) = getLambdaFunction(recAppRes, argType, resultType)
+    //   val (envLocal, loadEnv) = getLambdaEnv(recAppRes, argType, resultType)
+    //
+    //   val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
+    //   (prep <:> Call(assignee(toAssign), funLocal, List(Value(argLocal), Value(envLocal)), Nil))
+    // }
+
     def assignee(toAssign: Option[Local])(implicit lh: LocalHandler) = toAssign getOrElse lh.freshLocal
     def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
 
@@ -436,7 +590,66 @@ class CodeGen(val rc: RunContext) {
 
         case value if isValue(value) => (block <:> cgValue(resultType, translateValue(value), next, toAssign), Nil)
 
-        case call @ App(_, _) => cgFunctionBodyCall(call, block, next, toAssign)
+
+        // case App(Var(fun), arg) => {
+        //   val argLocal = lh.freshLocal("arg")
+        //   val argType = ???
+        //   val prepArg = preAllocate(argLocal, argType)
+        //
+        //   val (currentBlock, phi) = codegen(arg, block <:> prepArg, None, Some(argLocal), argType)
+        //
+        //   val (prepCall, funToCall, env) = if(fh.hasFunction(fun)) {
+        //     (Nil, Global(fun.name), List(Value(argLocal)))
+        //   } else {
+        //     val lambdaLocal = lh.getLocal(fun)
+        //     val (funLocal, loadFun) = getLambdaFunction(lambdaLocal, argType, retType)
+        //     val (envLocal, loadEnv) = getLambdaEnv(lambdaLocal, argType, retType)
+        //
+        //     (loadFun <:> loadEnv, funLocal, List(Value(envLocal)))
+        //   }
+        //
+        //   (currentBlock <:> phi <:> prepCall <:> Call(assignee(toAssign), funToCall, List(Value(argLocal)) ++ env))
+        // }
+
+        case call @ App(recApp, arg) => {
+          val (funId, flatArgs) = flattenApp(call)
+
+          if(fh.hasFunction(funId)){
+            val (topLevelArgs, lambdaArgs) = flatArgs.splitAt(fh.getArgNumber(funId))
+
+            if(lambdaArgs.isEmpty){
+              //Top level function returns a value that isn't applied to anything
+              cgTopLevelFunCall(funId, topLevelArgs, block, next, toAssign)
+            } else {
+              //Top level function returns a lambda which is then applied
+              val lambda = lh.freshLocal("lambda")
+              val lambdaType = lh.getType(funId)
+              val (currentBlock, phi) = cgTopLevelFunCall(funId, topLevelArgs, block, None, Some(lambda))
+
+              val lambdaCall = cgLambdaCall(lambda, lambdaArgs, currentBlock <:> phi, next, toAssign, lambdaType)
+              (lambdaCall, Nil)
+            }
+
+          } else {
+            val lambdaCall = cgLambdaCall(lh.getLocal(funId), flatArgs, block, next, toAssign, lh.getType(funId))
+            (lambdaCall, Nil)
+            // val recAppRes = lh.freshLocal("app")
+            // val (recBlock, recPhi) = codegen(rec, block, None, Some(recAppRes), typeOf(recApp))
+            //
+            // val argLocal = lh.freshLocal("arg")
+            // val argType = ???
+            // val prepArg = preAllocate(argLocal, argType)
+            // val (currentBlock, phi) = codegen(arg, recBlock <:> recPhi <:> prepArg, None, Some(argLocal), argType)
+            //
+            // val (funLocal, loadFun) = getLambdaFunction(recAppRes, argType, resultType)
+            // val (envLocal, loadEnv) = getLambdaEnv(recAppRes, argType, resultType)
+            //
+            // val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
+            // (prep <:> Call(assignee(toAssign), funLocal, List(Value(argLocal), Value(envLocal)), Nil))
+          }
+        }
+
+        // case call @ App(_, _) => cgTopLevelFunCall(call, block, next, toAssign)
 
         case Pair(first, second) => {
           val pair = assignee(toAssign)
@@ -453,7 +666,7 @@ class CodeGen(val rc: RunContext) {
 
           val malloc = Malloc(pair, t3, pairType) //will assign toAssign
 
-          val (firstBlock, firstPhi) = codegen(first, block <:> malloc <:> NoOp, None, Some(firstLocal), firstType)
+          val (firstBlock, firstPhi) = codegen(first, block <:> malloc, None, Some(firstLocal), firstType)
           val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal), secondType)
 
           val (firstPtr, secondPtr) = (lh.dot(pair, "first.gep"), lh.dot(pair, "second.gep"))
@@ -461,10 +674,8 @@ class CodeGen(val rc: RunContext) {
           val initialise = List(
             GepToIdx(firstPtr, pairType, Value(pair), Some(0)),
             Store(Value(firstLocal), firstType, firstPtr),
-            NoOp,
             GepToIdx(secondPtr, pairType, Value(pair), Some(1)),
-            Store(Value(secondLocal), secondType, secondPtr),
-            NoOp
+            Store(Value(secondLocal), secondType, secondPtr)
           )
 
           (secondBlock <:> secondPhi <:> initialise <:> jumpTo(next), Nil)
@@ -480,8 +691,7 @@ class CodeGen(val rc: RunContext) {
 
           val prep = List(
             GepToIdx(firstPtr, pairType, Value(pairLocal), Some(0)),
-            Load(assignLocal, resultType, firstPtr),
-            NoOp
+            Load(assignLocal, resultType, firstPtr)
           )
 
           (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
@@ -499,8 +709,7 @@ class CodeGen(val rc: RunContext) {
 
           val prep = List(
             GepToIdx(secondPtr, pairType, Value(pairLocal), Some(1)),
-            Load(assignLocal, resultType, secondPtr),
-            NoOp
+            Load(assignLocal, resultType, secondPtr)
           )
 
           (currentBlock <:> phi <:> prep <:> jumpTo(next), Nil)
@@ -515,10 +724,17 @@ class CodeGen(val rc: RunContext) {
             }
 
             val prep = valueTpe match {
-              case EitherType(_, _) => List(Malloc(local, lh.dot(local, "malloc"), valueTpe), NoOp)
-              // case PiType(argType, Bind(argId, retType)) => ??? //Might not need to do anything here
+              case EitherType(_, _) => List(Malloc(local, lh.dot(local, "malloc"), valueTpe))
+              case LambdaValue(argType, retType) => {
+                // val fun = FunctionType(argType, retType)
+                // List(Malloc(local, lh.dot(local, "malloc"), PairType(fun, RawEnvType)))
+                List(Malloc(local, lh.dot(local, "malloc"), valueTpe))
+              }
+              // case funType @ FunctionType(argType, retType) => {
+              //   List(Malloc(local, lh.dot(local, "malloc"), LambdaType(funType)))
+              // }
               case _ => Nil
-            }
+            } //TODO preAllocate
 
             val (tempBlock, phi) = codegen(valueBody, block <:> prep, None, Some(local), valueTpe)
             lh.add(newVar, ParamDef(valueTpe, local))
@@ -533,11 +749,35 @@ class CodeGen(val rc: RunContext) {
 
           val (prepEnv, envToPass) = prepEnvironment(freeVariables, freeTypes, assign)
 
+          // val funType: FunctionType = resultType match {
+          //   case f @ FunctionType(_, _) => f
+          //   case other => rc.reporter.fatalError(s"Expecting a function type but found $other")
+          // }
+
+          // val funType = resultType match {
+          //   case LambdaValue(argType, retType) => FunctionType(argType, retType)
+          //   case other => rc.reporter.fatalError(s"Expecting a function type but found $other")
+          // }
+          val (argType, retType) = getLambdaPrototype(resultType)
+
+          // val lambdaType = LambdaType(funType)
           val lambdaName = cgLambda(body, argId, freeVariables, freeTypes, resultType)
-          ???
-          // //assign = (cgLambda*, env)
-          // Assign(assign, ???, Value(LambdaLiteral(lambdaName, envToPass)))
-          // (block <:> prepEnv <:> ???, Nil)
+
+          val funPtr = lh.dot(assign, "function.gep")
+          val storeFun = List(
+            // GepToIdx(funPtr, lambdaType, Value(assign), Some(0)),
+            GepToIdx(funPtr, resultType, Value(assign), Some(0)),
+            Store(Value(FunctionLiteral(lambdaName)), FunctionType(argType, retType), funPtr)
+          )
+
+          val envPtr = lh.dot(assign, "env.gep")
+          val storeEnv = List(
+            // GepToIdx(envPtr, lambdaType, Value(assign), Some(1)),
+            GepToIdx(envPtr, resultType, Value(assign), Some(1)),
+            Store(envToPass, RawEnvType, envPtr)
+          )
+
+          (block <:> prepEnv <:> storeFun <:> storeEnv <:> jumpTo(next), Nil)
         }
 
         case IfThenElse(cond, thenn, elze) => {
@@ -637,10 +877,8 @@ class CodeGen(val rc: RunContext) {
               val assign = List(
                 GepToIdx(eitherTypePtr, resultType, Value(assignLocal), Some(0)),
                 Store(Value(IRBooleanLiteral(false)), BooleanType, eitherTypePtr),
-                NoOp,
                 GepToIdx(eitherValuePtr, resultType, Value(assignLocal), Some(1)),
-                Store(Value(leftLocal), leftType, eitherValuePtr),
-                NoOp)
+                Store(Value(leftLocal), leftType, eitherValuePtr))
 
                 val (prepBlock, p) = codegen(either, block, None, Some(leftLocal), leftType)
                 (prepBlock <:> p <:> assign, Nil)
@@ -669,10 +907,8 @@ class CodeGen(val rc: RunContext) {
               val assign = List(
                 GepToIdx(eitherTypePtr, resultType, Value(assignLocal), Some(0)),
                 Store(Value(IRBooleanLiteral(true)), BooleanType, eitherTypePtr),
-                NoOp,
                 GepToIdx(eitherValuePtr, resultType, Value(assignLocal), Some(2)),
-                Store(Value(rightLocal), rightType, eitherValuePtr),
-                NoOp)
+                Store(Value(rightLocal), rightType, eitherValuePtr))
 
                 val (prepBlock, p) = codegen(either, block, None, Some(rightLocal), rightType)
                 (prepBlock <:> p <:> assign, Nil)

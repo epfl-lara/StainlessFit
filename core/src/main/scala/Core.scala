@@ -98,13 +98,13 @@ object Core {
         parseFile(f) flatMap { src =>
           val (t, _) = extraction.compilePipeline.transform(src)
 
-          println(s"Printing the ast: $t")
-          Right("")
+          // println(s"Printing the ast: $t")
+          // Right("")
 
-          // rc.bench.time("Code generation"){
-          //   val module = new CodeGen(rc).genLLVM(t, true, f.getName)
-          //   LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
-          // }
+          rc.bench.time("Code generation"){
+            val module = new CodeGen(rc).genLLVM(t, true, f.getName)
+            LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
+          }
         }
       // }
   }

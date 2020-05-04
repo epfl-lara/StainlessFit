@@ -67,6 +67,11 @@ object ModulePrinter {
         toPrint += Raw("declare dso_local noalias i8* @malloc(i64) local_unnamed_addr")
         toPrint += Raw("declare dso_local i32 @printf(i8*, ...)")
 
+        if(!mod.lambdas.isEmpty)
+          toPrint += Stacked(
+              mod.lambdas.reverse.toList.map(l => printFunction(l)),
+              true)
+
         if(!mod.functions.isEmpty)
           toPrint += Stacked(
               mod.functions.toList.map(f => printFunction(f)),
@@ -80,6 +85,7 @@ object ModulePrinter {
      def printFunction(fun: Function): Document = {
       val Function(returnType, name, params, blocks) = fun
       val paramList = Lined(params.map(param => printType(param.tpe) <:> s" ${param.local}"), ", ")
+
       Stacked(
         Lined(List(Raw(s"define "), printType(returnType), Raw(s" $name("), paramList, ") {")),
         Indented(Stacked(blocks.toList.sortBy(_.index) map printBlock, true)),
@@ -116,6 +122,7 @@ object ModulePrinter {
 
           case PairType(t1, t2) => printInstr(GepToIdx(res, tpe, from, None))
           case EitherType(t1, t2) => printInstr(GepToIdx(res, tpe, from, None))
+          case FunctionType(argType, resType) => ???
 
           case NatType => Lined(List(s"$res = add", printType(tpe), "0,", printValue(from)), " ")
           case _ =>       Lined(List(s"$res = or", printType(tpe), "0,", printValue(from)), " ")
@@ -133,14 +140,19 @@ object ModulePrinter {
           Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
 
         //Todo void functions?
-        case Call(result, funName, values) => {
+        case CallTopLevel(result, funName, values) => {
           val f = getFunction(funName)
           val returnType = f.returnType
           val valueTypes = f.params.map(_.tpe)
 
           Raw(s"$result = call ") <:> printType(returnType) <:> (s" $funName(") <:>
           Lined(valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}, ", ") <:>
-          Raw(")")
+          Raw(")") <:> Raw("\n")
+        }
+
+        case CallLambda(result, lambda, arg, argType, env, retType) => {
+          Raw(s"$result = call ") <:> printType(retType) <:> (s" $lambda(") <:>
+          printType(argType) <:> " " <:> printValue(arg) <:> s", i8* $env)" <:> Raw("\n")
         }
 
         case PrintNat(value) => {
@@ -167,9 +179,13 @@ object ModulePrinter {
           val typeString = printType(tpe, false).print
           Stacked(
             Raw(s"$temp = call i8* @malloc(i64 ptrtoint ($typeString* getelementptr ($typeString, $typeString* null, i32 1) to i64))"),
-            Raw(s"$res = bitcast i8* $temp to $typeString*")
+            Raw(s"$res = bitcast i8* $temp to $typeString*"),
+            Raw("")
           )
         }
+
+        case Bitcast(res, local, toType) =>
+          Raw(s"$res = bitcast i8* $local to ") <:> printType(toType, false) <:> "*" <:> Raw("\n")
 
         case GepToIdx(result, tpe, ptr, idx) => {
           Lined(List(
@@ -182,11 +198,13 @@ object ModulePrinter {
           ), " ")
         }
 
-        case Store(value, tpe, ptr) => Lined(List(
-          "store", printType(tpe), printValue(value) <:> ",", printType(tpe) <:> "*", s"$ptr"), " ")
+        case Store(value, tpe, ptr) => Lined(
+          List("store", printType(tpe), printValue(value) <:> ",", printType(tpe) <:> "*", s"$ptr"),
+           " ") <:> Raw("\n")
 
-        case Load(result, tpe, ptr) => Lined(List(
-          s"$result = load", printType(tpe) <:> ",", printType(tpe) <:> "*", s"$ptr"), " ")
+        case Load(result, tpe, ptr) => Lined(
+          List(s"$result = load", printType(tpe) <:> ",", printType(tpe) <:> "*", s"$ptr"),
+           " ") <:> Raw("\n")
 
         case NoOp => ""
 
@@ -200,8 +218,14 @@ object ModulePrinter {
         case UnitLiteral => "0"
         case BooleanLiteral(b) => s"$b"
         case Nat(n) => s"$n"
+        // case FunctionLiteral(lambdaName, funType) =>
+        //   // printType(funType) <:> Raw(s" $lambdaName")
+        //   Raw(s"$lambdaName")
+        case FunctionLiteral(lambdaName) =>
+          Raw(s"$lambdaName")
+        case NullLiteral => "null"
+        case other => Raw(s"PLACEHOLDER: $other")
       }
-      case other => Raw(s"PLACEHOLDER: $other")
     }
 
      def getFunction(funName: Global): Function = {
@@ -211,14 +235,32 @@ object ModulePrinter {
 
     def printType(tpe: Type, ptr: Boolean = true): Document = extractNestedType(tpe) match {
       case NatType => "i32"
+
       case BooleanType | UnitType => "i1"
+
       case PairType(first, second) =>
         Raw("{") <:> printType(first) <:> Raw(", ") <:> printType(second) <:> Raw("}") <:> (if(ptr) "*" else "")
+
       case EitherType(left, right) =>
         Raw("{i1, ") <:> printType(left) <:> Raw(", ") <:> printType(right) <:> Raw("}") <:> (if(ptr) "*" else "")
+
       case LeftType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
       case RightType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
 
+      case RawEnvType => "i8*"
+
+      case FunctionType(argType, resType) =>
+        printType(resType) <:> Raw(" (") <:> printType(argType) <:> Raw(", i8*)*")
+
+      case EnvironmentType(types) =>
+        Raw("{") <:> Lined(types.map(t => printType(t)), ", ")<:> Raw("}") <:> (if(ptr) "*" else "")
+
+      // case LambdaType(funType) =>
+      //   Raw("{") <:> printType(funType) <:> Raw(", ") <:> printType(RawEnvType) <:> Raw("}") <:> (if(ptr) "*" else "")
+
+      case LambdaValue(argType, retType) =>
+        Raw("{") <:> printType(FunctionType(argType, retType)) <:> Raw(", i8*}") <:> (if(ptr) "*" else "")
+      // {retType (argType, i8*)*, i8*}//*
       case other=> Raw(s"PLACEHOLDER: $other")
     }
 

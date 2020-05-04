@@ -38,35 +38,38 @@ class ResultPrinter(rc: RunContext) {
       secondPrinted <:> close <:> jumpTo(next)
     }
 
-    case EitherType(leftType, rightType) => {
+    case eitherType @ EitherType(leftType, rightType) => {
       //Dynamically choose between Left and Right
       val leftBlockLabel = lh.dot(block.label, "left")
       val leftBlockStart = lh.newBlock(leftBlockLabel)
       val rightBlockLabel = lh.dot(block.label, "right")
       val rightBlockStart = lh.newBlock(rightBlockLabel)
 
-      val choose = new CodeGen(rc).cgEitherChoose(toPrint, tpe, leftBlockLabel, rightBlockLabel)
+      val helper = new CodeGen(rc)
+      val choose = helper.cgEitherChoose(toPrint, tpe, leftBlockLabel, rightBlockLabel)
       f.add(block <:> choose)
 
       val afterPrinting = lh.dot(block.label, "keep.printing")
 
       //If the value is a LeftTree
-      val eitherLeftPtr = lh.dot(toPrint, "left.gep")
-      val leftLocal = lh.dot(toPrint, "left")
-      val prepLeft = List(
-        GepToIdx(eitherLeftPtr, tpe, Value(toPrint), Some(1)),
-        Load(leftLocal, leftType, eitherLeftPtr))
+      // val eitherLeftPtr = lh.dot(toPrint, "left.gep")
+      // val leftLocal = lh.dot(toPrint, "left")
+      // val prepLeft = List(
+      //   GepToIdx(eitherLeftPtr, tpe, Value(toPrint), Some(1)),
+      //   Load(leftLocal, leftType, eitherLeftPtr))
+      val (leftLocal, prepLeft) = helper.getLeft(toPrint, eitherType)
 
       val leftBlock = leftBlockStart <:> prepLeft
       val leftPrinted = customPrint(leftBlock, leftLocal, LeftType(leftType), false, Some(afterPrinting))
       f.add(leftPrinted)
 
       //If the value is a RightTree
-      val eitherRightPtr = lh.dot(toPrint, "right.gep")
-      val rightLocal = lh.dot(toPrint, "right")
-      val prepRight = List(
-        GepToIdx(eitherRightPtr, tpe, Value(toPrint), Some(2)),
-        Load(rightLocal, rightType, eitherRightPtr))
+      // val eitherRightPtr = lh.dot(toPrint, "right.gep")
+      // val rightLocal = lh.dot(toPrint, "right")
+      // val prepRight = List(
+      //   GepToIdx(eitherRightPtr, tpe, Value(toPrint), Some(2)),
+      //   Load(rightLocal, rightType, eitherRightPtr))
+      val (rightLocal, prepRight) = helper.getRight(toPrint, eitherType)
 
       val rightBlock = rightBlockStart <:> prepRight
       val rightPrinted = customPrint(rightBlock, rightLocal, RightType(rightType), false, Some(afterPrinting))

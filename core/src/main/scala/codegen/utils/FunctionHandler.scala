@@ -16,6 +16,12 @@ class FunctionHandler(val rc: RunContext) {
   private def getFunction(funId: Identifier) =
     functions.getOrElse(funId, rc.reporter.fatalError(s"Unknown function $funId"))
 
+  def hasFunction(id: Identifier): Boolean =
+    functions.contains(id)
+
+  def getArgNumber(funId: Identifier) =
+    getFunction(funId).params.size
+
   def getReturnType(funId: Identifier) =
     getFunction(funId).returnType
 

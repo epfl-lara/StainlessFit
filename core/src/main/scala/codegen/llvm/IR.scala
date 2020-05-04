@@ -13,16 +13,17 @@ object IR {
     def <:>(is: List[Instruction]) = Block(index, label, instructions ++ is)
   }
 
-  case class Label (val label: String){
+  abstract class Name
+  case class Label (val label: String) extends Name {
     override def toString: String = s"%$label"
     def printLabel: String = s"$label:"
   }
 
-  case class Local (val name: String){
+  case class Local (val name: String) extends Name {
     override def toString: String = s"%$name"
   }
 
-  case class Global (val name: String){
+  case class Global (val name: String) extends Name {
     override def toString: String = s"@$name"
   }
 
@@ -48,9 +49,6 @@ object IR {
 
   case class FunctionReturnType(funName: Global) extends Type
 
-  case class EnvironmentType(types: List[Type]) extends Type
-  case class FunctionType(paramType: Type, returnType: Type) extends Type
-  case class FunctionPointer(funGlobal: Global, funType: FunctionType) extends Instruction
 
   case class ParamDef(tpe: Type, local: Local)
 
@@ -65,8 +63,15 @@ object IR {
   case class Nat(n: BigInt) extends Literal
   case object UnitLiteral extends Literal
   case class PairLiteral(first: Literal, second: Literal) extends Literal
+
   case object NullLiteral extends Literal
-  case class LambdaLiteral(lambdaName: Global, env: Value) extends Literal
+  case class LambdaType(funType: FunctionType) extends Type
+  case class LambdaValue(argType: Type, retType: Type) extends Type
+  case object RawEnvType extends Type //i8*
+  case class EnvironmentType(types: List[Type]) extends Type
+  case class FunctionType(paramType: Type, returnType: Type) extends Type
+  case class FunctionLiteral(name: Global) extends Literal
+  case class Bitcast(res: Local, local: Local, toType: Type) extends Instruction
 
   //Boolean operations
   abstract class Op extends Instruction {
@@ -139,7 +144,8 @@ object IR {
 
   case class Phi(res: Local, typee: Type, candidates: List[(Local, Label)]) extends Instruction
   case class Assign(result: Local, typee: Type, from: Value) extends Instruction
-  case class Call(res: Local, function: Global, args: List[Value]) extends Instruction
+  case class CallLambda(res: Local, lambda: Local, arg: Value, argType: Type, env: Local, retType: Type) extends Instruction
+  case class CallTopLevel(res: Local, function: Global, args: List[Value]) extends Instruction
 
   //Terminator instructions
   case class Branch(condition: Value, ifTrue: Label, ifFalse: Label) extends Instruction

@@ -6,5 +6,6 @@ fun makeAdder [returns Nat => (Nat => Nat)] = {
   }
 }
 
-val increment = makeAdder(1);
-increment(41)
+//val increment = makeAdder(1);
+//increment(41)
+5
