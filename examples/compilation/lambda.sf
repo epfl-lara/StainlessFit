@@ -1,0 +1,8 @@
+val m = 5;
+val n = 10;
+
+fun add15(x [Nat]) = {
+  x + m + n
+}
+
+add15(2)

@@ -47,14 +47,16 @@ object IR {
   case class LeftType(either: Type) extends Type
   case class RightType(either: Type) extends Type
 
-  case class FunctionReturnType(funName: Global) extends Type
-
+  case class LambdaValue(argType: Type, retType: Type) extends Type
+  case class FunctionType(paramType: Type, returnType: Type) extends Type
+  case class EnvironmentType(types: List[Type]) extends Type
+  case object RawEnvType extends Type //i8*
 
   case class ParamDef(tpe: Type, local: Local)
 
-  class Value(val v: Either[Local, Literal])
+  case class Value(val v: Either[Name, Literal])
   object Value {
-    def apply(local: Local): Value = new Value(Left(local))
+    def apply(name: Name): Value = new Value(Left(name))
     def apply(literal: Literal): Value = new Value(Right(literal))
   }
 
@@ -63,15 +65,7 @@ object IR {
   case class Nat(n: BigInt) extends Literal
   case object UnitLiteral extends Literal
   case class PairLiteral(first: Literal, second: Literal) extends Literal
-
   case object NullLiteral extends Literal
-  case class LambdaType(funType: FunctionType) extends Type
-  case class LambdaValue(argType: Type, retType: Type) extends Type
-  case object RawEnvType extends Type //i8*
-  case class EnvironmentType(types: List[Type]) extends Type
-  case class FunctionType(paramType: Type, returnType: Type) extends Type
-  case class FunctionLiteral(name: Global) extends Literal
-  case class Bitcast(res: Local, local: Local, toType: Type) extends Instruction
 
   //Boolean operations
   abstract class Op extends Instruction {
@@ -144,6 +138,7 @@ object IR {
 
   case class Phi(res: Local, typee: Type, candidates: List[(Local, Label)]) extends Instruction
   case class Assign(result: Local, typee: Type, from: Value) extends Instruction
+
   case class CallLambda(res: Local, lambda: Local, arg: Value, argType: Type, env: Local, retType: Type) extends Instruction
   case class CallTopLevel(res: Local, function: Global, args: List[Value]) extends Instruction
 
@@ -152,11 +147,13 @@ object IR {
   case class Jump(destination: Label) extends Instruction
   case class Return(result : Value, typee: Type) extends Instruction
 
+  //Memory instructions
   case class Store(value: Value, tpe: Type, ptr: Local) extends Instruction
   case class Load(result: Local, tpe: Type, ptr: Local) extends Instruction
 
   case class GepToIdx(result: Local, tpe: Type, ptr: Value, idx: Option[Int]) extends Instruction
   case class Malloc(result: Local, temp: Local, tpe: Type) extends Instruction
+  case class Bitcast(result: Local, local: Local, toType: Type) extends Instruction
 
   //Pretty printing instructions
   case class PrintNat(value: Value) extends Instruction
@@ -167,5 +164,4 @@ object IR {
   case object PrintComma extends Instruction
   case object PrintLeft extends Instruction
   case object PrintRight extends Instruction
-  case object NoOp extends Instruction
 }

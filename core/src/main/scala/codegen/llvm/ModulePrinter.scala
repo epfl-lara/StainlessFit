@@ -122,7 +122,7 @@ object ModulePrinter {
 
           case PairType(t1, t2) => printInstr(GepToIdx(res, tpe, from, None))
           case EitherType(t1, t2) => printInstr(GepToIdx(res, tpe, from, None))
-          case FunctionType(argType, resType) => ???
+          case LambdaValue(argType, retType) => printInstr(GepToIdx(res, tpe, from, None))
 
           case NatType => Lined(List(s"$res = add", printType(tpe), "0,", printValue(from)), " ")
           case _ =>       Lined(List(s"$res = or", printType(tpe), "0,", printValue(from)), " ")
@@ -206,23 +206,16 @@ object ModulePrinter {
           List(s"$result = load", printType(tpe) <:> ",", printType(tpe) <:> "*", s"$ptr"),
            " ") <:> Raw("\n")
 
-        case NoOp => ""
-
         case other => Raw(s"PLACEHOLDER: $other")
       }
     }
 
      def printValue(value: Value): Document = value.v match {
-      case Left(local) => s"$local"
+      case Left(name) => s"$name"
       case Right(literal) => literal match {
         case UnitLiteral => "0"
         case BooleanLiteral(b) => s"$b"
         case Nat(n) => s"$n"
-        // case FunctionLiteral(lambdaName, funType) =>
-        //   // printType(funType) <:> Raw(s" $lambdaName")
-        //   Raw(s"$lambdaName")
-        case FunctionLiteral(lambdaName) =>
-          Raw(s"$lambdaName")
         case NullLiteral => "null"
         case other => Raw(s"PLACEHOLDER: $other")
       }
@@ -255,12 +248,10 @@ object ModulePrinter {
       case EnvironmentType(types) =>
         Raw("{") <:> Lined(types.map(t => printType(t)), ", ")<:> Raw("}") <:> (if(ptr) "*" else "")
 
-      // case LambdaType(funType) =>
-      //   Raw("{") <:> printType(funType) <:> Raw(", ") <:> printType(RawEnvType) <:> Raw("}") <:> (if(ptr) "*" else "")
 
       case LambdaValue(argType, retType) =>
         Raw("{") <:> printType(FunctionType(argType, retType)) <:> Raw(", i8*}") <:> (if(ptr) "*" else "")
-      // {retType (argType, i8*)*, i8*}//*
+
       case other=> Raw(s"PLACEHOLDER: $other")
     }
 
@@ -270,7 +261,6 @@ object ModulePrinter {
     }
 
     def extractNestedType(tpe: Type): Type = tpe match {
-      case FunctionReturnType(funName) => getFunction(funName).returnType
       case FirstType(nested) => extractNestedType(nested) match {
         case PairType(first, _) => first
         case other => rc.reporter.fatalError(s"Cannot apply First to $other")

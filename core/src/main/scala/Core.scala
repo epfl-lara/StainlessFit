@@ -99,6 +99,7 @@ object Core {
           val (t, _) = extraction.compilePipeline.transform(src)
 
           // println(s"Printing the ast: $t")
+          // println("======================================")
           // Right("")
 
           rc.bench.time("Code generation"){

@@ -1,3 +1,5 @@
+val defFunElimination = 10;
+
 fun makeAdder [returns Nat => (Nat => Nat)] = {
   fun of x = {
     fun of y = {
@@ -8,4 +10,4 @@ fun makeAdder [returns Nat => (Nat => Nat)] = {
 
 val increment = makeAdder(1);
 
-increment(41)
+increment(2)

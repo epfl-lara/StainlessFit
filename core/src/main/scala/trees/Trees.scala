@@ -242,6 +242,12 @@ object Tree {
         traversePost(t1, f)
         traversePost(t2, f)
         f(t)
+      case DefFunction(args, optRetType, optMeasure, body, rest) =>
+        optRetType.foreach(tpe => traversePost(tpe, f))
+        optMeasure.foreach(measure => traversePost(measure, f))
+        traversePost(body, f)
+        traversePost(rest, f)
+        f(t)
       case App(t1, t2) =>
         traversePost(t1, f)
         traversePost(t2, f)

@@ -26,10 +26,8 @@ class ResultPrinter(rc: RunContext) {
       val prepPair = List(
         GepToIdx(firstPtr, tpe, Value(toPrint), Some(0)),
         Load(firstLocal, firstType, firstPtr),
-        NoOp,
         GepToIdx(secondPtr, tpe, Value(toPrint), Some(1)),
-        Load(secondLocal, secondType, secondPtr),
-        NoOp
+        Load(secondLocal, secondType, secondPtr)
       )
 
       val firstPrinted = customPrint(block <:> prepPair <:> open, firstLocal, firstType, false, None)

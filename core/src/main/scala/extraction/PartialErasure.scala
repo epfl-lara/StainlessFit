@@ -33,25 +33,21 @@ object PartialErasure {
 
     case LetIn(tpe, t1, bind) => LetIn(tpe, erase(t1), erase(bind)) //App(Lambda(None, erase(bind)), erase(t1))  //Let(None, erase(t1), erase(bind))
 
-    case deff @ DefFunction(args, optReturnType, optMeasure, body, Bind(funId, rest)) => {
-      // println(s"$deff")
-      // println(s"is top level $topLevel")
-      // println("=============================================================================")
+    case DefFunction(_, _, _, _, _) if !topLevel =>
+      new DefFunctionElimination().transform(t)._1
+
+    case DefFunction(args, optReturnType, optMeasure, body, Bind(funId, rest)) => {
+      val defFunElimination = new DefFunctionElimination()
+
       val nextIsTopLevel = rest match {
-        case DefFunction(_, _, _, _, _) => topLevel
+        case DefFunction(_, _, _, _, _) => true
         case _ => false
       }
-      // println(s"rest is $rest")
-      // println(s"rest is top level $nextIsTopLevel")
-      // println("=============================================================================")
-      // println("********************************************************************************")
 
-      val next = if(nextIsTopLevel) rest else new DefFunctionElimination().transform(rest)._1
+      val next = if(nextIsTopLevel) rest else defFunElimination.transform(rest)._1
+
       DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(Bind(funId, next), nextIsTopLevel))
     }
-
-    // case DefFunction(args, optReturnType, optMeasure, body, rest) =>
-    //   DefFunction(args, optReturnType, optMeasure, erase(body), erase(rest))
 
     case MacroTypeDecl(tpe, Bind(id, body)) => erase(body)
     case NatMatch(t, t0, bind) => NatMatch(erase(t), erase(t0), erase(bind))
