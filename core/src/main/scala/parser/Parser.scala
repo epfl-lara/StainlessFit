@@ -28,10 +28,16 @@ object Indentation {
 
 
 sealed abstract class Token extends Positioned {
+  var before: String = ""
   var after: String = ""
   var indentation: Indentation = Indentation.Same
 
-  def printWith(s: String): Token = {
+  def beforePrint(s: String): Token = {
+    before = s
+    this
+  }
+
+  def afterPrint(s: String): Token = {
     after = s
     this
   }
@@ -214,17 +220,17 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val rbra: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}"))
   val dlbra: Syntax[Unit] = elem(SeparatorClass("{{")).unit(SeparatorToken("{{"))
   val drbra: Syntax[Unit] = elem(SeparatorClass("}}")).unit(SeparatorToken("}}"))
-  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").printWith("\n").indent())
-  val rbraBlock: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n").unindent())
-  val rbraBlock2: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").printWith("\n\n").unindent())
+  val lbraBlock: Syntax[Unit] = elem(SeparatorClass("{")).unit(SeparatorToken("{").afterPrint("\n").indent())
+  val rbraBlock: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").afterPrint("\n").unindent())
+  val rbraBlock2: Syntax[Unit] = elem(SeparatorClass("}")).unit(SeparatorToken("}").afterPrint("\n\n").unindent())
   val lsbra: Syntax[Unit] = elem(SeparatorClass("[")).unit(SeparatorToken("["))
   val rsbra: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]"))
-  val rsbraNewLine: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]").printWith("\n"))
-  val rsbraNewLines: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]").printWith("\n\n"))
+  val rsbraNewLine: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]").afterPrint("\n"))
+  val rsbraNewLines: Syntax[Unit] = elem(SeparatorClass("]")).unit(SeparatorToken("]").afterPrint("\n\n"))
   val comma: Syntax[Unit] = elem(SeparatorClass(",")).unit(SeparatorToken(","))
   val pipe: Syntax[Unit] = elem(SeparatorClass("|")).unit(SeparatorToken("|"))
   val colon: Syntax[Unit] = elem(SeparatorClass(":")).unit(SeparatorToken(":"))
-  val semicolon: Syntax[Unit] = elem(SeparatorClass(";")).unit(SeparatorToken(";").printWith("\n"))
+  val semicolon: Syntax[Unit] = elem(SeparatorClass(";")).unit(SeparatorToken(";").afterPrint("\n"))
   val dot: Syntax[Unit] = elem(SeparatorClass(".")).unit(SeparatorToken("."))
   val arrow: Syntax[Unit] = elem(SeparatorClass("=>")).unit(SeparatorToken("=>"))
   val ifK: Syntax[Unit] = elem(KeywordClass("if")).unit(KeywordToken("if"))
@@ -237,6 +243,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val natMatchK: Syntax[Unit] = elem(KeywordClass("nat_match")).unit(KeywordToken("nat_match"))
   val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
   val caseK: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case"))
+  val newLineCase: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case").beforePrint("\n"))
   val valK: Syntax[Unit] = elem(KeywordClass("val")).unit(KeywordToken("val"))
   val keepK: Syntax[Unit] = elem(KeywordClass("keep")).unit(KeywordToken("keep"))
   val errorK: Syntax[Unit] = elem(KeywordClass("error")).unit(KeywordToken("error"))
@@ -718,10 +725,10 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val eitherMatch: Syntax[Tree] =
-    (matchK.skip ~ expr ~ lbra.skip ~
+    (matchK.skip ~ expr ~ lbraBlock.skip ~
       caseK.skip ~ leftK.unit(KeywordToken("left")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
-      caseK.skip ~ rightK.unit(KeywordToken("right")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
-    rbra.skip
+      newLineCase.skip ~ rightK.unit(KeywordToken("right")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
+    rbraBlock.skip
     ).map({
       case (e ~ id1 ~ e1 ~ id2 ~ e2) => EitherMatch(e, Bind(id1, e1), Bind(id2, e2))
       case _ => sys.error("Unreachable")
@@ -731,10 +738,10 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val natMatch: Syntax[Tree] =
-    (natMatchK.skip ~ expr ~ lbra.skip ~
+    (natMatchK.skip ~ expr ~ lbraBlock.skip ~
       caseK.skip ~ zeroK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ optBracketExpr ~
-      caseK.skip ~ succK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
-    rbra.skip
+      newLineCase.skip ~ succK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ optBracketExpr ~
+    rbraBlock.skip
     ).map({
       case (e ~ e1 ~ id2 ~ e2) => NatMatch(e, e1, Bind(id2, e2))
       case _ => sys.error("Unreachable")
