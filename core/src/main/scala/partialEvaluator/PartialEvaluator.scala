@@ -13,8 +13,9 @@ object PartialEvaluator {
   def subError(a: BigInt,b: BigInt) = s"Substraction between ${a} and ${b} will yield a negative value"
   def divError = s"Attempt to divide by zero"
 
-  //see erasure
+  val __ignoreRefCounting__ = true
 
+  //see erasure
 
   def smallStep(e: Tree)(implicit rc: RunContext, vars: Map[Identifier,Tree]): Option[Tree] = {
     def transform(e: Tree): Option[Tree] = {
@@ -37,9 +38,24 @@ object PartialEvaluator {
           Some(App(Lambda(None, br), rt))
           //Some(Tree.replaceBind(br, rt))
         
-        case App(Lambda(_, bind), t2) => 
-          //TODO: reference counting, or other means of avoiding code explosion
+        case App(Lambda(_, bind: Bind), t2) if __ignoreRefCounting__ => 
+          def rec(op: Option[Tree], old: Tree): (Option[Tree], Tree) = {
+            op match{
+              case Some(value) => 
+                rec(TreeUtils.replaceBindSmallStep(bind, value), value)
+              case None => (None, old)
+            }
+          }
           Some(Tree.replaceBind(bind, t2))
+
+        case App(Lambda(_, bind: Bind), t2) =>
+          //Counts the number of references to that variable; 0, 1 or 2+ (at least 2)
+          TreeUtils.replaceBindSmallStep(bind, t2)
+            .map(nT2 => TreeUtils.replaceBindSmallStep(bind, nT2).toRight(nT2)) match {
+        /*0 */case None =>            Some(t2)
+        /*1 */case Some(Right(t)) =>  Some(t)
+        /*2+*/case Some(Left(t)) =>   None
+          }
 
         case ErasableApp(t1, t2) => 
           Some(t1)//smallStep(t1)
@@ -75,14 +91,14 @@ object PartialEvaluator {
         case Primitive(Minus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) => if(a>=b)  Some(NatLiteral(a - b))
                                                                           else      Some(Error(subError(a,b),None))
         case Primitive(Mul, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(NatLiteral(a * b))
-        case Primitive(Div, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>   if(b!=0)  Some(NatLiteral(a / b))
-                                                                          else      Some(Error(divError, None))
-        case Primitive(Eq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>              Some(BooleanLiteral(a == b))
+        case Primitive(Div, (     _   :: NatLiteral(`zero`) :: Nil)) =>             Some(Error(divError, None))
+        case Primitive(Div, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(NatLiteral(a / b))
+        case Primitive(Eq,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a == b))
         case Primitive(Neq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a != b))
         case Primitive(Leq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a <= b))
         case Primitive(Geq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a >= b))
-        case Primitive(Lt, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>              Some(BooleanLiteral(a < b))
-        case Primitive(Gt, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>              Some(BooleanLiteral(a > b))
+        case Primitive(Lt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a < b))
+        case Primitive(Gt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a > b))
 
         //case Fold(tp, t) => ???
         //case Unfold(t, bind) => ???
@@ -98,6 +114,7 @@ object PartialEvaluator {
   }
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
+    println("=============================================")
     Printer.exprInfo(e)
     smallStep(e)(rc,Map()) match {
       case None => e

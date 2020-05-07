@@ -62,7 +62,7 @@ object TreeUtils{
             rss(v1).map(LetIn(op, _, bind)) orElse
             rss(bind).map(LetIn(op, v1, _))
         case MacroTypeDecl(tpe, bind) =>
-            rss(tpe).map(MacroTypeDecl(_, bind))
+            rss(tpe).map(MacroTypeDecl(_, bind)) orElse
             rss(bind).map(MacroTypeDecl(tpe, _))
         case MacroTypeInst(v1, args) =>
             def convert(a: (Boolean,Tree)) =  a match{
@@ -85,7 +85,7 @@ object TreeUtils{
             rss(t2).map(ErasableApp(t1,_))
         case Fold(tp, t) => 
             rss(tp).map(Fold(_,t)) orElse
-            rss(t).map(Fold(_,tp))
+            rss(t).map(Fold(tp,_))
         case Unfold(t, bind) =>
             rss(t).map(Unfold(_,bind)) orElse
             rss(bind).map(Unfold(t,_))
@@ -133,12 +133,12 @@ object TreeUtils{
     }
   }
   def replaceBindSmallStep(bind: Bind, v: Tree)(implicit rc: RunContext): Option[Tree] = {
-    val (id, body) = bind match{ case Bind(id, body) => (id, body)}
+    val Bind(id, body) = bind
     def p(body: Tree) = body match {
       case Var(id2) if id2 == id => Some(v)
-      case Bind(id2, t) if id2!=id && id2.isFreeIn(v) =>
+      case Bind(id2, t) if id2 != id && id2.isFreeIn(v) =>
         rc.reporter.fatalError(
-            s"""Replacing ${Printer.asString(id)} by ${Printer.exprOrTypeAsString(v)} in
+            s"""Replacing ${Printer.asString(id)} by ${Printer.asString(v)} in
               |$body would capture variable ${Printer.asString(id2)}""".stripMargin
           )
       case _ => None
