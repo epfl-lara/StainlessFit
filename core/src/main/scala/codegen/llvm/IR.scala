@@ -140,7 +140,7 @@ object IR {
   case class Assign(result: Local, typee: Type, from: Value) extends Instruction
 
   case class CallLambda(res: Local, lambda: Local, arg: Value, argType: Type, env: Local, retType: Type) extends Instruction
-  case class CallTopLevel(res: Local, function: Global, args: List[Value]) extends Instruction
+  case class CallTopLevel(res: Local, returnType: Type, function: Global, args: List[Value], argTypes: List[Type]) extends Instruction
 
   //Terminator instructions
   case class Branch(condition: Value, ifTrue: Label, ifFalse: Label) extends Instruction

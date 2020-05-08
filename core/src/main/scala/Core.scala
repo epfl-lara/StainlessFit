@@ -91,13 +91,14 @@ object Core {
 
   def compileFile(f: File)(implicit rc: RunContext): Either[String, String] = {
 
-      // typeCheckFile(f) match {
-      //   case Left(error) => Left(error)
-      //   case Right((false, _)) => Left(s"There was an error while typechecking file '$f'.")
-      //   case Right((true, _)) =>
+      typeCheckFile(f) match {
+        case Left(error) => Left(error)
+        case Right((false, _)) => Left(s"There was an error while typechecking file '$f'.")
+        case Right((true, _)) =>
         parseFile(f) flatMap { src =>
           val (t, _) = extraction.compilePipeline.transform(src)
 
+          // println("")
           // println(s"Printing the ast: $t")
           // println("======================================")
           // Right("")
@@ -107,7 +108,7 @@ object Core {
             LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
           }
         }
-      // }
+      }
   }
 
   def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =

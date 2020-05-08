@@ -126,7 +126,7 @@ class CodeGen(val rc: RunContext) {
       val returnType = translateType(optReturnType.getOrElse(rc.reporter.fatalError("No return type found")))
 
       val function = Function(returnType, Global(funId.name), params.unzip._2)
-      fh.add(funId, function)
+      fh.addFunction(funId, function)
 
       val lh = new LocalHandler(rc)
       lh.add(params)
@@ -150,7 +150,7 @@ class CodeGen(val rc: RunContext) {
       case Mul => IRMul
       case Div => IRDiv
 
-      case _ => rc.reporter.fatalError("Not yet implemented")
+      case _ => rc.reporter.fatalError(s"Unable to translate operator $op")
     }
 
     def translateType(tpe: Tree): Type = tpe match {
@@ -161,6 +161,7 @@ class CodeGen(val rc: RunContext) {
       case SigmaType(tpe, bind) => PairType(translateType(tpe), translateType(bind))
       case PiType(argType, Bind(_, retType)) => LambdaValue(translateType(argType), translateType(retType))
       case SumType(leftType ,rightType) => EitherType(translateType(leftType), translateType(rightType))
+      case RefinementType(typee, _) => translateType(typee)
       case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
     }
 
@@ -189,6 +190,28 @@ class CodeGen(val rc: RunContext) {
       }
 
       case _ => rc.reporter.fatalError(s"flattenApp is not defined fo $t")
+    }
+
+    def typeOfOperand(op: Operator): Type = op match {
+      case Not => BooleanType
+      case And => BooleanType
+      case Or => BooleanType
+
+      case Neq => IRNatType
+      case Eq => IRNatType
+      case Lt => IRNatType
+      case Gt => IRNatType
+      case Leq => IRNatType
+      case Geq => IRNatType
+
+      // case Nop => IRNop
+
+      case Plus => IRNatType
+      case Minus => IRNatType
+      case Mul => IRNatType
+      case Div => IRNatType
+
+      case _ => rc.reporter.fatalError(s"Unable to determine the operand type of $op")
     }
 
     def typeOf(t: Tree)(implicit lh: LocalHandler, fh: FunctionHandler, helper: Map[Identifier, Type]): Type = t match {
@@ -223,10 +246,9 @@ class CodeGen(val rc: RunContext) {
       }
 
       case App(Var(id), arg) => {
-        if(fh.hasFunction(id)){
-          //Top level function
+        if(fh.hasFunction(id) || fh.hasLambda(id)){
           if(fh.getArgNumber(id) == 0){
-            //Top level function returns a lambda which is then applied
+            //Function returns a lambda which is then applied
             val lambdaType = fh.getReturnType(id)
             val (_, retType) = getLambdaPrototype(lambdaType)
             retType
@@ -234,7 +256,7 @@ class CodeGen(val rc: RunContext) {
             fh.getReturnType(id)
           }
         } else {
-          //Lambda
+          //Lambda variable applied to arg
           val lambdaType = typeOf(Var(id))
           val (_, retType) = getLambdaPrototype(lambdaType)
           retType
@@ -264,7 +286,7 @@ class CodeGen(val rc: RunContext) {
       }
 
       case LeftTree(either) => LeftType(typeOf(either))
-      
+
       case RightTree(either) => RightType(typeOf(either))
 
       case EitherMatch(_, t1, t2) => {
@@ -301,25 +323,33 @@ class CodeGen(val rc: RunContext) {
 
         val result = assignee(toAssign)
         val jump = jumpTo(next)
+        val resultType = fh.getReturnType(funId)
 
-        val init: (Block, List[Value]) = (block, Nil)
+        val init: (Block, List[Value], List[Type]) = (block, Nil, Nil)
 
-        val (currentBlock, values) = args.zipWithIndex.foldLeft(init){
-          case ((currentBlock, values), (arg, index)) => {
+        val (currentBlock, values, argTypes) = args.zipWithIndex.foldLeft(init){
+          case ((currentBlock, values, argTypes), (arg, index)) => {
             val temp = lh.freshLocal(s"arg_$index")
             val argType = fh.getArgType(funId, index)
 
             val prepArg = preAllocate(temp, argType)
 
             val (nextBlock, phi) = codegen(arg, currentBlock <:> prepArg, None, Some(temp), argType)
-            (nextBlock <:> phi, values :+ Value(temp))
+            (nextBlock <:> phi, values :+ Value(temp), argTypes :+ argType)
           }
         }
 
-        (currentBlock <:> CallTopLevel(result, Global(funId.name), values) <:> jump, Nil)
+        val (extraArg, extraType) = if(fh.hasLambda(funId)){ //TODO
+          (List(Value(Local("raw.env"))), List(RawEnvType))
+        } else {
+          (Nil, Nil)
+        }
+        val params = values ++ extraArg
+        val paramTypes = argTypes ++ extraType
+        (currentBlock <:> CallTopLevel(result, resultType, fh.getGlobal(funId), params, paramTypes) <:> jump, Nil)
     }
 
-    def cgLambdaCall(lambda: Local, args: List[Tree], block: Block, next: Option[Label], toAssign: Option[Local],
+    def cgLambdaCall(lambda: Local, args: List[Tree], block: Block, next: Option[Label], res: Local,
       argType: Type, retType: Type)(implicit lh: LocalHandler, f: Function, fh: FunctionHandler): Block = {
 
         def applyOneArg(arg: Tree, res: Local, argType: Type, retType: Type): Block = {
@@ -337,7 +367,7 @@ class CodeGen(val rc: RunContext) {
 
         args match {
           case arg :: Nil =>  {
-            val res = assignee(toAssign)
+            // val res = assignee(toAssign)
             val currentBlock = applyOneArg(arg, res, argType, retType) <:> jumpTo(next)
             currentBlock
           }
@@ -346,10 +376,16 @@ class CodeGen(val rc: RunContext) {
             val tempRes = lh.freshLocal("nested.lambda")
             val currentBlock = applyOneArg(arg, tempRes, argType, retType)
             val (nextArgType, nextRetType) = getLambdaPrototype(retType)
-            cgLambdaCall(tempRes, rest, currentBlock, next, toAssign, nextArgType, nextRetType)
+            cgLambdaCall(tempRes, rest, currentBlock, next, res, nextArgType, nextRetType)
           }
 
-          case Nil => rc.reporter.fatalError("Cannot apply a lambda to nothing")
+          case Nil => { //TODO
+            // val res = assignee(toAssign)
+            // block <:> Assign(res, LambdaValue(argType, retType), lambda) <:> jumpTo(next)
+
+            block <:> jumpTo(next)
+            //rc.reporter.fatalError("Cannot apply a lambda to nothing")
+          }
         }
     }
 
@@ -398,7 +434,7 @@ class CodeGen(val rc: RunContext) {
       //Environment receiving ==============================================
       val lambdaLH = new LocalHandler(rc)
       val rawEnv = lambdaLH.freshLocal("raw.env")
-      val capturedEnv = lambdaLH.freshLocal("env")
+      val capturedEnv = Local("env") //lambdaLH.freshLocal("env") //TODO
       val envType = EnvironmentType(freeTypes)
 
       val translateEnv = Bitcast(capturedEnv, rawEnv, envType)
@@ -425,12 +461,13 @@ class CodeGen(val rc: RunContext) {
       val argDef = ParamDef(lambdaArgType, lambdaLH.freshLocal(argId))
       lambdaLH.add(argId, argDef)
 
-      val lambdaName = Global(s"lambda.${fh.nextLambda()}") //TODO use a name according to top-level name (i.e. makeAdder#1)
+      val lambdaName = Global(fh.nextLambda(fh.lambdaToConvert)) //TODO use a name according to top-level name (i.e. makeAdder#1)
       val emptyLambda = Function(lambdaRetType, lambdaName, List(argDef, envDef))
+      fh.addLambda(fh.lambdaToConvert, emptyLambda)
+      fh.lambdaToConvert = null
 
       val firstInstr = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
       val completeLambda = cgFunction(emptyLambda, lambdaLH, body, fh, firstInstr)
-      fh.addLambda(completeLambda)
 
       lambdaName
     }
@@ -568,35 +605,77 @@ class CodeGen(val rc: RunContext) {
 
         case value if isValue(value) => (block <:> cgValue(resultType, translateValue(value), next, toAssign), Nil)
 
-        case call @ App(recApp, arg) => {
-          val (funId, flatArgs) = flattenApp(call)
+        case call @ App(recApp, arg) =>
+        // {
+        //   val (id, flatArgs) = flattenApp(call)
+        //
+        //   if(fh.hasFunction(id)){ //Top level function
+        //     val (topLevelArgs, lambdaArgs) = flatArgs.splitAt(fh.getArgNumber(id))
+        //
+        //     if(lambdaArgs.isEmpty){
+        //
+        //       //Top level function returns a value that isn't applied to anything
+        //       cgTopLevelFunCall(id, topLevelArgs, block, next, toAssign)
+        //     } else {
+        //
+        //       //Top level function returns a lambda which is then applied
+        //       val lambda = lh.freshLocal("lambda")
+        //
+        //       val (currentBlock, phi) = cgTopLevelFunCall(id, topLevelArgs, block, None, Some(lambda))
+        //
+        //       val (argType, retType) = getLambdaPrototype(fh.getReturnType(funId))
+        //       val lambdaCall = cgLambdaCall(lambda, lambdaArgs, currentBlock <:> phi, next, toAssign, argType, retType)
+        //       (lambdaCall, Nil)
+        //     }
+        //
+        //   // } else if(fh.hasLambda(id) && (fh.getLambda(id).name == f.name)){  //(recursive) top level lambda
+        //   //   cgTopLevelFunCall(id, List(), block, next, toAssign)
+        //   } else {  //Lambda variable
+        //     val (argType, retType) = getLambdaPrototype(lh.getType(funId))
+        //     val lambdaCall = cgLambdaCall(lh.getLocal(funId), flatArgs, block, next, toAssign, argType, retType)
+        //     (lambdaCall, Nil)
+        //   }
+        // }
+        ////////////////////////////////////////////////////////////////////////////////////
+        {
+          val (id, flatArgs) = flattenApp(call)
+          val result = assignee(toAssign)
 
-          if(fh.hasFunction(funId)){
-            val (topLevelArgs, lambdaArgs) = flatArgs.splitAt(fh.getArgNumber(funId))
+          val isTopLevelFunction = fh.hasFunction(id)
+          val isRecursiveLambdaCall = fh.hasLambda(id) && (fh.get(id).name == f.name)
 
-            if(lambdaArgs.isEmpty){
+          if(isTopLevelFunction || isRecursiveLambdaCall){  //Top level function or lambda
+            val nbConsumedArgs = fh.getArgNumber(id)
 
-              //Top level function returns a value that isn't applied to anything
-              cgTopLevelFunCall(funId, topLevelArgs, block, next, toAssign)
+            val (functionArgs, lambdaArgs) = flatArgs.splitAt(nbConsumedArgs)
+
+            // val intermediate =
+              if(lambdaArgs.isEmpty){
+              // Some(result)  //cgLambdaCall wil do nothing
+              cgTopLevelFunCall(id, functionArgs, block, None, Some(result))
             } else {
+              // Some(lh.freshLocal("intermediate.result"))
+              val intermediate = lh.freshLocal("intermediate.result")
+              val (currentBlock, phi) = cgTopLevelFunCall(id, functionArgs, block, None, Some(intermediate))
 
-              //Top level function returns a lambda which is then applied
-              val lambda = lh.freshLocal("lambda")
-
-              val (currentBlock, phi) = cgTopLevelFunCall(funId, topLevelArgs, block, None, Some(lambda))
-
-              val (argType, retType) = getLambdaPrototype(fh.getReturnType(funId))
-              val lambdaCall = cgLambdaCall(lambda, lambdaArgs, currentBlock <:> phi, next, toAssign, argType, retType)
+              val (argType, retType) = getLambdaPrototype(fh.getReturnType(id))
+              val lambdaCall = cgLambdaCall(intermediate, lambdaArgs, currentBlock <:> phi, next, result, argType, retType)
               (lambdaCall, Nil)
             }
 
-          } else {
-            val (argType, retType) = getLambdaPrototype(lh.getType(funId))
-            val lambdaCall = cgLambdaCall(lh.getLocal(funId), flatArgs, block, next, toAssign, argType, retType)
+            // val (currentBlock, phi) = cgTopLevelFunCall(id, functionArgs, block, None, intermediate)
+            //
+            // val (argType, retType) = getLambdaPrototype(fh.getReturnType(id))
+            // val lambdaCall = cgLambdaCall(intermediate.get, lambdaArgs, currentBlock <:> phi, next, result, argType, retType)
+            // (lambdaCall, Nil)
+
+          } else {  //Lambda variable
+            val (argType, retType) = getLambdaPrototype(lh.getType(id))
+            val lambdaCall = cgLambdaCall(lh.getLocal(id), flatArgs, block, next, result, argType, retType)
             (lambdaCall, Nil)
           }
         }
-
+        ////////////////////////////////////////////////////////////////////////////////////
         case Pair(first, second) => {
           val pair = assignee(toAssign)
           val firstLocal = lh.dot(pair, "first")
@@ -663,7 +742,6 @@ class CodeGen(val rc: RunContext) {
 
         case LetIn(optTpe, valueBody, Bind(newVar, rest)) => {
             val local = lh.freshLocal(newVar)
-
             val valueTpe = optTpe match {
               case Some(tpe) => translateType(tpe)
               case None => typeOf(valueBody)(lh, fh, Map.empty)
@@ -671,8 +749,12 @@ class CodeGen(val rc: RunContext) {
 
             val allocate = preAllocate(local, valueTpe)
 
-            val (tempBlock, phi) = codegen(valueBody, block <:> allocate, None, Some(local), valueTpe)
             lh.add(newVar, ParamDef(valueTpe, local))
+            fh.lambdaToConvert = newVar
+            println(s"Trying to codegen the value of $newVar of type ${lh.getType(newVar)}###########################################")
+            val (tempBlock, phi) = codegen(valueBody, block <:> allocate, None, Some(local), valueTpe)
+            println(s"I codegened the value of $newVar")
+
             codegen(rest, tempBlock <:> phi, next, toAssign, resultType)
         }
 
@@ -721,7 +803,8 @@ class CodeGen(val rc: RunContext) {
           val init: (Block, List[Value]) = (block, Nil)
           val (currentBlock, values) = args.map((_, lh.freshLocal("temp"))).foldLeft(init){
             case ((currentBlock, values), (arg, temp)) => {
-              val (nextBlock, phi) = codegen(arg, currentBlock, None, Some(temp), typeOf(arg)(lh, fh, Map.empty))
+              val argType = typeOfOperand(op)
+              val (nextBlock, phi) = codegen(arg, currentBlock, None, Some(temp), argType)
               (nextBlock <:> phi, values :+ Value(temp))
             }
           }

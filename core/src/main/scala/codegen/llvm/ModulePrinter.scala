@@ -140,10 +140,7 @@ object ModulePrinter {
           Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
 
         //Todo void functions?
-        case CallTopLevel(result, funName, values) => {
-          val f = getFunction(funName)
-          val returnType = f.returnType
-          val valueTypes = f.params.map(_.tpe)
+        case CallTopLevel(result, returnType, funName, values, valueTypes) => {
 
           Raw(s"$result = call ") <:> printType(returnType) <:> (s" $funName(") <:>
           Lined(valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}, ", ") <:>
