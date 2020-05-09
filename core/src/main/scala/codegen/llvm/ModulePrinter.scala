@@ -45,6 +45,7 @@ object ModulePrinter {
       case "left" => (leftGlobal, 7)
       case "right" => (rightGlobal, 7)
     }
+
     Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([$size x i8], [$size x i8]* $global, i64 0, i64 0))")
   }
 
@@ -53,6 +54,7 @@ object ModulePrinter {
      def printModule: Document = {
         var toPrint = new ListBuffer[Document]()
 
+        //TODO hardcode these constants
         toPrint += Stacked(
           Raw(s"$openGlobal = $open"),
           Raw(s"$closeGlobal = $close"),

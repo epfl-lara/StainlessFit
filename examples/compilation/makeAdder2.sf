@@ -1,8 +1,8 @@
 val defFunElimination = 10;
 
 fun makeAdder [returns Nat => (Nat => Nat)] = {
-  fun of x = {
-    fun of y = {
+  fun of (x [Nat]) = {
+    fun of (y [Nat]) = {
       x + y
     }
   }

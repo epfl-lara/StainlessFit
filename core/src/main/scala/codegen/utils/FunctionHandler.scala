@@ -10,25 +10,45 @@ import trees.Identifier
 
 class FunctionHandler(val rc: RunContext) {
 
-  // private val functions = mutable.Map[Identifier, Function]()
-  // private val lambdas = mutable.Map[Identifier, Function]()
+  private val counter = new codegen.utils.UniqueCounter[String]
+
   private val lambdas = mutable.ArrayBuffer[Identifier]()
   private val functions = mutable.ArrayBuffer[Identifier]()
-
-  private var lambdaIndex : Int = -1
-  var lambdaToConvert: Identifier = null;
-
   private val recorded = mutable.Map[Identifier, Function]()
+  private val inverse = mutable.Map[Function, Identifier]()
 
-  def add(id: Identifier, fun: Function) =
+  private var nameAfter: List[(Identifier, Int)] = Nil
+
+  def nameLambdasAfter(name: Identifier) = {
+    nameAfter = (name, -1) +: nameAfter
+  }
+
+  def stopNamingAfter(name: Identifier) = {
+    if(name != nameAfter.head._1){
+      rc.reporter.fatalError(s"Error while naming lambdas")
+    } else {
+      nameAfter = nameAfter.tail
+    }
+  }
+
+  def add(id: Identifier, fun: Function) = {
     recorded.put(id, fun)
+    inverse.put(fun, id)
+  }
 
   def get(id: Identifier) = {
     recorded.getOrElse(id, unknownId(id))
   }
 
+  def getId(fun: Function) = {
+    inverse.getOrElse(fun, unknownFunction(fun))
+  }
+
   private def unknownId(id: Identifier) =
     rc.reporter.fatalError(s"Identifier $id doesn't match any known functions or lambdas")
+
+  private def unknownFunction(fun: Function) =
+    rc.reporter.fatalError(s"Unknown function ${fun.name}")
 
   def addFunction(funId: Identifier, fun: Function) = {
     add(funId, fun)
@@ -40,19 +60,11 @@ class FunctionHandler(val rc: RunContext) {
       lambdas += lambdaId
   }
 
-  //Has
   def hasFunction(id: Identifier): Boolean =
     functions.contains(id)
 
   def hasLambda(id: Identifier): Boolean =
     lambdas.contains(id)
-
-  // //Get
-  // def getFunction(funId: Identifier) =
-  //   recorded.getOrElse(funId, rc.reporter.fatalError(s"Unknown function $funId"))
-  //
-  // def getLambda(lambdaId: Identifier) =
-  //   recorded.getOrElse(lambdaId, rc.reporter.fatalError(s"Unknown lambda $lambdaId"))
 
   def getArgNumber(id: Identifier) = {
     if(hasLambda(id)){
@@ -71,11 +83,26 @@ class FunctionHandler(val rc: RunContext) {
   def getGlobal(id: Identifier) =
     get(id).name
 
-  def getLambdas() = recorded.filter{case (key, value) => hasLambda(key)}.values.toList //recorded.filter(hasLambda(_)).map()
+  def getLambdas() = recorded.filter{case (key, value) => hasLambda(key)}.values.toList
 
-  def nextLambda(id: Identifier) = {
-    lambdaIndex += 1
-    // s"${lambda.name}.$lambdaIndex"
-    id.toString.replace("#", "_") + s".lambda$lambdaIndex"
+  def nextLambda(): Identifier = {
+    val (base, index) = nameAfter.head
+    val next = if(index == -1){
+      base
+    } else {
+      Identifier(0, base.name + "_" + index)
+    }
+    nameAfter = (base, index + 1) +: nameAfter.tail
+    next
   }
+
+  def nextIndex(name: String): String = counter.next(name) match {
+    case -1 => ""
+    case idx => s"$idx"
+  }
+
+  def freshGlobal(name: String): Global = Global(name + nextIndex(name))
+  def freshGlobal(id: Identifier): Global = freshGlobal(id.name)
+  def freshGlobal(): Global = freshGlobal("global")
+  def dot(global: Global, s: String) = freshGlobal(s"${global.name}.$s")
 }

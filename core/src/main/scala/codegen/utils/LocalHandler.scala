@@ -6,7 +6,7 @@ import util.RunContext
 import codegen.llvm.IR._
 import codegen.llvm._
 import scala.collection.mutable
-import trees.{Identifier => SfIdentifier}
+import trees.Identifier
 
 class LocalHandler(val rc : RunContext) {
 
@@ -15,17 +15,17 @@ class LocalHandler(val rc : RunContext) {
 
   private val variables = mutable.Map[String, ParamDef]()
 
-  def add(id: SfIdentifier, param: ParamDef): Unit =
+  def add(id: Identifier, param: ParamDef): Unit =
     variables.put(translateId(id), param)
 
-  def add(args: List[(SfIdentifier, ParamDef)]): Unit =
+  def add(args: List[(Identifier, ParamDef)]): Unit =
     args.foreach(tuple => add(tuple._1, tuple._2))
 
-  def get(id: SfIdentifier): ParamDef =
+  def get(id: Identifier): ParamDef =
     variables.getOrElse(translateId(id), rc.reporter.fatalError(s"Unkown variable $id"))
 
-  def getType(id: SfIdentifier) = get(id).tpe
-  def getLocal(id: SfIdentifier) = get(id).local
+  def getType(id: Identifier) = get(id).tpe
+  def getLocal(id: Identifier) = get(id).local
 
   def newBlock(name: String): Block = {
     blockIndex += 1
@@ -43,14 +43,14 @@ class LocalHandler(val rc : RunContext) {
   }
 
   def freshLocal(name: String): Local = Local(name + nextIndex(name))
-  def freshLocal(id: SfIdentifier): Local = freshLocal(translateId(id))
+  def freshLocal(id: Identifier): Local = freshLocal(id.name)
   def freshLocal(): Local = freshLocal("local")
   def dot(local: Local, s: String) = freshLocal(s"${local.name}.$s")
 
   def freshLabel(name: String): Label = Label(name + nextIndex(name))
-  def freshLabel(id: SfIdentifier): Label = freshLabel(translateId(id))
+  def freshLabel(id: Identifier): Label = freshLabel(id.name)
   def freshLabel(): Label = freshLabel("label")
   def dot(label: Label, s: String) = freshLabel(s"${label.label}.$s")
 
-  def translateId(id: SfIdentifier): String = id.toString.replace("#", "_")
+  def translateId(id: Identifier): String = id.toString.replace("#", "_")
 }

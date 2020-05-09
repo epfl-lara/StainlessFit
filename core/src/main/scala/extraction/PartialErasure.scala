@@ -59,37 +59,38 @@ object PartialErasure {
     }
 
 
-    case defFun @ DefFunction(args, optReturnType, optMeasure, bind, rest) => {
-      val (funId, body) = new CodeGen(rc).extractBody(bind)
-
-      val nextIsTopLevel = rest match {
-        case DefFunction(_, _, _, _, _) => true
-        case _ => false
-      }
-
-      val next = if(nextIsTopLevel) rest else eraseDefFun(defFun)
-
-      DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(next, nextIsTopLevel))
+    case defFun @ DefFunction(args, optReturnType, optMeasure, body, rest) => {
+      DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(rest, true))
     }
+
     case _ => rc.reporter.fatalError(s"Partial Erasure is not implemented on $t (${t.getClass}).")
   }
 
   def eraseDefFun(defFun: DefFunction)(implicit rc: RunContext) = {
 
     val DefFunction(args, optReturnType, optMeasure, bind, rest) = defFun
-    val (argId, funId, body) = bind match {
-      case TreeBuilders.Binds(Seq(arg, fun), body) => (arg, fun, body)
+    val (ids, body) = bind match {
+      case TreeBuilders.Binds(ids, body) => (ids, body)
     }
 
-    val retType = optReturnType.getOrElse(rc.reporter.fatalError(s"Need a declared return type to codegen function $funId"))
+    //TODO Might not need to know the return type
+    // val retType = optReturnType.getOrElse(rc.reporter.fatalError(s"Need a declared return type to codegen function $defFun"))
+    // val (valueType, value) = if(args.isEmpty) {
+    //   (retType, body)
+    // } else {
+    //   val TypedArgument(arg, argType) = args.head
+    //   (PiType(argType, retType), Lambda(Some(argType), Bind(ids.head, body)))
+    // }
+    //
+    // erase(LetIn(Some(valueType), value, rest))
 
-    val (valueType, value) = if(args.isEmpty) {
-      (retType, body)
+    val value = if(args.isEmpty) {
+      body
     } else {
       val TypedArgument(arg, argType) = args.head
-      (PiType(argType, retType), Lambda(Some(argType), Bind(argId, body)))
+      Lambda(Some(argType), Bind(ids.head, body))
     }
 
-    erase(LetIn(Some(valueType), value, rest))
+    erase(LetIn(None, value, rest))
   }
 }

@@ -50,11 +50,6 @@ class ResultPrinter(rc: RunContext) {
       val afterPrinting = lh.dot(block.label, "keep.printing")
 
       //If the value is a LeftTree
-      // val eitherLeftPtr = lh.dot(toPrint, "left.gep")
-      // val leftLocal = lh.dot(toPrint, "left")
-      // val prepLeft = List(
-      //   GepToIdx(eitherLeftPtr, tpe, Value(toPrint), Some(1)),
-      //   Load(leftLocal, leftType, eitherLeftPtr))
       val (leftLocal, prepLeft) = helper.getLeft(toPrint, eitherType)
 
       val leftBlock = leftBlockStart <:> prepLeft
@@ -62,11 +57,6 @@ class ResultPrinter(rc: RunContext) {
       f.add(leftPrinted)
 
       //If the value is a RightTree
-      // val eitherRightPtr = lh.dot(toPrint, "right.gep")
-      // val rightLocal = lh.dot(toPrint, "right")
-      // val prepRight = List(
-      //   GepToIdx(eitherRightPtr, tpe, Value(toPrint), Some(2)),
-      //   Load(rightLocal, rightType, eitherRightPtr))
       val (rightLocal, prepRight) = helper.getRight(toPrint, eitherType)
 
       val rightBlock = rightBlockStart <:> prepRight

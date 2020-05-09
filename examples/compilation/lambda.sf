@@ -1,7 +1,7 @@
 val m = 5;
 val n = 10;
 
-fun add15(x [Nat]) = {
+fun add15(x [Nat]) [returns Nat] = {
   x + m + n
 }
 

@@ -1,0 +1,11 @@
+fun fibo(x [Nat]) [returns Nat] = {
+  1
+}
+
+fun fibo(y [Bool]) [returns Nat] = {
+  1
+}
+
+val test = 10;
+
+4

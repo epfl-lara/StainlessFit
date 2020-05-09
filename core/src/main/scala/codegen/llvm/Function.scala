@@ -9,10 +9,6 @@ import scala.collection.mutable.ArrayBuffer
 case class Function(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) {
 
   def add(block: Block): Unit = blocks += block
-
-  override def toString(): String = {
-    s"Function $name"
-  }
 }
 
 object Function {
