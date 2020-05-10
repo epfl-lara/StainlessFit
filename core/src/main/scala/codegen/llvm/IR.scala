@@ -64,8 +64,10 @@ object IR {
   case class BooleanLiteral(b: Boolean) extends Literal
   case class Nat(n: BigInt) extends Literal
   case object UnitLiteral extends Literal
-  case class PairLiteral(first: Literal, second: Literal) extends Literal
+  case class PairLiteral(first: Value, second: Value) extends Literal
   case object NullLiteral extends Literal
+  case class LambdaLiteral(tpe: LambdaValue, funName: Name, env: Value) extends Literal
+  case class FunctionValue(funGlobal: Global) extends Literal
 
   //Boolean operations
   abstract class Op extends Instruction {
@@ -141,6 +143,7 @@ object IR {
 
   case class CallLambda(res: Local, lambda: Local, arg: Value, argType: Type, env: Local, retType: Type) extends Instruction
   case class CallTopLevel(res: Local, returnType: Type, function: Global, args: List[Value], argTypes: List[Type]) extends Instruction
+  case class Call(res: Local, returnType: Type, function: Name, args: List[Value], argTypes: List[Type], env: Value) extends Instruction
 
   //Terminator instructions
   case class Branch(condition: Value, ifTrue: Label, ifFalse: Label) extends Instruction

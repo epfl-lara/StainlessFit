@@ -71,7 +71,7 @@ object ModulePrinter {
 
         if(!mod.lambdas.isEmpty)
           toPrint += Stacked(
-              mod.lambdas.reverse.toList.map(l => printFunction(l)),
+              mod.lambdas.reverse.toList.map(l => printLambda(l)),
               true)
 
         if(!mod.functions.isEmpty)
@@ -79,20 +79,53 @@ object ModulePrinter {
               mod.functions.toList.map(f => printFunction(f)),
               true)
 
-        toPrint += printFunction(mod.main)
+        toPrint += printMain(mod.main)
 
         Stacked(toPrint.toList, emptyLines = true)
     }
 
-     def printFunction(fun: Function): Document = {
-      val Function(returnType, name, params, blocks) = fun
-      val paramList = Lined(params.map(param => printType(param.tpe) <:> s" ${param.local}"), ", ")
-
+    def printMain(main: Function): Document = {
       Stacked(
-        Lined(List(Raw(s"define "), printType(returnType), Raw(s" $name("), paramList, ") {")),
-        Indented(Stacked(blocks.toList.sortBy(_.index) map printBlock, true)),
+        Raw(s"define ") <:> printType(main.returnType) <:> Raw(s" ${main.name}() {"),
+        Indented(Stacked(main.blocks.toList.sortBy(_.index) map printBlock, true)),
         "}"
       )
+    }
+
+    def printLambda(fun: Function): Document = {
+      val paramList = Lined(fun.params.map(param => printType(param.tpe) <:> s" ${param.local}"), ", ")
+
+      Stacked(
+        Lined(List(Raw(s"define "), printType(fun.returnType), Raw(s" ${fun.name}("), paramList, s") {")),
+        Indented(Stacked(fun.blocks.toList.sortBy(_.index) map printBlock, true)),
+        "}"
+      )
+    }
+
+    def printFunction(fun: Function): Document = {
+      val paramList = fun.params.map(param => printType(param.tpe) <:> s" ${param.local}")
+      val paramsToPrint = Lined(paramList :+ Raw("i8*"), ", ")
+      Stacked(
+        // Raw(s"%.${fun.name.name}.funtype = type ") <:> printFunType(fun),
+        // Raw(s"%.${fun.name.name}.type = type ") <:> Raw(s"{%.${fun.name.name}.funtype") <:> Raw(", i8*} "),
+        // // Raw("{") <:> printFunType(fun) <:> Raw(", i8*}")
+        // Raw(s"@.${fun.name.name} = constant ") <:> printFunType(fun) <:>
+        // Raw("{") <:> printFunType(fun) <:> Raw(s" ${fun.name}, i8* null}"),
+        Raw(s"@.${fun.name.name} = constant ") <:>
+        Raw("{") <:> printFunType(fun) <:> Raw(", i8*") <:> Raw("} ") <:>
+        Raw("{") <:> printFunType(fun) <:> Raw(s" ${fun.name}, i8* null}"),
+
+        Lined(List(Raw(s"define "), printType(fun.returnType), Raw(s" ${fun.name}("), paramsToPrint, s") {")),
+        Indented(Stacked(fun.blocks.toList.sortBy(_.index) map printBlock, true)),
+        "}"
+      )
+    }
+
+    def printFunType(fun: Function): Document = {
+      val paramTypes = fun.params.map(param => printType(param.tpe))
+      val paramsToPrint = Lined(paramTypes :+ Raw("i8*"), ", ")
+
+      printType(fun.returnType) <:> Raw(" ") <:> Raw("(") <:> paramsToPrint <:> Raw(s")*")
     }
 
      def printBlock(block: Block): Document = {
@@ -152,6 +185,14 @@ object ModulePrinter {
         case CallLambda(result, lambda, arg, argType, env, retType) => {
           Raw(s"$result = call ") <:> printType(retType) <:> (s" $lambda(") <:>
           printType(argType) <:> " " <:> printValue(arg) <:> s", i8* $env)" <:> Raw("\n")
+        }
+
+        case Call(result, returnType, funName, values, valueTypes, env) => {
+          val valueList = valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}
+
+          Raw(s"$result = call ") <:> printType(returnType) <:> Raw(s" $funName(") <:>
+          Lined(valueList :+ "i8* ", ", ") <:>
+          printValue(env) <:> Raw(")\n")
         }
 
         case PrintNat(value) => {
@@ -216,6 +257,15 @@ object ModulePrinter {
         case BooleanLiteral(b) => s"$b"
         case Nat(n) => s"$n"
         case NullLiteral => "null"
+        case PairLiteral(first, second) =>
+          Raw("{") <:> printValue(first) <:> ", " <:> printValue(second) <:> "}"
+
+        case LambdaLiteral(tpe, funName, env) => {
+          Raw("{") <:> printType(FunctionType(tpe.argType, tpe.retType)) <:>
+            Raw(s" $funName, i8* ") <:> printValue(env) <:> Raw("}")
+        }
+
+        case FunctionValue(funGlobal) => s"@.${funGlobal.name}"
         case other => Raw(s"PLACEHOLDER: $other")
       }
     }

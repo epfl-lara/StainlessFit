@@ -54,6 +54,7 @@ object PartialErasure {
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)
 
+    // case defFun @ DefFunction(_, _, _, _, _) => eraseDefFun(defFun)
     case defFun @ DefFunction(_, _, _, _, _) if !topLevel => {
       eraseDefFun(defFun)
     }

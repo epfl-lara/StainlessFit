@@ -11,7 +11,7 @@ import codegen.llvm.IR.{And => IRAnd, Or => IROr, Not => IRNot, Neq => IRNeq,
   BooleanLiteral => IRBooleanLiteral, UnitLiteral => IRUnitLiteral,
   NatType => IRNatType, UnitType => IRUnitType, _}
 
-import codegen.llvm._
+import codegen.llvm.{Lambda => IRLambda, _}
 import codegen.utils._
 
 class CodeGen(val rc: RunContext) {
@@ -30,7 +30,7 @@ class CodeGen(val rc: RunContext) {
       val emptyFunctions: List[(Function, LocalHandler, Tree)] = defFunctions.map(defFun => translateDefFunction(defFun, fh))
       val functions = emptyFunctions.map{ case (fun, lh, funBody) => cgFunction(fun, lh, funBody, fh, Nil, false, true) }
 
-      val mainFunction = Function(IRNatType, mainGlobal, Nil)
+      val mainFunction = CreateMain(mainGlobal)
       fh.addFunction(Identifier(-1, "main"), mainFunction)
       val main = cgFunction(mainFunction, new LocalHandler(rc), mainBody, fh, Nil, true)
 
@@ -138,7 +138,7 @@ class CodeGen(val rc: RunContext) {
 
       val returnType = translateType(optReturnType.getOrElse(rc.reporter.fatalError("No return type found")))
 
-      val function = Function(returnType, fh.freshGlobal(funId), params.unzip._2)
+      val function = CreateFunction(returnType, fh.freshGlobal(funId), params.unzip._2)
       fh.addFunction(funId, function)
 
       (function, lh, body)
@@ -175,11 +175,23 @@ class CodeGen(val rc: RunContext) {
       case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
     }
 
-    def translateValue(t: Tree)(implicit lh: LocalHandler): Value = t match {
+    def translateValue(t: Tree, tpe: Type)(implicit lh: LocalHandler, fh: FunctionHandler): Value = t match {
       case BooleanLiteral(b) => Value(IRBooleanLiteral(b))
       case NatLiteral(n) => Value(Nat(n))
       case UnitLiteral => Value(Nat(0))
-      case Var(id) => Value(lh.getLocal(id))
+      case Var(id) => {
+        if(fh.hasFunction(id)){
+          Value(FunctionValue(fh.getGlobal(id)))
+          // println(s"type is $tpe")
+          // tpe match {
+          //   case lambda @ LambdaValue(_, _) => Value(LambdaLiteral(lambda, fh.getGlobal(id), Value(NullLiteral)))
+          //   case _ => rc.reporter.fatalError(s"Error function has non funciton type $tpe")
+          // }
+
+        } else {
+          Value(lh.getLocal(id))
+        }
+      }
       case _ => rc.reporter.fatalError(s"This tree isn't a value: $t")
     }
 
@@ -334,7 +346,7 @@ class CodeGen(val rc: RunContext) {
 
         val init: (Block, List[Value], List[Type]) = (block, Nil, Nil)
 
-        val (currentBlock, values, argTypes) = args.zipWithIndex.foldLeft(init){
+        val (currentBlock, values, valueTypes) = args.zipWithIndex.foldLeft(init){
           case ((currentBlock, values, argTypes), (arg, index)) => {
             val temp = lh.freshLocal(s"arg_$index")
             val argType = fh.getArgType(funId, index)
@@ -346,15 +358,24 @@ class CodeGen(val rc: RunContext) {
           }
         }
 
-        val (extraArg, extraType) = if(fh.hasLambda(funId)){
-          (List(Value(Local("raw.env"))), List(RawEnvType))
-        } else {
-          (Nil, Nil)
-        }
+        // val (extraArg, extraType) = (fh.getExtraArg(funId), fh.getExtraArgType(funId))
+        // // = if(fh.hasLambda(funId)){
+        // //   (List(Value(Local("raw.env"))), List(RawEnvType))
+        // // } else {
+        // //   (Nil, Nil)
+        // // }
+        //
+        // // val params = values :+ extraArg
+        // val env = if(fh.hasLambda(funId)){
+        //
+        // } else {
+        //
+        // }
 
-        val params = values ++ extraArg
-        val paramTypes = argTypes ++ extraType
-        (currentBlock <:> CallTopLevel(result, resultType, fh.getGlobal(funId), params, paramTypes) <:> jump, Nil)
+        val env = fh.getDefaultArg(funId)
+        // val paramTypes = argTypes :+ extraType
+        // (currentBlock <:> CallTopLevel(result, resultType, fh.getGlobal(funId), params, paramTypes) <:> jump, Nil)
+        (currentBlock <:> Call(result, resultType, fh.getGlobal(funId), values, valueTypes, env) <:> jump, Nil)
     }
 
     def cgLambdaCall(lambda: Local, args: List[Tree], block: Block, next: Option[Label], res: Local,
@@ -370,7 +391,8 @@ class CodeGen(val rc: RunContext) {
           val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, retType)
 
           val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
-          prep <:> CallLambda(res, funLocal, Value(argLocal), argType, envLocal, retType)
+          // prep <:> CallLambda(res, funLocal, Value(argLocal), argType, envLocal, retType)
+          prep <:> Call(res, retType, funLocal, List(Value(argLocal)), List(argType), Value(envLocal))
         }
 
         args match {
@@ -464,7 +486,7 @@ class CodeGen(val rc: RunContext) {
 
       val newLambda = fh.nextLambda()
       val lambdaGlobal = fh.freshGlobal(newLambda)
-      val emptyLambda = Function(lambdaRetType, lambdaGlobal, List(argDef, envDef))
+      val emptyLambda = CreateLambda(lambdaRetType, lambdaGlobal, List(argDef, envDef))
       fh.addLambda(newLambda, emptyLambda)
 
       val firstInstr = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
@@ -604,7 +626,7 @@ class CodeGen(val rc: RunContext) {
 
       inputTree match {
 
-        case value if isValue(value) => (block <:> cgValue(resultType, translateValue(value), next, toAssign), Nil)
+        case value if isValue(value) => (block <:> cgValue(resultType, translateValue(value, resultType), next, toAssign), Nil)
 
         case call @ App(recApp, arg) => {
 
@@ -612,7 +634,7 @@ class CodeGen(val rc: RunContext) {
           val result = assignee(toAssign)
 
           val isTopLevelFunction = fh.hasFunction(id)
-          val isRecursiveLambdaCall = fh.hasLambda(id) && (fh.get(id).name == f.name)
+          val isRecursiveLambdaCall = fh.hasLambda(id) // && (fh.get(id).name == f.name)
 
           if(isTopLevelFunction || isRecursiveLambdaCall){  //Top level function or lambda
             val nbConsumedArgs = fh.getArgNumber(id)

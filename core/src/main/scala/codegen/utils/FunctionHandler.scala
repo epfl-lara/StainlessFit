@@ -60,6 +60,10 @@ class FunctionHandler(val rc: RunContext) {
       lambdas += lambdaId
   }
 
+  def addMain(mainId: Identifier, main: Function) = {
+    inverse.put(main, mainId)
+  }
+
   def hasFunction(id: Identifier): Boolean =
     functions.contains(id)
 
@@ -83,7 +87,16 @@ class FunctionHandler(val rc: RunContext) {
   def getGlobal(id: Identifier) =
     get(id).name
 
+  def getDefaultArg(id: Identifier) = {
+    get(id).defaultArg
+  }
+
+  // def getExtraArgType(id: Identifier) = {
+  //   get(id).extraArgType
+  // }
+
   def getLambdas() = recorded.filter{case (key, value) => hasLambda(key)}.values.toList
+  def getFunctions() = recorded.filter{case (key, value) => hasFunction(key)}.values.toList
 
   def nextLambda(): Identifier = {
     val (base, index) = nameAfter.head
