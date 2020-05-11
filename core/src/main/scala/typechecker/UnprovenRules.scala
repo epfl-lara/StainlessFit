@@ -148,42 +148,64 @@ trait UnprovenRules {
           Tree.replace(id, term.erase(), t.replaceMany(freshen(term, _))))
       else None
     )
-      }
-    })
   }
 
-  def expandVarsInType(c: Context, t: Tree): Option[Tree] = t match {
-    case EqualityType(t1, t2) => expandVarsInTerm(c, t1).map(nt1 => EqualityType(nt1, t2)) orElse
-      expandVarsInTerm(c, t2).map(nt2 => EqualityType(t1, nt2))
+  def expandSizeInTerm(c: Context, t: Tree): Option[Tree] = {
+    var expanded = false
+
+    def expandSize(t: Tree): Option[Tree] =
+      t match {
+        case Size(RightTree(t1)) =>
+          expanded = true
+          Some(Primitive(Plus, List(Size(t1), NatLiteral(1))))
+        case Size(LeftTree(t1)) =>
+          expanded = true
+          Some(Primitive(Plus, List(Size(t1), NatLiteral(1))))
+        case Size(Pair(t1, t2)) =>
+          expanded = true
+          Some(Primitive(Plus, List(Primitive(Plus, List(Size(t1), Size(t2))), NatLiteral(1))))
+        case _ => None
+      }
+
+    val newt = Tree.replaceMany(expandSize, t)
+    if (expanded)
+      Some(newt)
+    else
+      None
+  }
+
+  def expandInEqType(c: Context, t: Tree, expandTerm: (Context, Tree) => Option[Tree]): Option[Tree] = t match {
+    case EqualityType(t1, t2) => expandTerm(c, t1).map(nt1 => EqualityType(nt1, t2)) orElse
+      expandTerm(c, t2).map(nt2 => EqualityType(t1, nt2))
     case _ => None
   }
 
-  def expandVars(c: Context, l: List[Identifier]): Option[Context] = l match {
+  def expand(c: Context, l: List[Identifier], expandTerm: (Context, Tree) => Option[Tree]): Option[Context] = l match {
     case Nil => None
     case v :: vs if c.termVariables.contains(v) =>
-      expandVarsInType(c.copy(termVariables = c.termVariables - v), c.termVariables(v)).map(
+      expandInEqType(c.copy(termVariables = c.termVariables - v), c.termVariables(v), expandTerm).map(
         ty => c.copy(termVariables = c.termVariables.updated(v, ty))
-      ) orElse expandVars(c, vs)
-    case _ :: vs => expandVars(c, vs)
+      ) orElse expand(c, vs, expandTerm)
+    case _ :: vs => expand(c, vs, expandTerm)
   }
 
-  def expandVars(c: Context): Option[Context] = expandVars(c, c.termVariables.keys.toList)
+  def expand(c: Context, expandTerm: (Context, Tree) => Option[Tree]): Option[Context] = expand(c, c.termVariables.keys.toList, expandTerm)
 
   def expandVars(g: Goal): Option[Goal] = g match {
     case InferGoal(c, t) =>
-      expandVars(c).map(newC => InferGoal(newC, t): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => InferGoal(newC, t): Goal) orElse
         expandVarsInTerm(c, t).map(newT => InferGoal(c, newT): Goal)
     case CheckGoal(c, t, tp) =>
-      expandVars(c).map(newC => CheckGoal(newC, t, tp): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => CheckGoal(newC, t, tp): Goal) orElse
         expandVarsInTerm(c, t).map(newT => CheckGoal(c, newT, tp): Goal) orElse
-        expandVarsInType(c, tp).map(newTp => CheckGoal(c, t, newTp): Goal)
+        expandInEqType(c, tp, expandVarsInTerm).map(newTp => CheckGoal(c, t, newTp): Goal)
     case EqualityGoal(c, t1, t2) =>
-      expandVars(c).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
         expandVarsInTerm(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
         expandVarsInTerm(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
     case SynthesisGoal(c, tp) =>
-      expandVars(c).map(newC => SynthesisGoal(newC, tp): Goal) orElse
-        expandVarsInType(c, tp).map(newTp => SynthesisGoal(c, newTp): Goal)
+      expand(c, expandVarsInTerm).map(newC => SynthesisGoal(newC, tp): Goal) orElse
+        expandInEqType(c, tp, expandVarsInTerm).map(newTp => SynthesisGoal(c, newTp): Goal)
     case _ => None
   }
 
@@ -393,5 +415,23 @@ trait UnprovenRules {
       topEitherMatch(c, t2, t1)
     case g =>
       None
+  })
+
+  val ExpandSize = Rule("ExpandSize", {
+    case g @ EqualityGoal(c, t1, t2) =>
+      val newGoal: Option[Goal] =
+        expand(c, expandSizeInTerm).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
+          expandSizeInTerm(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
+          expandSizeInTerm(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
+      newGoal.map{ sg =>
+        TypeChecker.debugs(g, "ExpandSize")
+        (List(_ => sg), {
+          case AreEqualJudgment(_, _, _, _, _) :: _ =>
+            (true, AreEqualJudgment("ExpandSize", c, t1, t2, ""))
+          case _ =>
+            emitErrorWithJudgment("ExpandSize", g, None)
+        })
+      }
+    case _ => None
   })
 }
