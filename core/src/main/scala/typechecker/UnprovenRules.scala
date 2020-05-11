@@ -128,21 +128,26 @@ trait UnprovenRules {
   // for all substitutions consistent with c, the denotations of ty and ty'
   // are the same.
   def expandVarsInTerm(c: Context, t: Tree): Option[Tree] = {
+    def freshen(freeIn: Tree, tree: Tree): Option[Tree] =
+      tree match {
+        case Bind(id, body) if id.isFreeIn(freeIn) =>
+          val newId = Identifier.fresh(id.name)
+          Some(Bind(newId, body.replace(id, newId)))
+        case _ => None
+      }
     var vars: List[Identifier] = List()
     t.traversePost {
       case Var(id) => vars = id :: vars
       case _ => ()
     }
     // Find the first variable which has an equality binding such that expanding this variable changes the tree
-    collectFirst[Identifier, Tree](vars, (id: Identifier) => {
-      findEquality(c.termVariables.keys.toList, c.termVariables, id) match {
-        case Some(v) =>
-          val newt = Tree.replace(id, v, t)
-          if (newt == t)
-            None
-          else
-            Some(newt)
-        case None => None
+    collectFirst[Identifier, Tree](vars, (id: Identifier) =>
+      if (id.isFreeIn(t))
+        findEquality(c.termVariables.keys.toList, c.termVariables, id).map(term =>
+          // Freshen Binds which bind a variable, free in the term, equivalent to the variable, then expand this variable
+          Tree.replace(id, term.erase(), t.replaceMany(freshen(term, _))))
+      else None
+    )
       }
     })
   }
