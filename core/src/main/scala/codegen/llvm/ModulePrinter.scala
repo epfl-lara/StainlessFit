@@ -106,11 +106,6 @@ object ModulePrinter {
       val paramList = fun.params.map(param => printType(param.tpe) <:> s" ${param.local}")
       val paramsToPrint = Lined(paramList :+ Raw("i8*"), ", ")
       Stacked(
-        // Raw(s"%.${fun.name.name}.funtype = type ") <:> printFunType(fun),
-        // Raw(s"%.${fun.name.name}.type = type ") <:> Raw(s"{%.${fun.name.name}.funtype") <:> Raw(", i8*} "),
-        // // Raw("{") <:> printFunType(fun) <:> Raw(", i8*}")
-        // Raw(s"@.${fun.name.name} = constant ") <:> printFunType(fun) <:>
-        // Raw("{") <:> printFunType(fun) <:> Raw(s" ${fun.name}, i8* null}"),
         Raw(s"@.${fun.name.name} = constant ") <:>
         Raw("{") <:> printFunType(fun) <:> Raw(", i8*") <:> Raw("} ") <:>
         Raw("{") <:> printFunType(fun) <:> Raw(s" ${fun.name}, i8* null}"),
@@ -173,19 +168,6 @@ object ModulePrinter {
 
         case Return(result, tpe) =>
           Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
-
-        //Todo void functions?
-        case CallTopLevel(result, returnType, funName, values, valueTypes) => {
-
-          Raw(s"$result = call ") <:> printType(returnType) <:> (s" $funName(") <:>
-          Lined(valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}, ", ") <:>
-          Raw(")") <:> Raw("\n")
-        }
-
-        case CallLambda(result, lambda, arg, argType, env, retType) => {
-          Raw(s"$result = call ") <:> printType(retType) <:> (s" $lambda(") <:>
-          printType(argType) <:> " " <:> printValue(arg) <:> s", i8* $env)" <:> Raw("\n")
-        }
 
         case Call(result, returnType, funName, values, valueTypes, env) => {
           val valueList = valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}

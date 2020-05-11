@@ -12,34 +12,27 @@ abstract class Function {
   val params: List[ParamDef]
   val blocks: ArrayBuffer[Block]
 
-  def add(block: Block): Unit
-  def defaultArg: Value = Value(NullLiteral)
+  def add(block: Block): Unit = blocks += block
+  def defaultEnv(): Value = Value(NullLiteral)
+  def envSize(): Int = 0
 }
 
-case class TopLevelFunction(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) extends Function {
+case class TopLevelFunction(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) extends Function
 
-  def add(block: Block): Unit = blocks += block
-  // def extraArg: Value = Value(NullLiteral)
-  // def extraArgType: Type = RawEnvType
-}
-
-case class Lambda(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) extends Function {
-  def add(block: Block): Unit = blocks += block
-  override def defaultArg: Value = Value(Local("raw.env"))
+case class Lambda(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block], size: Int) extends Function {
+  override def defaultEnv(): Value = Value(Local("raw.env"))
+  override def envSize(): Int = size
 }
 
 object CreateFunction {
-
   def apply(tpe: Type, name: Global, params: List[ParamDef]): Function = {
-    // val env = ParamDef(RawEnvType, Local(""))
     TopLevelFunction(tpe, name, params, ArrayBuffer.empty[Block])
   }
 }
 
 object CreateLambda {
-  def apply(tpe: Type, name: Global, params: List[ParamDef]): Function = {
-    // val env = ParamDef(RawEnvType, Local("raw.env"))
-    Lambda(tpe, name, params, ArrayBuffer.empty[Block])
+  def apply(tpe: Type, name: Global, params: List[ParamDef], envSize: Int): Function = {
+    Lambda(tpe, name, params, ArrayBuffer.empty[Block], envSize)
   }
 }
 

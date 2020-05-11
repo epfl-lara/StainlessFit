@@ -54,19 +54,41 @@ object PartialErasure {
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)
 
-    // case defFun @ DefFunction(_, _, _, _, _) => eraseDefFun(defFun)
+    // case defFun @ DefFunction(_, _, _, _, _) => eraseDefFun(defFun)  //Erase all DefFunctions
+
     case defFun @ DefFunction(_, _, _, _, _) if !topLevel => {
       eraseDefFun(defFun)
     }
 
-
-    case defFun @ DefFunction(args, optReturnType, optMeasure, body, rest) => {
+    case DefFunction(args, optReturnType, optMeasure, body, rest) if args.size == 0 || args.size == 1 => {
       DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(rest, true))
+    }
+
+    case DefFunction(args, optReturnType, optMeasure, bind, rest) => {
+
+      val (ids, body) = bind match {
+        case TreeBuilders.Binds(ids, body) => (ids, body)
+      }
+
+      val funId = ids.reverse.head
+
+      val lambdas = nestLambdas(args.tail, body)
+
+      DefFunction(Seq(args.head), None, None, erase(Bind(funId, lambdas), false), erase(rest, true))
     }
 
     case _ => rc.reporter.fatalError(s"Partial Erasure is not implemented on $t (${t.getClass}).")
   }
 
+  def nestLambdas(args: Seq[DefArgument], body: Tree): Tree = {
+    args.reverse.foldLeft(body){  //TODO does reverse make sense?
+      case (acc, argDef) => {
+        val TypedArgument(arg, argType) = argDef
+
+        Lambda(Some(argType), Bind(arg, acc))
+      }
+    }
+  }
   def eraseDefFun(defFun: DefFunction)(implicit rc: RunContext) = {
 
     val DefFunction(args, optReturnType, optMeasure, bind, rest) = defFun
@@ -74,23 +96,7 @@ object PartialErasure {
       case TreeBuilders.Binds(ids, body) => (ids, body)
     }
 
-    //TODO Might not need to know the return type
-    // val retType = optReturnType.getOrElse(rc.reporter.fatalError(s"Need a declared return type to codegen function $defFun"))
-    // val (valueType, value) = if(args.isEmpty) {
-    //   (retType, body)
-    // } else {
-    //   val TypedArgument(arg, argType) = args.head
-    //   (PiType(argType, retType), Lambda(Some(argType), Bind(ids.head, body)))
-    // }
-    //
-    // erase(LetIn(Some(valueType), value, rest))
-
-    val value = if(args.isEmpty) {
-      body
-    } else {
-      val TypedArgument(arg, argType) = args.head
-      Lambda(Some(argType), Bind(ids.head, body))
-    }
+    val value = nestLambdas(args, body)
 
     erase(LetIn(None, value, rest))
   }

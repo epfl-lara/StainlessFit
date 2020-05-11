@@ -136,7 +136,11 @@ class CodeGen(val rc: RunContext) {
 
       val (funId, body) = extractBody(bind)
 
-      val returnType = translateType(optReturnType.getOrElse(rc.reporter.fatalError("No return type found")))
+      val returnType = if(optReturnType.isDefined) {
+        translateType(optReturnType.get)
+      } else {
+        typeOf(body)(lh, fh, Map.empty)
+      }
 
       val function = CreateFunction(returnType, fh.freshGlobal(funId), params.unzip._2)
       fh.addFunction(funId, function)
@@ -182,12 +186,6 @@ class CodeGen(val rc: RunContext) {
       case Var(id) => {
         if(fh.hasFunction(id)){
           Value(FunctionValue(fh.getGlobal(id)))
-          // println(s"type is $tpe")
-          // tpe match {
-          //   case lambda @ LambdaValue(_, _) => Value(LambdaLiteral(lambda, fh.getGlobal(id), Value(NullLiteral)))
-          //   case _ => rc.reporter.fatalError(s"Error function has non funciton type $tpe")
-          // }
-
         } else {
           Value(lh.getLocal(id))
         }
@@ -358,23 +356,8 @@ class CodeGen(val rc: RunContext) {
           }
         }
 
-        // val (extraArg, extraType) = (fh.getExtraArg(funId), fh.getExtraArgType(funId))
-        // // = if(fh.hasLambda(funId)){
-        // //   (List(Value(Local("raw.env"))), List(RawEnvType))
-        // // } else {
-        // //   (Nil, Nil)
-        // // }
-        //
-        // // val params = values :+ extraArg
-        // val env = if(fh.hasLambda(funId)){
-        //
-        // } else {
-        //
-        // }
+        val env = fh.getEnv(funId)
 
-        val env = fh.getDefaultArg(funId)
-        // val paramTypes = argTypes :+ extraType
-        // (currentBlock <:> CallTopLevel(result, resultType, fh.getGlobal(funId), params, paramTypes) <:> jump, Nil)
         (currentBlock <:> Call(result, resultType, fh.getGlobal(funId), values, valueTypes, env) <:> jump, Nil)
     }
 
@@ -391,7 +374,7 @@ class CodeGen(val rc: RunContext) {
           val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, retType)
 
           val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
-          // prep <:> CallLambda(res, funLocal, Value(argLocal), argType, envLocal, retType)
+
           prep <:> Call(res, retType, funLocal, List(Value(argLocal)), List(argType), Value(envLocal))
         }
 
@@ -486,7 +469,7 @@ class CodeGen(val rc: RunContext) {
 
       val newLambda = fh.nextLambda()
       val lambdaGlobal = fh.freshGlobal(newLambda)
-      val emptyLambda = CreateLambda(lambdaRetType, lambdaGlobal, List(argDef, envDef))
+      val emptyLambda = CreateLambda(lambdaRetType, lambdaGlobal, List(argDef, envDef), freeVariables.size)
       fh.addLambda(newLambda, emptyLambda)
 
       val firstInstr = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
@@ -634,7 +617,7 @@ class CodeGen(val rc: RunContext) {
           val result = assignee(toAssign)
 
           val isTopLevelFunction = fh.hasFunction(id)
-          val isRecursiveLambdaCall = fh.hasLambda(id) // && (fh.get(id).name == f.name)
+          val isRecursiveLambdaCall = fh.hasLambda(id) && (fh.get(id).name == f.name)
 
           if(isTopLevelFunction || isRecursiveLambdaCall){  //Top level function or lambda
             val nbConsumedArgs = fh.getArgNumber(id)

@@ -140,9 +140,7 @@ object IR {
 
   case class Phi(res: Local, typee: Type, candidates: List[(Local, Label)]) extends Instruction
   case class Assign(result: Local, typee: Type, from: Value) extends Instruction
-
-  case class CallLambda(res: Local, lambda: Local, arg: Value, argType: Type, env: Local, retType: Type) extends Instruction
-  case class CallTopLevel(res: Local, returnType: Type, function: Global, args: List[Value], argTypes: List[Type]) extends Instruction
+  
   case class Call(res: Local, returnType: Type, function: Name, args: List[Value], argTypes: List[Type], env: Value) extends Instruction
 
   //Terminator instructions

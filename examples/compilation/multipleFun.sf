@@ -1,0 +1,15 @@
+fun top(x [Nat])(y [Nat]) [returns Nat] = {
+  x + y
+}
+
+val t = 5;
+
+fun bottom(a [Nat])(b [Nat])[returns Nat] = {
+  a - b
+}
+
+val test = bottom 2;  //bottom(a)(2) or bottom(2)(b)?
+
+val other = top 1;
+
+test 1
