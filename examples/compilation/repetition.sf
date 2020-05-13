@@ -1,11 +1,12 @@
 fun fibo(x [Nat]) [returns Nat] = {
-  1
+  x
 }
 
-fun fibo(y [Bool]) [returns Nat] = {
-  1
+fun fibo(y [Bool]) [returns Unit] = {
+  ()
 }
 
 val test = 10;
+val test = true;
 
-4
+fibo 100

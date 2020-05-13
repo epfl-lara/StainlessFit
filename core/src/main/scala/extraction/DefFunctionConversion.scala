@@ -21,9 +21,9 @@ object DefFunctionConvertion {
   def convertDefFun(defFun: DefFunction)(implicit rc: RunContext) = {
 
     val DefFunction(args, optReturnType, optMeasure, bind, rest) = defFun
-    //TODO shoudl work with 0 args too
+
     val TreeBuilders.Binds(ids, body) = bind
-    val value = TreeBuilders.Abstractions(args, body) //nestLambdas(args, body)
+    val value = TreeBuilders.Abstractions(args, body)
 
     val optFunType = optReturnType match {
       case Some(TreeBuilders.Binds(_, ty)) => {

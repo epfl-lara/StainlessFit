@@ -21,6 +21,7 @@ class LocalHandler(val rc : RunContext) {
   def add(args: List[(Identifier, ParamDef)]): Unit =
     args.foreach(tuple => add(tuple._1, tuple._2))
 
+  //TODO handle duplicates? eval juste take the newest one
   def get(id: Identifier): ParamDef =
     variables.getOrElse(translateId(id), rc.reporter.fatalError(s"Unkown variable $id"))
 

@@ -74,11 +74,6 @@ object ModulePrinter {
               mod.lambdas.reverse.toList.map(l => printLambda(l)),
               true)
 
-        if(!mod.functions.isEmpty)
-          toPrint += Stacked(
-              mod.functions.toList.map(f => printFunction(f)),
-              true)
-
         toPrint += printMain(mod.main)
 
         Stacked(toPrint.toList, emptyLines = true)
@@ -93,7 +88,7 @@ object ModulePrinter {
     }
 
     def printLambda(fun: Function): Document = {
-      
+
       val paramList = Lined(fun.params.map(param => printType(param.tpe) <:> s" ${param.local}"), ", ")
 
       Stacked(
@@ -101,27 +96,6 @@ object ModulePrinter {
         Indented(Stacked(fun.blocks.toList.sortBy(_.index) map printBlock, true)),
         "}"
       )
-    }
-
-    def printFunction(fun: Function): Document = {
-      val paramList = fun.params.map(param => printType(param.tpe) <:> s" ${param.local}")
-      val paramsToPrint = Lined(paramList :+ Raw("i8*"), ", ")
-      Stacked(
-        Raw(s"@.${fun.name.name} = constant ") <:>
-        Raw("{") <:> printFunType(fun) <:> Raw(", i8*") <:> Raw("} ") <:>
-        Raw("{") <:> printFunType(fun) <:> Raw(s" ${fun.name}, i8* null}"),
-
-        Lined(List(Raw(s"define "), printType(fun.returnType), Raw(s" ${fun.name}("), paramsToPrint, s") {")),
-        Indented(Stacked(fun.blocks.toList.sortBy(_.index) map printBlock, true)),
-        "}"
-      )
-    }
-
-    def printFunType(fun: Function): Document = {
-      val paramTypes = fun.params.map(param => printType(param.tpe))
-      val paramsToPrint = Lined(paramTypes :+ Raw("i8*"), ", ")
-
-      printType(fun.returnType) <:> Raw(" ") <:> Raw("(") <:> paramsToPrint <:> Raw(s")*")
     }
 
      def printBlock(block: Block): Document = {
