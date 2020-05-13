@@ -44,6 +44,13 @@ object PartialErasure {
     //   erase(IfThenElse(cond, t0, bind))
     // }
 
+//     natMatch(n, e1, Bind(id, e2))
+// let(n, Bind(new x, ))
+// ifthenelse(x = 0,
+//     e1,
+//     e2.replace(id, n-1)
+//     )
+
     case EitherMatch(t, bind1, bind2) => EitherMatch(erase(t), erase(bind1), erase(bind2))
     case Primitive(op, args) => Primitive(op, args.map(erase(_)))
     case ErasableApp(t1, _) => erase(t1)
@@ -56,48 +63,48 @@ object PartialErasure {
 
     // case defFun @ DefFunction(_, _, _, _, _) => eraseDefFun(defFun)  //Erase all DefFunctions
 
-    case defFun @ DefFunction(_, _, _, _, _) if !topLevel => {
-      eraseDefFun(defFun)
-    }
-
-    case DefFunction(args, optReturnType, optMeasure, body, rest) if args.size == 0 || args.size == 1 => {
-      DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(rest, true))
-    }
-
-    case DefFunction(args, optReturnType, optMeasure, bind, rest) => {
-
-      val (ids, body) = bind match {
-        case TreeBuilders.Binds(ids, body) => (ids, body)
-      }
-
-      val funId = ids.reverse.head
-
-      val lambdas = nestLambdas(args.tail, body)
-
-      DefFunction(Seq(args.head), None, None, erase(Bind(funId, lambdas), false), erase(rest, true))
-    }
+    // case defFun @ DefFunction(_, _, _, _, _) if !topLevel => {
+    //   eraseDefFun(defFun)
+    // }
+    //
+    // case DefFunction(args, optReturnType, optMeasure, body, rest) if args.size == 0 || args.size == 1 => {
+    //   DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(rest, true))
+    // }
+    //
+    // case DefFunction(args, optReturnType, optMeasure, bind, rest) => {
+    //
+    //   val (ids, body) = bind match {
+    //     case TreeBuilders.Binds(ids, body) => (ids, body)
+    //   }
+    //
+    //   val funId = ids.reverse.head
+    //
+    //   val lambdas = nestLambdas(args.tail, body)
+    //
+    //   DefFunction(Seq(args.head), None, None, erase(Bind(funId, lambdas), false), erase(rest, true))
+    // }
 
     case _ => rc.reporter.fatalError(s"Partial Erasure is not implemented on $t (${t.getClass}).")
   }
 
-  def nestLambdas(args: Seq[DefArgument], body: Tree): Tree = {
-    args.reverse.foldLeft(body){  //TODO does reverse make sense?
-      case (acc, argDef) => {
-        val TypedArgument(arg, argType) = argDef
-
-        Lambda(Some(argType), Bind(arg, acc))
-      }
-    }
-  }
-  def eraseDefFun(defFun: DefFunction)(implicit rc: RunContext) = {
-
-    val DefFunction(args, optReturnType, optMeasure, bind, rest) = defFun
-    val (ids, body) = bind match {
-      case TreeBuilders.Binds(ids, body) => (ids, body)
-    }
-
-    val value = nestLambdas(args, body)
-
-    erase(LetIn(None, value, rest))
-  }
+  // def nestLambdas(args: Seq[DefArgument], body: Tree): Tree = {
+  //   args.reverse.foldLeft(body){  //TODO does reverse make sense?
+  //     case (acc, argDef) => {
+  //       val TypedArgument(arg, argType) = argDef
+  //
+  //       Lambda(Some(argType), Bind(arg, acc))
+  //     }
+  //   }
+  // }
+  // def eraseDefFun(defFun: DefFunction)(implicit rc: RunContext) = {
+  //
+  //   val DefFunction(args, optReturnType, optMeasure, bind, rest) = defFun
+  //   val (ids, body) = bind match {
+  //     case TreeBuilders.Binds(ids, body) => (ids, body)
+  //   }
+  //
+  //   val value = nestLambdas(args, body)
+  //
+  //   erase(LetIn(None, value, rest))
+  // }
 }

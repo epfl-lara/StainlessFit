@@ -45,7 +45,8 @@ class LocalHandler(val rc : RunContext) {
   def freshLocal(name: String): Local = Local(name + nextIndex(name))
   def freshLocal(id: Identifier): Local = freshLocal(id.name)
   def freshLocal(): Local = freshLocal("local")
-  def dot(local: Local, s: String) = freshLocal(s"${local.name}.$s")
+  def dot(local: Local, s: String): Local = freshLocal(s"${local.name}.$s")
+  def dot(id: Identifier, s: String): Local = dot(freshLocal(id), s)
 
   def freshLabel(name: String): Label = Label(name + nextIndex(name))
   def freshLabel(id: Identifier): Label = freshLabel(id.name)

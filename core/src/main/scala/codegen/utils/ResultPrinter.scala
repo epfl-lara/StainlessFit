@@ -13,7 +13,9 @@ class ResultPrinter(rc: RunContext) {
 
   def customPrint(block: Block, toPrint: Local, tpe: Type, flattenPairs: Boolean, next: Option[Label])
     (implicit lh: LocalHandler, f: Function): Block = tpe match {
-    case BooleanType | IRUnitType => block <:> PrintBool(toPrint)
+    case BooleanType => block <:> PrintBool(toPrint)
+
+    case IRUnitType => block <:> PrintOpen <:> PrintClose
 
     case IRNatType => block <:> PrintNat(Value(toPrint))
 

@@ -93,6 +93,7 @@ object ModulePrinter {
     }
 
     def printLambda(fun: Function): Document = {
+      
       val paramList = Lined(fun.params.map(param => printType(param.tpe) <:> s" ${param.local}"), ", ")
 
       Stacked(

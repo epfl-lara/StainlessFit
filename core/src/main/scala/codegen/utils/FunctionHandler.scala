@@ -97,7 +97,7 @@ class FunctionHandler(val rc: RunContext) {
     }
   }
 
-  def nextLambda(): Identifier = {
+  def nextLambdaId(): Identifier = {
     val (base, index) = nameAfter.head
     val next = if(index == -1){
       base

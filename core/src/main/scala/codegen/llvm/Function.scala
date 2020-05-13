@@ -20,7 +20,11 @@ abstract class Function {
 case class TopLevelFunction(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) extends Function
 
 case class Lambda(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block], size: Int) extends Function {
-  override def defaultEnv(): Value = Value(Local("raw.env"))
+  override def defaultEnv(): Value = if(size == 0){
+    Value(NullLiteral)
+  } else {
+    Value(Local("raw.env"))
+  }
   override def envSize(): Int = size
 }
 
