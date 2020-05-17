@@ -81,7 +81,7 @@ object ModulePrinter {
 
     def printMain(main: Function): Document = {
       Stacked(
-        Raw(s"define ") <:> printType(main.returnType) <:> Raw(s" ${main.name}() {"),
+        Raw(s"define i32 @main() {"),
         Indented(Stacked(main.blocks.toList.sortBy(_.index) map printBlock, true)),
         "}"
       )

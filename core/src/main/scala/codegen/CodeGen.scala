@@ -11,7 +11,7 @@ import codegen.llvm.IR.{And => IRAnd, Or => IROr, Not => IRNot, Neq => IRNeq,
   BooleanLiteral => IRBooleanLiteral, UnitLiteral => IRUnitLiteral,
   NatType => IRNatType, UnitType => IRUnitType, _}
 
-import codegen.llvm.{Lambda => IRLambda, _}
+import codegen.llvm._
 import codegen.utils._
 
 class CodeGen(val rc: RunContext) {
@@ -290,12 +290,15 @@ class CodeGen(val rc: RunContext) {
           val prepArg = preAllocate(argLocal, argType)
           val (currentBlock, phi) = codegen(arg, block <:> prepArg, None, Some(argLocal), argType)
 
-          val (funLocal, loadFun) = getLambdaFunction(lambda, argType, retType)
-          val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, retType)
+          val (prep, callName, envToPass) = if(lambda == f.recursiveLocal){
+            (Nil, f.name, Value(Local(".raw.env")))
+          } else {
+            val (funLocal, loadFun) = getLambdaFunction(lambda, argType, retType)
+            val (envLocal, loadEnv) = getLambdaEnv(lambda, argType, retType)
+            (loadFun ++ loadEnv, funLocal, Value(envLocal))
+          }
 
-          val prep = currentBlock <:> phi <:> loadFun <:> loadEnv
-
-          prep <:> Call(res, retType, funLocal, List(Value(argLocal)), List(argType), Value(envLocal))
+          currentBlock <:> phi <:> prep <:> Call(res, retType, callName, List(Value(argLocal)), List(argType), envToPass)
         }
 
         args match {
@@ -380,7 +383,7 @@ class CodeGen(val rc: RunContext) {
       case EitherMatch(scrut, t1, t2) => {
         accessedVariables(scrut) ++ accessedVariables(t1) ++ accessedVariables(t2)
       }
-      case NatMatch(_, _, _) => ???
+      case NatMatch(_, _, _) => ??? //TODO
       case LeftTree(either) => accessedVariables(either)
       case RightTree(either) => accessedVariables(either)
 
@@ -430,6 +433,8 @@ class CodeGen(val rc: RunContext) {
         }
       }
 
+      val prepCaptured = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
+
       //Make recursive call possible through a local
       val recursive = lambdaLH.dot(newLambdaId, "recursive")
 
@@ -442,10 +447,10 @@ class CodeGen(val rc: RunContext) {
       val prepRecLambda = setLambda(recursive, lambdaGlobal, recursiveEnv, lambdaType)(lambdaLH)
       lambdaLH.add(newLambdaId, ParamDef(lambdaType, recursive))
 
-      val emptyLambda = CreateLambda(retType, lambdaGlobal, List(argDef, envDef), freeVariables.size)
+      //Create top-level function for the lambda
+      val emptyLambda = CreateLambda(retType, lambdaGlobal, List(argDef, envDef), recursive)
       globalHandler.addLambda(emptyLambda)
 
-      val prepCaptured = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
       val completeLambda = cgFunction(emptyLambda, lambdaLH, lambdaBody, globalHandler, prepRecLambda ++ prepCaptured)
 
       (lambdaGlobal, freeVariables, freeTypes)

@@ -6,42 +6,18 @@ import core.codegen.utils._
 import core.codegen.llvm.IR._
 import scala.collection.mutable.ArrayBuffer
 
-abstract class Function {
-  val returnType: Type
-  val name: Global
-  val params: List[ParamDef]
-  val blocks: ArrayBuffer[Block]
-
+case class Function(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block], recursiveLocal: Local) {
   def add(block: Block): Unit = blocks += block
-  def defaultEnv(): Value = Value(NullLiteral)
-  def envSize(): Int = 0
-}
-
-case class TopLevelFunction(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block]) extends Function
-
-case class Lambda(returnType: Type, name: Global, params: List[ParamDef], blocks: ArrayBuffer[Block], size: Int) extends Function {
-  override def defaultEnv(): Value = if(size == 0){
-    Value(NullLiteral)
-  } else {
-    Value(Local("raw.env"))
-  }
-  override def envSize(): Int = size
-}
-
-object CreateFunction {
-  def apply(tpe: Type, name: Global, params: List[ParamDef]): Function = {
-    TopLevelFunction(tpe, name, params, ArrayBuffer.empty[Block])
-  }
 }
 
 object CreateLambda {
-  def apply(tpe: Type, name: Global, params: List[ParamDef], envSize: Int): Function = {
-    Lambda(tpe, name, params, ArrayBuffer.empty[Block], envSize)
+  def apply(tpe: Type, name: Global, params: List[ParamDef], recursiveLocal: Local): Function = {
+    Function(tpe, name, params, ArrayBuffer.empty[Block], recursiveLocal)
   }
 }
 
 object CreateMain {
   def apply(name: Global): Function = {
-    TopLevelFunction(NatType, name, Nil, ArrayBuffer.empty[Block])
+    Function(NatType, name, Nil, ArrayBuffer.empty[Block], Local(".main"))
   }
 }

@@ -46,12 +46,12 @@ class GlobalHandler(val rc: RunContext) {
 
   //Global naming ==============================================================
   private val counter = new codegen.utils.UniqueCounter[String]
-  
+
   def nextIndex(name: String): String = counter.next(name) match {
     case -1 => ""
     case idx => s"$idx"
   }
-
+  
   def freshGlobal(name: String): Global = Global(name + nextIndex(name))
   def freshGlobal(id: Identifier): Global = freshGlobal(id.name)
   def freshGlobal(): Global = freshGlobal("global")
