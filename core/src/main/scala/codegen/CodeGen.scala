@@ -22,30 +22,29 @@ class CodeGen(val rc: RunContext) {
 
     def cgModule(inputTree: Tree, moduleName: String): Module = {
 
-      val mainFunction = CreateMain(Global("main"))
-      val (main, fh) = cgMain(mainFunction, inputTree)
+      val globalHandler = new GlobalHandler(rc)
+      val mainFunction = CreateMain(globalHandler.freshGlobal("main"))
+      val main = cgMain(mainFunction, inputTree, globalHandler)
 
       Module(
         moduleName,
         main,
-        Nil,
-        fh.getLambdas()
+        globalHandler.getLambdas()
       )
     }
 
-    def cgMain(mainFun: Function, body: Tree): (Function, FunctionHandler) = {
+    def cgMain(mainFun: Function, body: Tree, globalHandler: GlobalHandler): Function = {
       val lh = new LocalHandler(rc)
       val initBlock = lh.newBlock("Entry")
       val end = lh.freshLabel("Print.and.exit")
 
-      val fh = new FunctionHandler(rc)
       val mainBody = filterErasable(body)
-      val returnType = typeOf(mainBody)(lh, fh, Map.empty)
+      val returnType = typeOf(mainBody)(lh, globalHandler, Map.empty)
       val result = lh.freshLocal("result")
 
       val prep = preAllocate(result, returnType)(lh)
 
-      val (entryBlock, phi) = codegen(mainBody, initBlock <:> prep, Some(end), Some(result), returnType)(lh, mainFun, fh)
+      val (entryBlock, phi) = codegen(mainBody, initBlock <:> prep, Some(end), Some(result), returnType)(lh, mainFun, globalHandler)
       mainFun.add(entryBlock)
 
       val endBlock = lh.newBlock(end)
@@ -55,10 +54,10 @@ class CodeGen(val rc: RunContext) {
 
       mainFun.add(lastBlock <:> Return(Value(Nat(0)), IRNatType))
 
-      (mainFun, fh)
+      mainFun
     }
 
-    def cgFunction(function: Function, lh: LocalHandler, body: Tree, fh: FunctionHandler,
+    def cgFunction(function: Function, lh: LocalHandler, body: Tree, globalHandler: GlobalHandler,
         firstInstructions: List[Instruction] = Nil, isMain: Boolean = false, isTopLevel: Boolean = false): Function = {
 
       val initBlock = lh.newBlock("Entry") <:> firstInstructions
@@ -70,7 +69,7 @@ class CodeGen(val rc: RunContext) {
 
       val prep = preAllocate(result, function.returnType)(lh)
 
-      val (entryBlock, phi) = codegen(filteredBody, initBlock <:> prep, Some(end), Some(result), returnType)(lh, function, fh)
+      val (entryBlock, phi) = codegen(filteredBody, initBlock <:> prep, Some(end), Some(result), returnType)(lh, function, globalHandler)
       function.add(entryBlock)
 
       val endBlock = lh.newBlock(end)
@@ -79,17 +78,6 @@ class CodeGen(val rc: RunContext) {
       function.add(endBlock <:> ret)
 
       function
-    }
-
-    def extractDefFun(t: Tree): (List[DefFunction], Tree) = t match {
-      case defFun @ DefFunction(_, _, _, _, nested) => {  //DefFunction(_, _, _, _, Bind(fid, body))
-        val (defs, rest) = extractDefFun(nested)
-        (defFun +: defs, rest)
-      }
-      case bind: Bind => extractDefFun(extractBody(bind)._2)
-
-      case Var(_) => (Nil, NatLiteral(BigInt(0)))
-      case rest => (Nil, rest)
     }
 
     def extractBody(bind: Tree): (Identifier, Tree) = bind match {
@@ -123,31 +111,6 @@ class CodeGen(val rc: RunContext) {
       case _ => Nil
     }
 
-    def translateDefFunction(defFun: DefFunction, fh: FunctionHandler): (Function, LocalHandler, Tree) = {
-      // val DefFunction(args, optReturnType, _, bind, _) = defFun
-      // val lh = new LocalHandler(rc)
-      //
-      // val params = args.toList.map{
-      //   case TypedArgument(id, tpe) => (id, ParamDef(translateType(tpe), lh.freshLocal(id)))
-      //   case arg => rc.reporter.fatalError(s"Unexpected type for arg $arg")
-      // }
-      // lh.add(params)
-      //
-      // val (funId, body) = extractBody(bind)
-      //
-      // val returnType = if(optReturnType.isDefined) {
-      //   translateType(optReturnType.get)
-      // } else {
-      //   typeOf(body)(lh, fh, Map.empty)
-      // }
-      //
-      // val function = CreateFunction(returnType, fh.freshGlobal(funId), params.unzip._2)
-      // fh.addFunction(funId, function)
-      //
-      // (function, lh, body)
-      ???
-    }
-
     def translateOp(op: Operator): Op = op match {
       case Not => IRNot
       case And => IRAnd
@@ -171,7 +134,7 @@ class CodeGen(val rc: RunContext) {
       case BoolType => BooleanType
       case NatType => IRNatType
       case UnitType => IRUnitType
-      case Bind(_, rest) => translateType(rest) //TODO Is this necessary
+      case Bind(_, rest) => translateType(rest)
       case SigmaType(tpe, bind) => PairType(translateType(tpe), translateType(bind))
       case PiType(argType, Bind(_, retType)) => LambdaValue(translateType(argType), translateType(retType))
       case SumType(leftType ,rightType) => EitherType(translateType(leftType), translateType(rightType))
@@ -179,27 +142,12 @@ class CodeGen(val rc: RunContext) {
       case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
     }
 
-    def translateValue(t: Tree, tpe: Type)(implicit lh: LocalHandler, fh: FunctionHandler): Value = t match {
+    def translateValue(t: Tree, tpe: Type)(implicit lh: LocalHandler, globalHandler: GlobalHandler): Value = t match {
       case BooleanLiteral(b) => Value(IRBooleanLiteral(b))
       case NatLiteral(n) => Value(Nat(n))
       case UnitLiteral => Value(Nat(0))
-      case Var(id) => {
-        // if(fh.hasFunction(id)){
-        //   Value(FunctionValue(fh.getGlobal(id)))
-        // } else {
-          Value(lh.getLocal(id))
-        // }
-      }
+      case Var(id) => Value(lh.getLocal(id))
       case _ => rc.reporter.fatalError(s"This tree isn't a value: $t")
-    }
-
-    def flattenPrimitive(t: Tree): List[Tree] = t match {
-      case Primitive(op, args) => args.flatMap{
-        case Primitive(op2, args2) if op2 == op => flattenPrimitive(Primitive(op2, args2))
-        case other => List(other)
-      }
-
-      case _ => rc.reporter.fatalError(s"flattenPrimitive is not defined for $t")
     }
 
     def flattenApp(t: Tree): (Identifier, List[Tree]) = t match {
@@ -224,8 +172,6 @@ class CodeGen(val rc: RunContext) {
       case Leq => IRNatType
       case Geq => IRNatType
 
-      // case Nop => IRNop
-
       case Plus => IRNatType
       case Minus => IRNatType
       case Mul => IRNatType
@@ -234,7 +180,7 @@ class CodeGen(val rc: RunContext) {
       case _ => rc.reporter.fatalError(s"Unable to determine the operand type of $op")
     }
 
-    def typeOf(t: Tree)(implicit lh: LocalHandler, fh: FunctionHandler, helper: Map[Identifier, Type]): Type = t match {
+    def typeOf(t: Tree)(implicit lh: LocalHandler, globalHandler: GlobalHandler, helper: Map[Identifier, Type]): Type = t match {
       case BooleanLiteral(_) => BooleanType
       case NatLiteral(_) => IRNatType
       case UnitLiteral => IRUnitType
@@ -253,7 +199,7 @@ class CodeGen(val rc: RunContext) {
 
         val updatedHelper = helper + (id -> valueType)
 
-        typeOf(rest)(lh, fh, updatedHelper)
+        typeOf(rest)(lh, globalHandler, updatedHelper)
       }
       case Primitive(op, _) => translateOp(op).returnType
       case IfThenElse(_, thenn, elze) => {
@@ -271,7 +217,7 @@ class CodeGen(val rc: RunContext) {
         val treeArgType = optArgType.getOrElse(rc.reporter.fatalError("Need to know the type of the argument"))
         val argType = translateType(treeArgType)
         val updatedHelper = helper + (argId -> argType)
-        LambdaValue(argType, typeOf(body)(lh, fh, updatedHelper))
+        LambdaValue(argType, typeOf(body)(lh, globalHandler, updatedHelper))
       }
 
       case app @ App(_, _) => {
@@ -331,13 +277,12 @@ class CodeGen(val rc: RunContext) {
       (implicit lh: LocalHandler): List[Instruction] = {
         val jump = jumpTo(next)
         val assign = Assign(assignee(toAssign), tpe, value)
-        if(toAssign.isEmpty && jump.isEmpty) rc.reporter.fatalError("Unexpected control flow during codegen")
 
         assign +: jump
     }
 
-    def cgLambdaCall(lambda: Local, args: List[Tree], block: Block, next: Option[Label], res: Local,
-      argType: Type, retType: Type)(implicit lh: LocalHandler, f: Function, fh: FunctionHandler): Block = {
+    def cgLambdaCall(lambda: Local, args: List[Tree], block: Block, next: Option[Label], res: Local, argType: Type, retType: Type)
+      (implicit lh: LocalHandler, f: Function, globalHandler: GlobalHandler): Block = {
 
         def applyOneArg(arg: Tree, res: Local, argType: Type, retType: Type): Block = {
 
@@ -385,7 +330,7 @@ class CodeGen(val rc: RunContext) {
 
     def cgAlternatives(trueLabel: Label, trueBody: Tree, falseLabel: Label, falseBody: Tree,
       after: Label, toAssign: Option[Local], resultType: Type)
-      (implicit lh: LocalHandler, f: Function, fh: FunctionHandler): List[Instruction] = {
+      (implicit lh: LocalHandler, f: Function, globalHandler: GlobalHandler): List[Instruction] = {
         val assign = assignee(toAssign)
 
         val (trueLocal, falseLocal) = resultType match {
@@ -445,17 +390,17 @@ class CodeGen(val rc: RunContext) {
     }
 
     def cgLambda(lambdaBody: Tree, argId: Identifier, lambdaType: Type)
-      (implicit lh: LocalHandler, fh: FunctionHandler): (Global, List[Identifier], List[Type]) = {
-      val newLambdaId = fh.nextLambdaId()
-      val lambdaGlobal = fh.freshGlobal(newLambdaId)
+      (implicit lh: LocalHandler, globalHandler: GlobalHandler): (Global, List[Identifier], List[Type]) = {
 
+      val newLambdaId = globalHandler.nextLambdaId()
+      val lambdaGlobal = globalHandler.freshGlobal(newLambdaId)
       val (argType, retType) = getLambdaPrototype(lambdaType)
 
       val freeVariables = accessedVariables(lambdaBody).filter(freeVar => freeVar != argId && freeVar != newLambdaId)
-
       val freeTypes = freeVariables.map(freeVar => lh.getType(freeVar))
 
       val lambdaLH = new LocalHandler(rc)
+
       //Prepare the lambda's signature
       val argLocal = lambdaLH.freshLocal(argId)
       val argDef = ParamDef(argType, argLocal)
@@ -464,7 +409,7 @@ class CodeGen(val rc: RunContext) {
       val rawEnv = lambdaLH.freshLocal(".raw.env")
       val envDef = ParamDef(RawEnvType, rawEnv)
 
-      //Load captured variables from the enviroment into locals
+      //Load captured variables from the environment into locals
       val typedEnv = lambdaLH.freshLocal(".env")
       val envType = EnvironmentType(freeTypes)
       val translateEnv = Bitcast(typedEnv, rawEnv, envType)
@@ -498,10 +443,10 @@ class CodeGen(val rc: RunContext) {
       lambdaLH.add(newLambdaId, ParamDef(lambdaType, recursive))
 
       val emptyLambda = CreateLambda(retType, lambdaGlobal, List(argDef, envDef), freeVariables.size)
-      fh.addLambda(emptyLambda)
+      globalHandler.addLambda(emptyLambda)
 
       val prepCaptured = if(freeVariables.isEmpty) Nil else translateEnv +: loadFromEnv
-      val completeLambda = cgFunction(emptyLambda, lambdaLH, lambdaBody, fh, prepRecLambda ++ prepCaptured)
+      val completeLambda = cgFunction(emptyLambda, lambdaLH, lambdaBody, globalHandler, prepRecLambda ++ prepCaptured)
 
       (lambdaGlobal, freeVariables, freeTypes)
     }
@@ -553,11 +498,11 @@ class CodeGen(val rc: RunContext) {
     def setLambda(lambda: Local, funGlobal: Global, env: Value, lambdaType: Type)(implicit lh: LocalHandler) = {
       val (argType, retType) = getLambdaPrototype(lambdaType)
 
-      val allocate = List(Malloc(lambda, lh.dot(lambda, "malloc"), lambdaType))
+      val allocation = List(allocate(lambda, lambdaType))
       val storeFun = setLambdaFunction(lambda, Value(funGlobal), argType, retType)
       val storeEnv = setLambdaEnv(lambda, env, argType, retType)
 
-      allocate ++ storeFun ++ storeEnv
+      allocation ++ storeFun ++ storeEnv
     }
 
     def setLambdaFunction(lambdaToSet: Local, function: Value, argType: Type, retType: Type)
@@ -580,8 +525,12 @@ class CodeGen(val rc: RunContext) {
         storeEnv
     }
 
+    def allocate(local: Local, tpe: Type)(implicit lh: LocalHandler): Instruction = {
+      Malloc(local, lh.dot(local, "malloc"), tpe)
+    }
+
     def preAllocate(local: Local, tpe: Type)(implicit lh: LocalHandler): List[Instruction] = tpe match {
-      case EitherType(_, _) => List(Malloc(local, lh.dot(local, "malloc"), tpe))
+      case EitherType(_, _) => List(allocate(local, tpe))
       case _ => Nil
     }
 
@@ -590,7 +539,6 @@ class CodeGen(val rc: RunContext) {
 
       val envType = EnvironmentType(freeTypes)
 
-      //Environment passing ================================================
       if(freeVariables.isEmpty){
         (Nil, Value(NullLiteral))
       } else {
@@ -643,7 +591,7 @@ class CodeGen(val rc: RunContext) {
     def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
 
     def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local], resultType: Type)
-      (implicit lh: LocalHandler, f: Function, fh: FunctionHandler): (Block, List[Instruction]) =
+      (implicit lh: LocalHandler, f: Function, globalHandler: GlobalHandler): (Block, List[Instruction]) =
 
       inputTree match {
 
@@ -664,15 +612,13 @@ class CodeGen(val rc: RunContext) {
           val firstLocal = lh.dot(pair, "first")
           val secondLocal = lh.dot(pair, "second")
 
-          val t3 = lh.dot(pair, "malloc")
-
           val (firstType, secondType) = resultType match {
             case PairType(f, s) => (f, s)
             case other => rc.reporter.fatalError(s"Expected type is $resultType but value has type Pair(_, _)")
           }
           val pairType = PairType(firstType, secondType)
 
-          val malloc = Malloc(pair, t3, pairType) //will assign toAssign
+          val malloc = allocate(pair, pairType)
 
           val (firstBlock, firstPhi) = codegen(first, block <:> malloc, None, Some(firstLocal), firstType)
           val (secondBlock, secondPhi) = codegen(second, firstBlock <:> firstPhi, None, Some(secondLocal), secondType)
@@ -689,9 +635,9 @@ class CodeGen(val rc: RunContext) {
           (secondBlock <:> secondPhi <:> initialise <:> jumpTo(next), Nil)
         }
 
-        case First(pair) => { //TODO refactor first and second since they are identical?
+        case First(pair) => {
           val pairLocal = lh.freshLocal("pair")
-          val pairType = typeOf(pair)(lh, fh, Map.empty)
+          val pairType = typeOf(pair)(lh, globalHandler, Map.empty)
           val (currentBlock, phi) = codegen(pair, block, None, Some(pairLocal), pairType)
 
           val assignLocal = assignee(toAssign)
@@ -708,7 +654,7 @@ class CodeGen(val rc: RunContext) {
         case Second(pair) => {
 
           val pairLocal = lh.freshLocal("pair")
-          val pairType = typeOf(pair)(lh, fh, Map.empty)
+          val pairType = typeOf(pair)(lh, globalHandler, Map.empty)
           val (currentBlock, phi) = codegen(pair, block, None, Some(pairLocal), pairType)
 
           val assignLocal = assignee(toAssign)
@@ -727,15 +673,15 @@ class CodeGen(val rc: RunContext) {
             val local = lh.freshLocal(newVar)
             val valueTpe = optTpe match {
               case Some(tpe) => translateType(tpe)
-              case None => typeOf(valueBody)(lh, fh, Map.empty)
+              case None => typeOf(valueBody)(lh, globalHandler, Map.empty)
             }
 
             val allocate = preAllocate(local, valueTpe)
 
 
-            fh.nameLambdasAfter(newVar)
+            globalHandler.nameLambdasAfter(newVar)
             val (tempBlock, phi) = codegen(valueBody, block <:> allocate, None, Some(local), valueTpe)
-            fh.stopNamingAfter(newVar)
+            globalHandler.stopNamingAfter(newVar)
 
             lh.add(newVar, ParamDef(valueTpe, local))
             codegen(rest, tempBlock <:> phi, next, toAssign, resultType)
@@ -801,7 +747,7 @@ class CodeGen(val rc: RunContext) {
           val (varRight, bodyRight) = extractBody(t2)
 
           val scrutLocal = lh.freshLocal("scrut")
-          val scrutType = typeOf(scrut)(lh, fh, Map.empty)
+          val scrutType = typeOf(scrut)(lh, globalHandler, Map.empty)
           val (currentBlock, scrutPhi) = codegen(scrut, block, None, Some(scrutLocal), scrutType)
 
           scrutType match {
@@ -839,13 +785,13 @@ class CodeGen(val rc: RunContext) {
         case LeftTree(either) => {
 
           val assignLocal = assignee(toAssign)
-          val leftLocal = lh.freshLocal("left")
-
-          val eitherValuePtr = lh.dot(assignLocal, "left.value.gep")
-          val eitherTypePtr = lh.dot(assignLocal, "left.type.gep")
 
           val (currentBlock, phi) = (toAssign, resultType) match {
             case (Some(local), EitherType(leftType, _)) => {
+              val leftLocal = lh.freshLocal("left")
+
+              val eitherValuePtr = lh.dot(assignLocal, "left.value.gep")
+              val eitherTypePtr = lh.dot(assignLocal, "left.type.gep")
 
               val assign = List(
                 GepToIdx(eitherTypePtr, resultType, Value(assignLocal), Some(0)),
@@ -858,9 +804,8 @@ class CodeGen(val rc: RunContext) {
             }
 
             case (Some(local), LeftType(innerType)) => codegen(either, block, None, Some(local), innerType)
-            //case (None, _) => codegen(either, block, None, None, resultType)
-            case (opt, other) => rc.reporter.fatalError(s"Found LeftTree but expected $other when assigning $opt")
-            //TODO malloc a temp variable when there is nothing to assign?
+            case (Some(local), other) => rc.reporter.fatalError(s"Found LeftTree but expected $other when assigning $local")
+            case (None, _) => (block, Nil)
           }
 
           (currentBlock <:> phi <:> jumpTo(next), Nil)
@@ -869,13 +814,13 @@ class CodeGen(val rc: RunContext) {
         case RightTree(either) => {
 
           val assignLocal = assignee(toAssign)
-          val rightLocal = lh.freshLocal("right")
-
-          val eitherValuePtr = lh.dot(assignLocal, "right.value.gep")
-          val eitherTypePtr = lh.dot(assignLocal, "right.type.gep")
 
           val (currentBlock, phi) = (toAssign, resultType) match {
             case (Some(local), EitherType(_, rightType)) => {
+              val rightLocal = lh.freshLocal("right")
+
+              val eitherValuePtr = lh.dot(assignLocal, "right.value.gep")
+              val eitherTypePtr = lh.dot(assignLocal, "right.type.gep")
 
               val assign = List(
                 GepToIdx(eitherTypePtr, resultType, Value(assignLocal), Some(0)),
@@ -888,9 +833,8 @@ class CodeGen(val rc: RunContext) {
             }
 
             case (Some(local), RightType(innerType)) => codegen(either, block, None, Some(local), innerType)
-            // case (None, _) => codegen(either, block, None, None, resultType)
-            case (opt, other) => rc.reporter.fatalError(s"Found RightTree but expected $other when assigning $opt")
-            //TODO malloc a temp variable when there is nothing to assign?
+            case (Some(local), other) => rc.reporter.fatalError(s"Found RightTree but expected $other when assigning $local")
+            case (None, _) => (block, Nil)
           }
 
           (currentBlock <:> phi <:> jumpTo(next), Nil)

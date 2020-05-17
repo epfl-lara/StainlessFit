@@ -8,7 +8,7 @@ import codegen.llvm.IR._
 import scala.collection.mutable
 import trees.Identifier
 
-class FunctionHandler(val rc: RunContext) {
+class GlobalHandler(val rc: RunContext) {
 
   private val lambdas = mutable.ArrayBuffer[Function]()
 
@@ -46,7 +46,7 @@ class FunctionHandler(val rc: RunContext) {
 
   //Global naming ==============================================================
   private val counter = new codegen.utils.UniqueCounter[String]
-  private val main = freshGlobal("main")
+  
   def nextIndex(name: String): String = counter.next(name) match {
     case -1 => ""
     case idx => s"$idx"

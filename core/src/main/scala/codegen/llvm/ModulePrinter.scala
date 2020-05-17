@@ -227,11 +227,6 @@ object ModulePrinter {
       }
     }
 
-     def getFunction(funName: Global): Function = {
-      mod.functions.filter(fun => fun.name == funName).head
-    }
-
-
     def printType(tpe: Type, ptr: Boolean = true): Document = extractNestedType(tpe) match {
       case NatType => "i32"
 
