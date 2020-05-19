@@ -54,7 +54,6 @@ object ModulePrinter {
      def printModule: Document = {
         var toPrint = new ListBuffer[Document]()
 
-        //TODO hardcode these constants
         toPrint += Stacked(
           Raw(s"$openGlobal = $open"),
           Raw(s"$closeGlobal = $close"),
@@ -108,6 +107,8 @@ object ModulePrinter {
      def printInstr(instr: Instruction): Document = {
       instr match {
 
+        case Variable(local) => Raw(s"$local")
+
         case BinaryOp(op, res, lhs, rhs) => {
           val tpe = op match {
             case compOp: ComparisonOperator =>  NatType
@@ -121,28 +122,20 @@ object ModulePrinter {
           case Not => Raw(s"$res = $op ${op.returnType} $operand")
         }
 
-        case Variable(local) => Raw(s"$local")
+        case Phi(res, tpe, choices) =>{
+          Raw(s"$res = phi ") <:> printType(tpe) <:> " " <:>
+           Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ", ")
+        }
 
         case Assign(res, tpe, from) => extractNestedType(tpe) match {
 
           case PairType(t1, t2) => printInstr(GepToIdx(res, tpe, from, None))
           case EitherType(t1, t2) => printInstr(GepToIdx(res, tpe, from, None))
-          case LambdaValue(argType, retType) => printInstr(GepToIdx(res, tpe, from, None))
+          case LambdaType(argType, retType) => printInstr(GepToIdx(res, tpe, from, None))
 
           case NatType => Lined(List(s"$res = add", printType(tpe), "0,", printValue(from)), " ")
           case _ =>       Lined(List(s"$res = or", printType(tpe), "0,", printValue(from)), " ")
         }
-
-        case Branch(condition, trueLocal, falseLocal) =>
-          Lined(List(s"br i1 ", printValue(condition), s", label $trueLocal, label $falseLocal"))
-
-        case Jump(dest) => Raw(s"br label $dest")
-
-        case Phi(res, tpe, choices) => Raw(s"$res = phi ") <:> printType(tpe) <:> " " <:>
-          Lined(choices.map(choice => s"[${choice._1}, ${choice._2}]"), ", ")
-
-        case Return(result, tpe) =>
-          Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
 
         case Call(result, returnType, funName, values, valueTypes, env) => {
           val valueList = valueTypes.zip(values).map{case (tpe, value) => printType(tpe) <:> " " <:> printValue(value)}
@@ -152,24 +145,34 @@ object ModulePrinter {
           printValue(env) <:> Raw(")\n")
         }
 
-        case PrintNat(value) => {
-          Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* $natGlobal, i64 0, i64 0), i32 ") <:>
-          printValue(value) <:>
-          Raw(")")
-        }
+        //Terminator instructions
+        case Branch(condition, trueLocal, falseLocal) =>
+          Lined(List(s"br i1 ", printValue(condition), s", label $trueLocal, label $falseLocal"))
 
-        case PrintOpen => printChar("(")
-        case PrintClose => printChar(")")
-        case PrintComma => printChar(",")
-        case PrintLeft => printChar("left")
-        case PrintRight => printChar("right")
+        case Jump(dest) => Raw(s"br label $dest")
 
-        case PrintBool(cond) => {
-          Stacked(
-            Raw(s"$cond.selectStr = select i1 $cond, [6 x i8]* $trueGlobal, [6 x i8]* $falseGlobal"),
-            Raw(s"$cond.string = getelementptr [6 x i8], [6 x i8]* $cond.selectStr, i64 0, i64 0"),
-            Raw(s"call i32 (i8*, ...) @printf(i8* $cond.string)")
-          )
+        case Return(result, tpe) =>
+          Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
+
+
+        //Memory instructions
+        case Load(result, tpe, ptr) => Lined(
+          List(s"$result = load", printType(tpe) <:> ",", printType(tpe) <:> "*", s"$ptr"),
+           " ") <:> Raw("\n")
+
+        case Store(value, tpe, ptr) => Lined(
+          List("store", printType(tpe), printValue(value) <:> ",", printType(tpe) <:> "*", s"$ptr"),
+          " ") <:> Raw("\n")
+
+        case GepToIdx(result, tpe, ptr, idx) => {
+          Lined(List(
+            Raw(s"$result = getelementptr"),
+            printType(tpe, false) <:> Raw(","),
+            printPointerType(tpe),
+            printValue(ptr) <:> Raw(","),
+            Raw("i32 0"),
+            idx.fold(Raw(""))(n => s", i32 $n")
+          ), " ")
         }
 
         case Malloc(res, temp, tpe) => {
@@ -184,26 +187,28 @@ object ModulePrinter {
         case Bitcast(res, local, toType) =>
           Raw(s"$res = bitcast i8* $local to ") <:> printType(toType, false) <:> "*" <:> Raw("\n")
 
-        case GepToIdx(result, tpe, ptr, idx) => {
-          Lined(List(
-            Raw(s"$result = getelementptr"),
-            printType(tpe, false) <:> Raw(","),
-            printPointerType(tpe),
-            printValue(ptr) <:> Raw(","),
-            Raw("i32 0"),
-            idx.fold(Raw(""))(n => s", i32 $n")
-          ), " ")
+        //Pretty printing instructions
+        case PrintNat(value) => {
+         Raw(s"call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* $natGlobal, i64 0, i64 0), i32 ") <:>
+         printValue(value) <:>
+         Raw(")")
         }
 
-        case Store(value, tpe, ptr) => Lined(
-          List("store", printType(tpe), printValue(value) <:> ",", printType(tpe) <:> "*", s"$ptr"),
-           " ") <:> Raw("\n")
+        case PrintBool(cond) => {
+         Stacked(
+           Raw(s"$cond.selectStr = select i1 $cond, [6 x i8]* $trueGlobal, [6 x i8]* $falseGlobal"),
+           Raw(s"$cond.string = getelementptr [6 x i8], [6 x i8]* $cond.selectStr, i64 0, i64 0"),
+           Raw(s"call i32 (i8*, ...) @printf(i8* $cond.string)")
+         )
+        }
 
-        case Load(result, tpe, ptr) => Lined(
-          List(s"$result = load", printType(tpe) <:> ",", printType(tpe) <:> "*", s"$ptr"),
-           " ") <:> Raw("\n")
+        case PrintOpen => printChar("(")
+        case PrintClose => printChar(")")
+        case PrintComma => printChar(",")
+        case PrintLeft => printChar("left")
+        case PrintRight => printChar("right")
 
-        case other => Raw(s"PLACEHOLDER: $other")
+        case other => rc.reporter.fatalError("Unknown instruction during printing")
       }
     }
 
@@ -214,23 +219,15 @@ object ModulePrinter {
         case BooleanLiteral(b) => s"$b"
         case Nat(n) => s"$n"
         case NullLiteral => "null"
-        case PairLiteral(first, second) =>
-          Raw("{") <:> printValue(first) <:> ", " <:> printValue(second) <:> "}"
 
-        case LambdaLiteral(tpe, funName, env) => {
-          Raw("{") <:> printType(FunctionType(tpe.argType, tpe.retType)) <:>
-            Raw(s" $funName, i8* ") <:> printValue(env) <:> Raw("}")
-        }
-
-        case FunctionValue(funGlobal) => s"@.${funGlobal.name}"
-        case other => Raw(s"PLACEHOLDER: $other")
+        case other => rc.reporter.fatalError("Unknown value during printing")
       }
     }
 
     def printType(tpe: Type, ptr: Boolean = true): Document = extractNestedType(tpe) match {
-      case NatType => "i32"
-
       case BooleanType | UnitType => "i1"
+
+      case NatType => "i32"
 
       case PairType(first, second) =>
         Raw("{") <:> printType(first) <:> Raw(", ") <:> printType(second) <:> Raw("}") <:> (if(ptr) "*" else "")
@@ -241,7 +238,8 @@ object ModulePrinter {
       case LeftType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
       case RightType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
 
-      case RawEnvType => "i8*"
+      case LambdaType(argType, retType) =>
+        Raw("{") <:> printType(FunctionType(argType, retType)) <:> Raw(", i8*}") <:> (if(ptr) "*" else "")
 
       case FunctionType(argType, resType) =>
         printType(resType) <:> Raw(" (") <:> printType(argType) <:> Raw(", i8*)*")
@@ -249,11 +247,9 @@ object ModulePrinter {
       case EnvironmentType(types) =>
         Raw("{") <:> Lined(types.map(t => printType(t)), ", ")<:> Raw("}") <:> (if(ptr) "*" else "")
 
+      case RawEnvType => "i8*"
 
-      case LambdaValue(argType, retType) =>
-        Raw("{") <:> printType(FunctionType(argType, retType)) <:> Raw(", i8*}") <:> (if(ptr) "*" else "")
-
-      case other=> Raw(s"PLACEHOLDER: $other")
+      case other => rc.reporter.fatalError("Unknown type during printing")
     }
 
     def printPointerType(tpe: Type): Document = tpe match {

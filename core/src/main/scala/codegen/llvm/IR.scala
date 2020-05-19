@@ -47,7 +47,7 @@ object IR {
   case class LeftType(either: Type) extends Type
   case class RightType(either: Type) extends Type
 
-  case class LambdaValue(argType: Type, retType: Type) extends Type
+  case class LambdaType(argType: Type, retType: Type) extends Type
   case class FunctionType(paramType: Type, returnType: Type) extends Type
   case class EnvironmentType(types: List[Type]) extends Type
   case object RawEnvType extends Type //i8*
@@ -64,10 +64,7 @@ object IR {
   case class BooleanLiteral(b: Boolean) extends Literal
   case class Nat(n: BigInt) extends Literal
   case object UnitLiteral extends Literal
-  case class PairLiteral(first: Value, second: Value) extends Literal
   case object NullLiteral extends Literal
-  case class LambdaLiteral(tpe: LambdaValue, funName: Name, env: Value) extends Literal
-  case class FunctionValue(funGlobal: Global) extends Literal
 
   //Boolean operations
   abstract class Op extends Instruction {
@@ -116,10 +113,6 @@ object IR {
     override def toString: String = super.toString + "sge"
   }
 
-  case object Nop extends Op {
-    override def returnType: Type = UnitType  //TODO is Nop even used?
-  }
-
   case object Plus extends NatOperator {
     override def toString: String = "add"
   }
@@ -140,7 +133,7 @@ object IR {
 
   case class Phi(res: Local, typee: Type, candidates: List[(Local, Label)]) extends Instruction
   case class Assign(result: Local, typee: Type, from: Value) extends Instruction
-  
+
   case class Call(res: Local, returnType: Type, function: Name, args: List[Value], argTypes: List[Type], env: Value) extends Instruction
 
   //Terminator instructions

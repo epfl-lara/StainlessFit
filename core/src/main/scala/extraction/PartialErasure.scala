@@ -35,7 +35,7 @@ object PartialErasure {
       case TreeBuilders.Binds(_, tree) => erase(tree)
     }
 
-    case LetIn(tpe, t1, bind) => LetIn(tpe, erase(t1), erase(bind)) //App(Lambda(None, erase(bind)), erase(t1))  //Let(None, erase(t1), erase(bind))
+    case LetIn(tpe, t1, bind) => LetIn(tpe, erase(t1), erase(bind))
     case MacroTypeDecl(tpe, Bind(id, body)) => erase(body)
 
     case NatMatch(n, e1, Bind(id, e2)) => {
@@ -57,50 +57,6 @@ object PartialErasure {
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)
 
-    // case defFun @ DefFunction(_, _, _, _, _) => eraseDefFun(defFun)  //Erase all DefFunctions
-
-    // case defFun @ DefFunction(_, _, _, _, _) if !topLevel => {
-    //   eraseDefFun(defFun)
-    // }
-    //
-    // case DefFunction(args, optReturnType, optMeasure, body, rest) if args.size == 0 || args.size == 1 => {
-    //   DefFunction(args, optReturnType, optMeasure, erase(body, false), erase(rest, true))
-    // }
-    //
-    // case DefFunction(args, optReturnType, optMeasure, bind, rest) => {
-    //
-    //   val (ids, body) = bind match {
-    //     case TreeBuilders.Binds(ids, body) => (ids, body)
-    //   }
-    //
-    //   val funId = ids.reverse.head
-    //
-    //   val lambdas = nestLambdas(args.tail, body)
-    //
-    //   DefFunction(Seq(args.head), None, None, erase(Bind(funId, lambdas), false), erase(rest, true))
-    // }
-
     case _ => rc.reporter.fatalError(s"Partial Erasure is not implemented on $t (${t.getClass}).")
   }
-
-  // def nestLambdas(args: Seq[DefArgument], body: Tree): Tree = {
-  //   args.reverse.foldLeft(body){  //TODO does reverse make sense?
-  //     case (acc, argDef) => {
-  //       val TypedArgument(arg, argType) = argDef
-  //
-  //       Lambda(Some(argType), Bind(arg, acc))
-  //     }
-  //   }
-  // }
-  // def eraseDefFun(defFun: DefFunction)(implicit rc: RunContext) = {
-  //
-  //   val DefFunction(args, optReturnType, optMeasure, bind, rest) = defFun
-  //   val (ids, body) = bind match {
-  //     case TreeBuilders.Binds(ids, body) => (ids, body)
-  //   }
-  //
-  //   val value = nestLambdas(args, body)
-  //
-  //   erase(LetIn(None, value, rest))
-  // }
 }

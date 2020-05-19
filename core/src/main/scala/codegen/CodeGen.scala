@@ -6,7 +6,7 @@ import trees._
 import util.RunContext
 import extraction._
 import codegen.llvm.IR.{And => IRAnd, Or => IROr, Not => IRNot, Neq => IRNeq,
-  Eq => IREq, Lt => IRLt, Gt => IRGt, Leq => IRLeq, Geq => IRGeq, Nop => IRNop,
+  Eq => IREq, Lt => IRLt, Gt => IRGt, Leq => IRLeq, Geq => IRGeq,
   Plus => IRPlus, Minus => IRMinus, Mul => IRMul, Div => IRDiv,
   BooleanLiteral => IRBooleanLiteral, UnitLiteral => IRUnitLiteral,
   NatType => IRNatType, UnitType => IRUnitType, _}
@@ -121,7 +121,6 @@ class CodeGen(val rc: RunContext) {
       case Gt => IRGt
       case Leq => IRLeq
       case Geq => IRGeq
-      case Nop => IRNop
       case Plus => IRPlus
       case Minus => IRMinus
       case Mul => IRMul
@@ -136,7 +135,7 @@ class CodeGen(val rc: RunContext) {
       case UnitType => IRUnitType
       case Bind(_, rest) => translateType(rest)
       case SigmaType(tpe, bind) => PairType(translateType(tpe), translateType(bind))
-      case PiType(argType, Bind(_, retType)) => LambdaValue(translateType(argType), translateType(retType))
+      case PiType(argType, Bind(_, retType)) => LambdaType(translateType(argType), translateType(retType))
       case SumType(leftType ,rightType) => EitherType(translateType(leftType), translateType(rightType))
       case RefinementType(typee, _) => translateType(typee)
       case _ => rc.reporter.fatalError(s"Unable to translate type $tpe")
@@ -217,7 +216,7 @@ class CodeGen(val rc: RunContext) {
         val treeArgType = optArgType.getOrElse(rc.reporter.fatalError("Need to know the type of the argument"))
         val argType = translateType(treeArgType)
         val updatedHelper = helper + (argId -> argType)
-        LambdaValue(argType, typeOf(body)(lh, globalHandler, updatedHelper))
+        LambdaType(argType, typeOf(body)(lh, globalHandler, updatedHelper))
       }
 
       case app @ App(_, _) => {
@@ -475,7 +474,7 @@ class CodeGen(val rc: RunContext) {
     }
 
     def getLambdaPrototype(tpe: Type) = tpe match {
-      case LambdaValue(argType, retType) => (argType, retType)
+      case LambdaType(argType, retType) => (argType, retType)
       case other => rc.reporter.fatalError(s"Type $tpe isn't a lambda")
     }
 
@@ -484,7 +483,7 @@ class CodeGen(val rc: RunContext) {
         val funPtr = lh.dot(lambda, "function.gep")
         val fun = lh.dot(lambda, "function")
         val loadFun = List(
-          GepToIdx(funPtr, LambdaValue(argType, retType), Value(lambda), Some(0)),
+          GepToIdx(funPtr, LambdaType(argType, retType), Value(lambda), Some(0)),
           Load(fun, FunctionType(argType, retType), funPtr)
         )
         (fun, loadFun)
@@ -494,7 +493,7 @@ class CodeGen(val rc: RunContext) {
       val envPtr = lh.dot(lambda, "env.gep")
       val env = lh.dot(lambda, "env")
       val loadEnv = List(
-        GepToIdx(envPtr, LambdaValue(argType, retType), Value(lambda), Some(1)),
+        GepToIdx(envPtr, LambdaType(argType, retType), Value(lambda), Some(1)),
         Load(env, RawEnvType, envPtr)
       )
       (env, loadEnv)
@@ -514,7 +513,7 @@ class CodeGen(val rc: RunContext) {
       (implicit lh: LocalHandler): List[Instruction] = {
         val funPtr = lh.dot(lambdaToSet, "function.gep")
         val storeFun = List(
-          GepToIdx(funPtr, LambdaValue(argType, retType), Value(lambdaToSet), Some(0)),
+          GepToIdx(funPtr, LambdaType(argType, retType), Value(lambdaToSet), Some(0)),
           Store(function, FunctionType(argType, retType), funPtr)
         )
         storeFun
@@ -524,7 +523,7 @@ class CodeGen(val rc: RunContext) {
       (implicit lh: LocalHandler): List[Instruction] = {
         val envPtr = lh.dot(lambdaToSet, "env.gep")
         val storeEnv = List(
-          GepToIdx(envPtr, LambdaValue(argType, retType), Value(lambdaToSet), Some(1)),
+          GepToIdx(envPtr, LambdaType(argType, retType), Value(lambdaToSet), Some(1)),
           Store(env, RawEnvType, envPtr)
         )
         storeEnv
