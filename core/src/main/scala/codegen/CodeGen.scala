@@ -144,7 +144,7 @@ class CodeGen(val rc: RunContext) {
     def translateValue(t: Tree, tpe: Type)(implicit lh: LocalHandler, globalHandler: GlobalHandler): Value = t match {
       case BooleanLiteral(b) => Value(IRBooleanLiteral(b))
       case NatLiteral(n) => Value(Nat(n))
-      case UnitLiteral => Value(Nat(0))
+      case UnitLiteral => Value(IRBooleanLiteral(false))
       case Var(id) => Value(lh.getLocal(id))
       case _ => rc.reporter.fatalError(s"This tree isn't a value: $t")
     }
@@ -183,6 +183,12 @@ class CodeGen(val rc: RunContext) {
       case BooleanLiteral(_) => BooleanType
       case NatLiteral(_) => IRNatType
       case UnitLiteral => IRUnitType
+      case Error(_, optType) => {
+        optType match {
+          case Some(tpe) => translateType(tpe)
+          case None => IRUnitType
+        }
+      }
       case Var(id) => {
         if(helper.contains(id)){
           helper.get(id).get
@@ -590,6 +596,22 @@ class CodeGen(val rc: RunContext) {
 
       case _ => ()
     }
+    def defaultValue(tpe: Type): Value = tpe match {
+      case BooleanType | IRUnitType => Value(IRBooleanLiteral(false))
+      case IRNatType => Value(Nat(BigInt(0)))
+      case PairType(_, _) => ???
+      case FirstType(pairType) => pairType match {
+        case PairType(firstType, _) => defaultValue(firstType)
+        case other => rc.reporter.fatalError(s"Expected a pair type but got $other")
+      }
+      case SecondType(pairType) => pairType match {
+        case PairType(_, secondType) => defaultValue(secondType)
+        case other => rc.reporter.fatalError(s"Expected a pair type but got $other")
+      }
+      case LeftType(inner) => defaultValue(inner)
+      case RightType(inner) => defaultValue(inner)
+      case other => rc.reporter.fatalError(s"There is no default value for type $other")
+    }
 
     def assignee(toAssign: Option[Local])(implicit lh: LocalHandler) = toAssign getOrElse lh.freshLocal
     def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
@@ -601,6 +623,17 @@ class CodeGen(val rc: RunContext) {
 
         case value if isValue(value) => (block <:> cgValue(resultType, translateValue(value, resultType), next, toAssign), Nil)
 
+        case Error(str, _) => {
+          if(str.size < 256){
+            val assign = resultType match {
+              case EitherType(_, _) => Nil
+              case other => List(Assign(assignee(toAssign), other, defaultValue(other)))
+            }
+            (block <:> assign <:> PrintClose <:> PrintClose <:> Exit <:> jumpTo(next), Nil)
+          } else {
+            rc.reporter.fatalError(s"Error message has ${str.size} characters, maximum is 255")
+          }
+        }
         case call @ App(recApp, arg) => {
 
           val (id, flatArgs) = flattenApp(call)

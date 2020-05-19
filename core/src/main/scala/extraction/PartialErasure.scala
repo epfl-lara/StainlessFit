@@ -55,7 +55,7 @@ object PartialErasure {
     case UnfoldPositive(t1, bind) => erase(LetIn(None, t1, bind))
     case Abs(Bind(id, body)) => erase(body)
     case TypeApp(t1, _) => erase(t1)
-    case Error(s, _) => Error(s, None)
+    case Error(s, optType) => Error(s, optType)
 
     case _ => rc.reporter.fatalError(s"Partial Erasure is not implemented on $t (${t.getClass}).")
   }

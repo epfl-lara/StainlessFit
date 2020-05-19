@@ -67,6 +67,7 @@ object ModulePrinter {
 
         toPrint += Raw("declare dso_local noalias i8* @malloc(i64) local_unnamed_addr")
         toPrint += Raw("declare dso_local i32 @printf(i8*, ...)")
+        toPrint += Raw("declare dso_local void @exit(i32)")
 
         if(!mod.lambdas.isEmpty)
           toPrint += Stacked(
@@ -154,6 +155,7 @@ object ModulePrinter {
         case Return(result, tpe) =>
           Lined(List(Raw("ret"), printType(tpe), printValue(result)), " ")
 
+        case Exit => Raw("call void @exit(i32 1)")
 
         //Memory instructions
         case Load(result, tpe, ptr) => Lined(

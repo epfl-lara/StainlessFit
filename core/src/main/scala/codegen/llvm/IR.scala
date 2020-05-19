@@ -140,6 +140,7 @@ object IR {
   case class Branch(condition: Value, ifTrue: Label, ifFalse: Label) extends Instruction
   case class Jump(destination: Label) extends Instruction
   case class Return(result : Value, typee: Type) extends Instruction
+  case object Exit extends Instruction
 
   //Memory instructions
   case class Store(value: Value, tpe: Type, ptr: Local) extends Instruction
