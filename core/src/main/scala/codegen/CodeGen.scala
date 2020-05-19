@@ -383,7 +383,7 @@ class CodeGen(val rc: RunContext) {
       case EitherMatch(scrut, t1, t2) => {
         accessedVariables(scrut) ++ accessedVariables(t1) ++ accessedVariables(t2)
       }
-      case NatMatch(_, _, _) => ??? //TODO
+
       case LeftTree(either) => accessedVariables(either)
       case RightTree(either) => accessedVariables(either)
 

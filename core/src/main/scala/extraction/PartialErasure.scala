@@ -37,19 +37,15 @@ object PartialErasure {
 
     case LetIn(tpe, t1, bind) => LetIn(tpe, erase(t1), erase(bind)) //App(Lambda(None, erase(bind)), erase(t1))  //Let(None, erase(t1), erase(bind))
     case MacroTypeDecl(tpe, Bind(id, body)) => erase(body)
-    case NatMatch(t, t0, bind) => NatMatch(erase(t), erase(t0), erase(bind))
 
-    // case NatMatch(t, t0, bind) => {
-    //   val cond = Primitive(Eq, List(t, NatLiteral(BigInt(0))))
-    //   erase(IfThenElse(cond, t0, bind))
-    // }
+    case NatMatch(n, e1, Bind(id, e2)) => {
+      val scrut= Identifier.fresh("nat_scrut")
+      val cond = Primitive(Eq, List(Var(scrut), NatLiteral(BigInt(0))))
+      val decrement = Primitive(Minus, List(Var(scrut), NatLiteral(BigInt(1))))
 
-//     natMatch(n, e1, Bind(id, e2))
-// let(n, Bind(new x, ))
-// ifthenelse(x = 0,
-//     e1,
-//     e2.replace(id, n-1)
-//     )
+      val rec = IfThenElse(cond, e1, e2.replace(id, decrement))
+      erase(LetIn(Some(NatType), n, Bind(scrut, rec)))
+    }
 
     case EitherMatch(t, bind1, bind2) => EitherMatch(erase(t), erase(bind1), erase(bind2))
     case Primitive(op, args) => Primitive(op, args.map(erase(_)))
