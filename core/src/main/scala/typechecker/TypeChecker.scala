@@ -60,8 +60,8 @@ class TypeChecker(implicit val rc: RunContext)
 
   val tactic = (deterministicTypeChecking || solveEquality || control).repeat
 
-  def infer(t: Tree, max: Int) = {
-    val g = InferGoal(Context.empty(max), t)
+  def infer(t: Tree) = {
+    val g = InferGoal(Context.empty, t)
     tactic.apply(g, sg => None)
   }
 }

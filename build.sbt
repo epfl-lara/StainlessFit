@@ -3,7 +3,7 @@ enablePlugins(GitVersioning)
 git.useGitDescribe := true
 
 ThisBuild / organization := "ch.epfl.lara"
-ThisBuild / scalaVersion := "2.13.1"
+ThisBuild / scalaVersion := "2.13.2"
 
 ThisBuild / resolvers ++= Seq(
   Resolver.bintrayRepo("epfl-lara", "maven")
@@ -23,7 +23,7 @@ lazy val core = project
   .settings(
     name := "stainless-fit",
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.1.1" % "test",
+      "org.scalatest" %% "scalatest" % "3.1.2" % "test",
     ),
     Test / fork := true,
     Test / baseDirectory := (ThisBuild / baseDirectory).value,

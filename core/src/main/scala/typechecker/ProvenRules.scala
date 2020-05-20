@@ -363,7 +363,8 @@ trait ProvenRules {
           _ => emitErrorWithJudgment("InferFix", g, Some(s"The erasure of $t must be a value."))
         ))
       } else {
-        val (freshM, c0) = c.incrementLevel.getFresh("m")
+        val c0 = c.incrementLevel
+        val freshM = Identifier.fresh("m")
         val (freshN, c1) = c0.bindFresh(n1.name, NatType)
         val (freshY, c2) = c1.bindFresh(y.name,
           IntersectionType(

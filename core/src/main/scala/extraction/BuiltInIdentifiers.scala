@@ -9,7 +9,7 @@ import trees._
 class BuiltInIdentifiers(implicit val rc: RunContext) extends Phase[Unit] {
 
   def transform(t: Tree): (Tree, Unit) = {
-    (t.replaceMany(subTree => subTree match {
+    (t.preMap(subTree => subTree match {
       case App(Var(Identifier(0, "size")), e)   => Some(Size(e))
       case App(Var(Identifier(0, "left")), e)   => Some(LeftTree(e))
       case App(Var(Identifier(0, "right")), e)  => Some(RightTree(e))

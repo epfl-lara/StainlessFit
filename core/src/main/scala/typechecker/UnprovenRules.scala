@@ -67,7 +67,8 @@ trait UnprovenRules {
   val CheckSum = Rule("CheckSum", {
     case g @ CheckGoal(c, t, tpe @ SumType(ty1, ty2)) =>
       TypeChecker.debugs(g, "CheckSum")
-      val (id, c1) = c.incrementLevel.getFresh("x")
+      val c1 = c.incrementLevel
+      val id = Identifier.fresh("x")
       val subgoal = CheckGoal(c1,
         EitherMatch(t,
           Bind(id, LeftTree(Var(id))),
@@ -239,7 +240,7 @@ trait UnprovenRules {
     e match {
       case App(Lambda(tp, Bind(id, body)), t) =>
         val subgoal = if (tp.isEmpty) InferGoal(c, t) else CheckGoal(c, t, tp.get)
-        val (freshId, _) = c.getFresh(id.name)
+        val freshId = id.freshen()
         Some(body.replace(id, Var(freshId)), (subgoal, freshId))
 
       case LetIn(tp, value, body) => inlineApplicationsTop(c, App(Lambda(tp, body), value))
