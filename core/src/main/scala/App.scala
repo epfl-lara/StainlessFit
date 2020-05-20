@@ -36,6 +36,7 @@ class App()(implicit rc: RunContext) {
       case Mode.Eval      => eval()
       case Mode.TypeCheck => typeCheck()
       case Mode.Compile   => compile()
+      case Mode.Execute   => execute()
     }
   }
 
@@ -70,6 +71,17 @@ class App()(implicit rc: RunContext) {
     Core.compileFile(file) match {
       case Left(error) =>
         rc.reporter.error(s"Error during compilation: $error")
+        false
+      case Right(value) =>
+        rc.reporter.info(s"Successfully compiled file '$file'.")
+        true
+    }
+  }
+
+  def execute(): Unit = FileWatcher.watchable(file) {
+    Core.executeFile(file) match {
+      case Left(error) =>
+        rc.reporter.error(s"Error during execution: $error")
         false
       case Right(value) =>
         true

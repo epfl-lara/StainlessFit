@@ -3,6 +3,7 @@ package core
 package codegen.utils
 
 import core.util.RunContext
+import core.Core._
 import core.codegen.utils.Env
 import core.codegen.llvm.Module
 import scala.sys.process._
@@ -11,7 +12,7 @@ import java.io._
 
 object Printer {
 
-  def run(rc: RunContext, printInfo: Boolean)(module : Module): Either[String, String] = {
+  def run(rc: RunContext, enableOutput: Boolean)(module : Module): Either[String, String] = {
     val outDirName = "LLVM_out"
     val filename = module.name.substring(0, module.name.lastIndexOf("."))
 
@@ -19,48 +20,31 @@ object Printer {
 
     def output(suffix: String, ext: String) = s"$outDirName/${filename}_$suffix.$ext"
 
-    //TODO require the end-user to have each command in their path
     val (clang, opt) = {
       import Env._
       os match {
         case Linux   => ("clang", "opt")
-        case Windows => rc.reporter.fatalError("Windows compilation not et implemented")
-        case Mac     => ("clang", "/usr/local/opt/llvm/bin/opt")
+        case Windows => ("clang.exe", "opt.exe")
+        case Mac     => ("clang", "opt")
       }
     }
 
     val genOutput = output("gen", "ll")
 
-    val passname = "O1"
+    val passname = rc.config.llvmPassName
     val optiOutput = output(passname, "ll")
     val compiled = output(passname, "out")
 
     val optOptions = s"-S $genOutput -$passname -o $optiOutput"
     val clangOptions = s"$optiOutput -o $compiled"
 
-    def runCommand(cmd: String): (Int, String, String) = {
-      val stdoutStream = new ByteArrayOutputStream
-      val stderrStream = new ByteArrayOutputStream
-      val stdoutWriter = new PrintWriter(stdoutStream)
-      val stderrWriter = new PrintWriter(stderrStream)
-      val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
-      stdoutWriter.close()
-      stderrWriter.close()
-      (exitValue, stdoutStream.toString, stderrStream.toString)
-    }
-
-    def reporterSelect(output: String) = {
-        if(output.contains("error")){
-          rc.reporter.fatalError(output)
-        }
-
-        if(printInfo && output.contains("warning")){
-          rc.reporter.warning(output)
-        } else if(printInfo && output.size != 0){
-          rc.reporter.info(output)
-        }
+    def printErrOutput(errOutput: String) = {
+      if(errOutput.contains("error")){
+        rc.reporter.fatalError(errOutput)
+      } else if(enableOutput && errOutput.contains("warning")){
+        rc.reporter.warning(errOutput)
       }
-
+    }
 
     def llvm(action: String) = {
       val (exec, program, errorMsg) = if(action == "optimize"){
@@ -72,8 +56,8 @@ object Printer {
       }
 
       try {
-          val (exitValue, standardOutput, errOutput) = runCommand(exec)
-          reporterSelect(errOutput)
+          val (exitValue, standardOutput, errOutput) = Core.runCommand(exec)
+          printErrOutput(errOutput)
 
         } catch {
           case _: IOException =>
@@ -97,16 +81,6 @@ object Printer {
 
     llvm("compile")
 
-    try {
-      val (exitValue, standardOutput, errOutput) = rc.bench.time("Execution"){ runCommand(s"./$compiled") }
-      val result = standardOutput.dropRight(1)
-      reporterSelect(result)
-      reporterSelect(errOutput)
-      Right(result)
-    } catch {
-      case _: RuntimeException =>
-      rc.reporter.fatalError(s"Could not run the file: $compiled. Check permissions")
-      Left("")
-    }
+    Right(s"./$compiled")
   }
 }

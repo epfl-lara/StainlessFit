@@ -14,7 +14,8 @@ import parser.FitLexer
 
 import extraction._
 
-import java.io.File
+import java.io.{File, ByteArrayOutputStream, PrintWriter}
+import scala.sys.process._
 
 import core.util.RunContext
 
@@ -89,16 +90,70 @@ object Core {
     }
   }
 
-  def compileFile(f: File)(implicit rc: RunContext): Either[String, String] = {
+  def compileFile(f: File, enableOutput: Boolean = true)(implicit rc: RunContext): Either[String, String] = {
 
         parseFile(f) flatMap { src =>
           val (t, _) = extraction.compilePipeline.transform(src)
 
           rc.bench.time("Code generation"){
             val module = new CodeGen(rc).genLLVM(t, true, f.getName)
-            LLVMPrinter.run(rc, rc.config != Config.default)(module)  //suppress output during testing
+            LLVMPrinter.run(rc, enableOutput)(module)
           }
         }
+  }
+
+  def runCommand(cmd: String): (Int, String, String) = {
+    val stdoutStream = new ByteArrayOutputStream
+    val stderrStream = new ByteArrayOutputStream
+    val stdoutWriter = new PrintWriter(stdoutStream)
+    val stderrWriter = new PrintWriter(stderrStream)
+    val exitValue = cmd.!(ProcessLogger(stdoutWriter.println, stderrWriter.println))
+    stdoutWriter.close()
+    stderrWriter.close()
+    (exitValue, stdoutStream.toString, stderrStream.toString)
+  }
+
+  def executeFile(f: File, enableOutput: Boolean = true)(implicit rc: RunContext): Either[String, String] = {
+    def printResult(result: String): Unit = {
+      if(enableOutput && !result.isEmpty){
+        rc.reporter.info(result)
+      }
+    }
+
+    def printWarnings(errOutput: String): Unit = {
+      if(errOutput.contains("warning")){
+        rc.reporter.warning(errOutput)
+      }
+    }
+
+    compileFile(f, enableOutput) match {
+      case Left(error) => Left(error)
+      case Right(command) => {
+        try {
+          val (exitValue, standardOutput, errOutput) = rc.bench.time("Execution: " + rc.config.llvmPassName){
+            runCommand(command)
+          }
+          val result = standardOutput.dropRight(1)
+
+          if(errOutput.contains("error")){
+            Left(errOutput)
+          } else {
+            printWarnings(errOutput)
+
+            if(exitValue != 0){
+              Left(result)
+            } else {
+              printResult(result)
+              Right(result)
+            }
+          }
+
+        } catch {
+          case _: RuntimeException =>
+          Left(s"Could not run the file: $command. Check permissions")
+        }
+      }
+    }
   }
 
   def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
@@ -109,4 +164,7 @@ object Core {
 
   def compileFile(s: String)(implicit rc: RunContext): Either[String, String] =
     compileFile(new File(s))
+
+  def executeFile(s: String, enableOutput: Boolean)(implicit rc: RunContext): Either[String, String] =
+    executeFile(new File(s), enableOutput)
 }

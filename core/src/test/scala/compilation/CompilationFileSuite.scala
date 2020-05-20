@@ -12,14 +12,14 @@ class CompilationFileSuite extends FunSuite {
 
   for (f <- files("examples/compilation", _.endsWith("sf"))) {
     test(s"Running file $f") {
-      val compilation = Core.compileFile(f)
       val eval = Core.evalFile(f)
+      val execute = Core.executeFile(f, false)
 
-      (Core.evalFile(f), Core.compileFile(f)) match {
-        case (Left(_), _) => assert(false)
-        case (_, Left(_)) => assert(false)
+      (eval, execute) match {
+        case (Left(a), Left(b)) => assert(a == b)
         case (Right(evalRes), Right(compileRes)) =>
           assert(Printer.exprAsString(evalRes) == compileRes)
+        case (_, _) => assert(false)
       }
     }
   }

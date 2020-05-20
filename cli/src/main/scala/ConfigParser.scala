@@ -48,6 +48,12 @@ object ConfigParser {
       opt[Unit]("print-ids")
         .action((_, c) => c.copy(printUniqueIds = true))
         .text("Print unique identifiers"),
+      opt[Unit]("O1")
+        .action((_, c) => c.copy(llvmPassName = "O1")),
+      opt[Unit]("O2")
+        .action((_, c) => c.copy(llvmPassName = "O2")),
+      opt[Unit]("O3")
+        .action((_, c) => c.copy(llvmPassName = "O3")),
 
       note(""),
       cmd("eval")
@@ -80,6 +86,16 @@ object ConfigParser {
             .required()
             .action((f, c) => c.copy(file = f))
             .text("The file to compile, in `sf` format")
+        ),
+      note(""),
+      cmd("execute")
+        .action((_, c) => c.copy(mode = Mode.Execute))
+        .text("Compile and execute the given file")
+        .children(
+          arg[File]("<file>")
+            .required()
+            .action((f, c) => c.copy(file = f))
+            .text("The file to execute, in `sf` format")
         ),
 
       checkConfig {
