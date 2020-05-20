@@ -6,7 +6,24 @@ fun random(choose [Bool]) [returns Nat + Bool] = {
   }
 }
 
-match random(true) {
-  case left a => a + 10
+val test1 = match random(true) {
+  case left a => right a
+  case right b => right 0
+};
+
+val test2 = match random(true) {
+  case left c => left c
+  case right d => right true
+};
+
+val test3 = match left 10 {
+  case left e => e
+  case right f => true
+};
+
+val test4 = match random(true) {
+  case left a => a
   case right b => 0
-}
+};
+
+test3

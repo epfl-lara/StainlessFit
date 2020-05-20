@@ -1,7 +1,7 @@
 match right 5 {
   case left a => 1
   case right b => if(b == 5){
-    2
+    b
   } else {
     3
   }

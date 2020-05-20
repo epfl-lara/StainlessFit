@@ -258,13 +258,33 @@ class CodeGen(val rc: RunContext) {
 
       case RightTree(either) => RightType(typeOf(either))
 
-      case EitherMatch(_, t1, t2) => {
-        (typeOf(t1), typeOf(t2)) match {
-          case (leftType, rightType) if leftType == rightType => leftType
-          case (LeftType(innerLeft), RightType(innerRight)) => EitherType(innerLeft, innerRight)
-          case (RightType(innerRight), LeftType(innerLeft)) => EitherType(innerLeft, innerRight)
-          case (leftType, rightType) =>
-            rc.reporter.fatalError(s"EitherMatch returns different types: left => $leftType, right => $rightType")
+      case EitherMatch(scrut, Bind(id1, t1), Bind(id2, t2)) => {
+        val scrutType = typeOf(scrut)
+
+        scrutType match {
+          case LeftType(inner) => {
+            val updatedHelper = helper + (id1 -> inner)
+            typeOf(t1)(lh, globalHandler, updatedHelper)  //Assume the other branch returns the same type
+          }
+          case RightType(inner) => {
+            val updatedHelper = helper + (id2 -> inner)
+            typeOf(t2)(lh, globalHandler, updatedHelper)
+          }
+          case EitherType(leftType, rightType) =>  {
+            val bind1 = helper + (id1 -> leftType)
+            val bind2 = helper + (id2 -> rightType)
+
+            val returnedByLeft = typeOf(t1)(lh, globalHandler, bind1)
+            val returnedByRight = typeOf(t2)(lh, globalHandler, bind2)
+
+            (returnedByLeft, returnedByRight) match {
+              case (typeLeft, typeRight) if typeLeft == typeRight => typeLeft
+              case (LeftType(innerLeft), RightType(innerRight)) => EitherType(innerLeft, innerRight)
+              case (RightType(innerRight), LeftType(innerLeft)) => EitherType(innerLeft, innerRight)
+              case (_, _) =>
+                rc.reporter.fatalError(s"EitherMatch returns different types: left returns => $returnedByLeft, right returns => $returnedByRight")
+            }
+          }
         }
       }
 
@@ -790,6 +810,11 @@ class CodeGen(val rc: RunContext) {
           scrutType match {
             case LeftType(innerType) => {
               lh.add(varLeft, ParamDef(innerType, scrutLocal))
+              /**
+              * Only generate code for the left case since:
+              * 1: We know it will be taken
+              * 2: The type of the Right bind isn't known
+              */
               codegen(bodyLeft, currentBlock <:> scrutPhi, next, toAssign, resultType)
             }
 
@@ -801,18 +826,25 @@ class CodeGen(val rc: RunContext) {
             case tpe @ EitherType(leftType, rightType) => {
               val leftLabel = lh.dot(block.label, "match.left")
               val rightLabel = lh.dot(block.label, "match.right")
-              val afterLabel = lh.dot(block.label, "after")
+              val afterLabel = lh.dot(block.label, "match.after")
+
+              //Prevent identical Identifiers from shadowing eachother
+              val freshVarLeft = Identifier.fresh(varLeft.name)
+              val freshVarRight = Identifier.fresh(varRight.name)
+
+              val freshBodyLeft = bodyLeft.replace(varLeft, freshVarLeft)(rc)
+              val freshBodyRight = bodyRight.replace(varRight, freshVarRight)(rc)
 
               val (leftLocal, prepLeft) = getLeft(scrutLocal, tpe)
-              lh.add(varLeft, ParamDef(leftType, leftLocal))
-
               val (rightLocal, prepRight) = getRight(scrutLocal, tpe)
-              lh.add(varRight, ParamDef(rightType, rightLocal))
+
+              lh.add(freshVarLeft, ParamDef(leftType, leftLocal))
+              lh.add(freshVarRight, ParamDef(rightType, rightLocal))
 
               val choose = cgEitherChoose(scrutLocal, tpe, leftLabel, rightLabel)
               f.add(currentBlock <:> scrutPhi <:> prepLeft <:> prepRight <:> choose)
 
-              val afterPhi = cgAlternatives(leftLabel, bodyLeft, rightLabel, bodyRight, afterLabel, toAssign, resultType)
+              val afterPhi = cgAlternatives(leftLabel, freshBodyLeft, rightLabel, freshBodyRight, afterLabel, toAssign, resultType)
 
               (lh.newBlock(afterLabel) <:> afterPhi <:> jumpTo(next), Nil)
             }

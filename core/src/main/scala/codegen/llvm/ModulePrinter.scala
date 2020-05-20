@@ -211,7 +211,7 @@ object ModulePrinter {
         case PrintRight => printChar("right")
 
         case PrintError(msg, errLocal) => {
-          
+
           val error = "c\"" + msg + "\\00\""
           val errorSize = msg.size + 1
           Stacked(
@@ -249,8 +249,8 @@ object ModulePrinter {
       case EitherType(left, right) =>
         Raw("{i1, ") <:> printType(left) <:> Raw(", ") <:> printType(right) <:> Raw("}") <:> (if(ptr) "*" else "")
 
-      case LeftType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
-      case RightType(either) => Raw("{i1, ") <:> printType(either) <:> Raw("}") <:> (if(ptr) "*" else "")
+      case LeftType(either) => printType(either)
+      case RightType(either) => printType(either)
 
       case LambdaType(argType, retType) =>
         Raw("{") <:> printType(FunctionType(argType, retType)) <:> Raw(", i8*}") <:> (if(ptr) "*" else "")
