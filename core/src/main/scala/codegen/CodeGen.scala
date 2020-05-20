@@ -623,15 +623,15 @@ class CodeGen(val rc: RunContext) {
 
         case value if isValue(value) => (block <:> cgValue(resultType, translateValue(value, resultType), next, toAssign), Nil)
 
-        case Error(str, _) => {
-          if(str.size < 256){
+        case Error(msg, _) => {
+          if(msg.size < 256){
             val assign = resultType match {
               case EitherType(_, _) => Nil
               case other => List(Assign(assignee(toAssign), other, defaultValue(other)))
             }
-            (block <:> assign <:> PrintClose <:> PrintClose <:> Exit <:> jumpTo(next), Nil)
+            (block <:> assign <:> PrintError(msg, lh.freshLocal(".err")) <:> Exit <:> jumpTo(next), Nil)
           } else {
-            rc.reporter.fatalError(s"Error message has ${str.size} characters, maximum is 255")
+            rc.reporter.fatalError(s"Error message has ${msg.size} characters, maximum is 255")
           }
         }
         case call @ App(recApp, arg) => {

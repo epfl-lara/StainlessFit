@@ -210,6 +210,18 @@ object ModulePrinter {
         case PrintLeft => printChar("left")
         case PrintRight => printChar("right")
 
+        case PrintError(msg, errLocal) => {
+          
+          val error = "c\"" + msg + "\\00\""
+          val errorSize = msg.size + 1
+          Stacked(
+            Raw(s"$errLocal.alloc = alloca [$errorSize x i8]"),
+            Raw(s"store [$errorSize x i8] " + error + s", [$errorSize x i8]* $errLocal.alloc"),
+            Raw(s"$errLocal = getelementptr [$errorSize x i8], [$errorSize x i8]* $errLocal.alloc, i32 0, i32 0"),
+            Raw(s"call i32 (i8*, ...) @printf(i8* $errLocal)")
+          )
+        }
+
         case other => rc.reporter.fatalError("Unknown instruction during printing")
       }
     }

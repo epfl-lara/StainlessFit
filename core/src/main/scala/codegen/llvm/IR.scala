@@ -159,4 +159,5 @@ object IR {
   case object PrintComma extends Instruction
   case object PrintLeft extends Instruction
   case object PrintRight extends Instruction
+  case class PrintError(msg: String, errLocal: Local) extends Instruction
 }
