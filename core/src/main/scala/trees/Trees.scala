@@ -10,7 +10,7 @@ sealed abstract class Operator {
   def isNatToBoolBinOp: Boolean = Operator.isNatToBoolBinOp(this)
   def isNatBinOp: Boolean = Operator.isNatBinOp(this)
   def isBoolToBoolBinOp: Boolean = Operator.isBoolToBoolBinOp(this)
-  def isBoolToBoolUnOp: Boolean = Operator.isBoolToBoolBinOp(this)
+  def isBoolToBoolUnOp: Boolean = Operator.isBoolToBoolUnOp(this)
   def returnedType: Tree = Operator.returnedType(this)
   def operandsType: Tree = Operator.operandsType(this)
   def isBinOp: Boolean = Operator.isBinOp(this)
