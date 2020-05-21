@@ -47,6 +47,7 @@ class TypeChecker(implicit val rc: RunContext)
     Z3ArithmeticSolver.t ||
     TopIf.t ||
     TopMatch.t ||
+    TopEitherMatch.t ||
     NatEqualToEqual.t ||
     ExpandSize.t ||
     UnfoldRefinementInContext.t ||
