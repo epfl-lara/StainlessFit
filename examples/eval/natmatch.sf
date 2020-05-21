@@ -1,0 +1,8 @@
+fun pred (n [Nat]) = {
+  nat_match n {
+    case zero => 0
+    case succ m => m
+  }
+}
+
+pred 15

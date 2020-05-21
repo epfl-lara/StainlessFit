@@ -6,15 +6,13 @@ import trees._
 import util.RunContext
 
 object Context {
-  def empty(implicit rc: RunContext): Context = Context(Map(), Set(), 0, 0)
-  def empty(max: Int)(implicit rc: RunContext): Context = Context(Map(), Set(), 0, max)
+  def empty(implicit rc: RunContext): Context = Context(Map(), Set(), 0)
 }
 
 case class Context(
   val termVariables: Map[Identifier, Tree],
   val typeVariables: Set[Identifier],
-  val level: Int,
-  val n: Int // All variables in the context must have an identifier strictly smaller than n.
+  val level: Int
 )(implicit rc: RunContext) extends Positioned {
 
   def bind(i: Identifier, t: Tree): Context = {
@@ -26,9 +24,10 @@ case class Context(
 
   def addTypeVariable(i: Identifier): Context = copy(typeVariables = typeVariables + i)
 
-  def bindFresh(s: String, t: Tree): (Identifier, Context) = (Identifier(n, s), bind(Identifier(n, s), t).copy(n = n+1))
-
-  def getFresh(s: String): (Identifier, Context) = (Identifier(n, s), copy(n = n+1))
+  def bindFresh(s: String, t: Tree): (Identifier, Context) = {
+    val freshId = Identifier.fresh(s)
+    (freshId, bind(freshId, t))
+  }
 
   def contains(id: Identifier): Boolean = termVariables.contains(id)
 

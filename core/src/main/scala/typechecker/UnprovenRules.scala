@@ -67,7 +67,8 @@ trait UnprovenRules {
   val CheckSum = Rule("CheckSum", {
     case g @ CheckGoal(c, t, tpe @ SumType(ty1, ty2)) =>
       TypeChecker.debugs(g, "CheckSum")
-      val (id, c1) = c.incrementLevel.getFresh("x")
+      val c1 = c.incrementLevel
+      val id = Identifier.fresh("x")
       val subgoal = CheckGoal(c1,
         EitherMatch(t,
           Bind(id, LeftTree(Var(id))),
@@ -145,7 +146,7 @@ trait UnprovenRules {
       if (id.isFreeIn(t))
         findEquality(c.termVariables.keys.toList, c.termVariables, id).map(term =>
           // Freshen Binds which bind a variable, free in the term, equivalent to the variable, then expand this variable
-          Tree.replace(id, term.erase(), t.replaceMany(freshen(term, _))))
+          Tree.replace(id, term.erase(), t.preMap(freshen(term, _))))
       else None
     )
   }
@@ -167,7 +168,7 @@ trait UnprovenRules {
         case _ => None
       }
 
-    val newt = Tree.replaceMany(expandSize, t)
+    val newt = Tree.preMap(expandSize, t)
     if (expanded)
       Some(newt)
     else
@@ -277,7 +278,7 @@ trait UnprovenRules {
     e match {
       case App(Lambda(tp, Bind(id, body)), t) =>
         val subgoal = if (tp.isEmpty) InferGoal(c, t) else CheckGoal(c, t, tp.get)
-        val (freshId, _) = c.getFresh(id.name)
+        val freshId = id.freshen()
         Some(body.replace(id, Var(freshId)), (subgoal, freshId))
 
       case LetIn(tp, value, body) => inlineApplicationsTop(c, App(Lambda(tp, body), value))
@@ -440,7 +441,7 @@ trait UnprovenRules {
       val (pairId, SigmaType(ty1, Bind(id, ty2))) = c.termVariables.find{ case (_, SigmaType(_, _: Bind)) => true case _ => false }.get
       val left = Identifier.fresh(s"${pairId.toString}_left")
       val right = Identifier.fresh(s"${pairId.toString}_right")
-      val newC = c.copy(termVariables = c.termVariables.removed(pairId).view.mapValues(Tree.replaceMany({
+      val newC = c.copy(termVariables = c.termVariables.removed(pairId).view.mapValues(Tree.preMap({
         case Var(id) if id == pairId => Some(Pair(Var(left), Var(right)))
         case _ => None
       }, _)).toMap)

@@ -71,9 +71,9 @@ object Core {
         DebugPhase(new Namer(), "Namer") andThen
         DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers")
 
-      val (t, ((_, max), _)) = pipeline.transform(src)
+      val (t, _) = pipeline.transform(src)
 
-      rc.bench.time("Type Checking") { new TypeChecker().infer(t, max) } match {
+      rc.bench.time("Type Checking") { new TypeChecker().infer(t) } match {
         case None => Left(s"Could not typecheck: $f")
         case Some((success, tree)) =>
           if (rc.config.html)

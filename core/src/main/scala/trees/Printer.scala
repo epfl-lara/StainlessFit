@@ -130,6 +130,10 @@ object Printer {
         if (t.indentation == Indentation.Unindent)
           res.append("\n" + newIndentation)
 
+        res.append(t.before)
+        if (t.before.endsWith("\n"))
+          res.append(newIndentation)
+
         res.append(tokenToString(t))
 
         if (!ts.isEmpty) {
