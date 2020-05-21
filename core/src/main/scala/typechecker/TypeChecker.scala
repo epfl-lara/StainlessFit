@@ -49,6 +49,7 @@ class TypeChecker(implicit val rc: RunContext)
     TopMatch.t ||
     TopEitherMatch.t ||
     NatEqualToEqual.t ||
+    DestructPair.t ||
     ExpandSize.t ||
     UnfoldRefinementInContext.t ||
     InlineApplications.t ||
