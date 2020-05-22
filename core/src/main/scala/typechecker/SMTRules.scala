@@ -100,7 +100,7 @@ trait SMTRules {
       } else {
         Some((subgoals.map{case (t, typ) => (_: List[Derivation.Judgment]) => CheckGoal(c.incrementLevel, t, typ)
         }.toList, {
-          case l: List[Derivation.CheckJudgment] if l.forall({
+          case l: List[Derivation.Judgment] if l.forall({
             case _: Derivation.CheckJudgment => true
             case _ => false
           }) =>
