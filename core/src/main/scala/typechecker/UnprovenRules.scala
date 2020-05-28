@@ -146,7 +146,7 @@ trait UnprovenRules {
       if (id.isFreeIn(t))
         findEquality(c.termVariables.keys.toList, c.termVariables, id).map(term =>
           // Freshen Binds which bind a variable, free in the term, equivalent to the variable, then expand this variable
-          Tree.replace(id, term.erase(), t.preMap(freshen(term, _))))
+          Tree.replace(id, term, t.preMap(freshen(term, _))))
       else None
     )
   }
@@ -165,6 +165,14 @@ trait UnprovenRules {
         case Size(Pair(t1, t2)) =>
           expanded = true
           Some(Primitive(Plus, List(Primitive(Plus, List(Size(t1), Size(t2))), NatLiteral(1))))
+
+          // Annotated cases, to be completed
+        case Size(Fold(_, RightTree(t1))) =>
+          expanded = true
+          Some(Primitive(Plus, List(Size(t1), NatLiteral(1))))
+        case Size(Fold(_, LeftTree(t1))) =>
+          expanded = true
+          Some(Primitive(Plus, List(Size(t1), NatLiteral(1))))
         case _ => None
       }
 
