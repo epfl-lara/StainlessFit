@@ -54,8 +54,7 @@ class TypeChecker(implicit val rc: RunContext)
     UnfoldRefinementInContext.t ||
     PartialEval.t ||
     InlineApplications.t ||
-    ExpandVars.t ||
-    UnsoundIgnoreEquality.t
+    ExpandVars.t
 
   val control: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CatchErrorGoal.t ||
