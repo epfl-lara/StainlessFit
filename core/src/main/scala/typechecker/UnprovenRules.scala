@@ -175,6 +175,28 @@ trait UnprovenRules {
       None
   }
 
+  def partialEval(c: Context, t: Tree): Option[Tree] = {
+    var performedEval = false
+
+    // To be completed as new use cases appear
+    def eval(t: Tree): Option[Tree] =
+      t match {
+        case First(Pair(t1, t2)) =>
+          performedEval = true
+          Some(t1)
+        case Second(Pair(t1, t2)) =>
+          performedEval = true
+          Some(t2)
+        case _ => None
+      }
+
+    val newt = Tree.preMap(eval, t)
+    if (performedEval)
+      Some(newt)
+    else
+      None
+  }
+
   def expandInEqType(c: Context, t: Tree, expandTerm: (Context, Tree) => Option[Tree]): Option[Tree] = t match {
     case EqualityType(t1, t2) => expandTerm(c, t1).map(nt1 => EqualityType(nt1, t2)) orElse
       expandTerm(c, t2).map(nt2 => EqualityType(t1, nt2))
@@ -431,6 +453,24 @@ trait UnprovenRules {
             (true, AreEqualJudgment("ExpandSize", c, t1, t2, ""))
           case _ =>
             emitErrorWithJudgment("ExpandSize", g, None)
+        })
+      }
+    case _ => None
+  })
+
+  val PartialEval = Rule("PartialEval", {
+    case g @ EqualityGoal(c, t1, t2) =>
+      val newGoal: Option[Goal] =
+        expand(c, partialEval).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
+          partialEval(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
+          partialEval(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
+      newGoal.map{ sg =>
+        TypeChecker.debugs(g, "PartialEval")
+        (List(_ => sg), {
+          case AreEqualJudgment(_, _, _, _, _) :: _ =>
+            (true, AreEqualJudgment("PartialEval", c, t1, t2, ""))
+          case _ =>
+            emitErrorWithJudgment("PartialEval", g, None)
         })
       }
     case _ => None

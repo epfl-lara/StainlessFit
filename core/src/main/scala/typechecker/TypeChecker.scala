@@ -52,6 +52,7 @@ class TypeChecker(implicit val rc: RunContext)
     DestructPair.t ||
     ExpandSize.t ||
     UnfoldRefinementInContext.t ||
+    PartialEval.t ||
     InlineApplications.t ||
     ExpandVars.t ||
     UnsoundIgnoreEquality.t
