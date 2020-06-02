@@ -11,10 +11,10 @@ class TypeCheckingFileSuite extends AnyFunSuite {
 
   for (f <- files("examples/typechecker", _.endsWith("sf"))) {
     test(s"Type checking file $f") {
-      val result = Core.typeCheckFile(new java.io.File(f))
-      assert(result.isRight)
-      val Right((success, _)) = result
-      assert(success)
+      Core.typeCheckFile(new java.io.File(f)) match {
+        case Left(err) => rc.reporter.error(err)
+        case Right((success, _)) => assert(success)
+      }
     }
   }
 }
