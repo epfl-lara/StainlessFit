@@ -70,6 +70,7 @@ class SMTInterface(path: String) {
         e1.flatMap(l => e2.map(r => op match {
           case Eq => TermEquals(l, r)
           case Neq => TermNot(TermEquals(l, r))
+          case _ => ??? // unreachable
         })) orElse Some(declaredVariables(tree))
       case Primitive(op, t1 :: t2 :: Nil) if op.isNatBinOp =>
         val e1 = treeToTerm(t1, NatType).get
