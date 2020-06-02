@@ -2,96 +2,113 @@ package stainlessfit
 package core
 package typechecker
 
-import util.RunContext
+import stainlessfit.core.trees._
+import stainlessfit.core.typechecker.Derivation.{AreEqualJudgment, emitErrorWithJudgment}
+import stainlessfit.core.util.RunContext
 
 trait SMTRules {
 
-  val rc: RunContext
+  implicit val rc: RunContext
 
-  // def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
-  //   t match {
-  //     case Var(id) => termVariables.contains(id) && dropRefinements(termVariables(id)) == NatType
-  //     case NatLiteral(_) => true
-  //     case Primitive(op, n1 ::  n2 ::  Nil) =>
-  //       op.isNatToNatBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)
-  //     case _ => false
-  //   }
-  // }
+  def addNatSubtree(subtrees: scala.collection.mutable.Map[Tree, Tree], termVariables: Map[Identifier, Tree], tree: Tree): Unit =
+    tree match {
+      case _: NatLiteral => ()
+      case Primitive(op, n1 :: n2 :: Nil) if op.isNatToNatBinOp =>
+        addNatSubtree(subtrees, termVariables, n1)
+        addNatSubtree(subtrees, termVariables, n2)
+      case _ => subtrees(tree) = NatType
+    }
 
-  // def isNatPredicate(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
-  //   t match {
-  //     case BooleanLiteral(_) => true
-  //     case Primitive(Eq, n1 ::  n2 ::  Nil) =>
-  //       (isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
-  //       (isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
-  //     case Primitive(op, n1 ::  n2 ::  Nil) =>
-  //       (op.isNatToBoolBinOp && isNatExpression(termVariables, n1) && isNatExpression(termVariables, n2)) ||
-  //       (op.isBoolToBoolBinOp && isNatPredicate(termVariables, n1) && isNatPredicate(termVariables, n2))
-  //     case Primitive(op, b ::  Nil) => op.isBoolToBoolUnOp && isNatPredicate(termVariables, b)
-  //     case _ => false
-  //   }
-  // }
-  // 
-  // val Z3ArithmeticSolver: Rule = Rule("Z3ArithmeticSolver", {
-  //   case g @ EqualityGoal(c, t1, t2) if isNatPredicate(c.termVariables, Primitive(Eq, t1 ::  t2 ::  Nil)) =>
-  //     TypeChecker.debugs(g, "Z3ArithmeticSolver")
-  //     TypeChecker.z3Debug("Current goal:\n" + g)
-  //     TypeChecker.z3Debug("Current context:\n" + c)
-  //     TypeChecker.z3Debug("\nInvoking Z3\n")
+  def addBoolSubtree(subtrees: scala.collection.mutable.Map[Tree, Tree], termVariables: Map[Identifier, Tree], tree: Tree): Unit =
+    tree match {
+      case _: BooleanLiteral => ()
+      case Primitive(Eq | Neq, t1 :: t2 :: Nil) =>
+        if (isNatExpression(termVariables, t1) || isNatExpression(termVariables, t2)) {
+          addNatSubtree(subtrees, termVariables, t1)
+          addNatSubtree(subtrees, termVariables, t2)
+        } else if (isNatPredicate(termVariables, t1) || isNatPredicate(termVariables, t2)) {
+          addBoolSubtree(subtrees, termVariables, t1)
+          addBoolSubtree(subtrees, termVariables, t2)
+        } else
+          subtrees(tree) = BoolType
+      case Primitive(op, t1 :: t2 :: Nil) if op.isNatToBoolBinOp =>
+        addNatSubtree(subtrees, termVariables, t1)
+        addNatSubtree(subtrees, termVariables, t2)
+      case Primitive(op, t1 :: t2 :: Nil) if op.isBoolToBoolBinOp =>
+        addBoolSubtree(subtrees, termVariables, t1)
+        addBoolSubtree(subtrees, termVariables, t2)
+      case Primitive(op, t1 :: Nil) if op.isBoolToBoolUnOp =>
+        addBoolSubtree(subtrees, termVariables, t1)
+      case _ => subtrees(tree) = BoolType
+    }
 
-  //     val factory = Solver.getFactory
-  //     val z3 = factory.getContext
-  //     val solver = z3.mkSolver
-  //     val i = z3.mkIntSort
+  def isNatExpression(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
+    t match {
+      case Var(id) => termVariables.contains(id) && TypeOperators.dropRefinements(termVariables(id)) == NatType
+      case NatLiteral(_) => true
+      case Size(_) => true
+      case Primitive(op, _ :: _ :: Nil) => op.isNatToNatBinOp
+      case _ => false
+    }
+  }
 
-  //     val z3Variables =
-  //       ListOps.toMap(c.variables.filter(v => dropRefinements(c.termVariables(v)) == NatType).map {
-  //         id => id -> z3.mkConst(z3.mkStringSymbol(id.toString), i)
-  //       })
+  def isNatPredicate(termVariables: Map[Identifier, Tree], t: Tree): Boolean = {
+    t match {
+      case Var(id) => termVariables.contains(id) && TypeOperators.dropRefinements(termVariables(id)) == BoolType
+      case BooleanLiteral(_) => true
+        // polymorphic operations
+      case Primitive(Eq | Neq, _) => true
+      case Primitive(op, _ :: _ :: Nil) => op.isNatToBoolBinOp || op.isBoolToBoolBinOp
+      case Primitive(op, _ :: Nil) => op.isBoolToBoolUnOp
+      case _ => false
+    }
+  }
 
-  //     c.variables.map { v =>
-  //       c.termVariables(v) match {
-  //         case EqualityType(h1, h2) if isNatPredicate(c.termVariables, Primitive(Eq, h1 ::  h2 ::  Nil)) =>
-  //           solver.assertCnstr(z3Encode(z3, solver, z3Variables, Primitive(Eq, h1 ::  h2 ::  Nil)))
-  //         case _ => ()
-  //       }
-  //     }
+  def isNatOrBoolEquality(termVariables: Map[Identifier, Tree], left: Tree, right: Tree): Boolean = {
+    (isNatPredicate(termVariables, left) && isNatPredicate(termVariables, right)) ||
+      (isNatExpression(termVariables, left) && isNatExpression(termVariables, right))
+  }
 
-  //     val b = z3Encode(z3, solver, z3Variables, Primitive(Eq, t1 ::  t2 ::  Nil))
-  //     solver.assertCnstr(z3.mkNot(b))
+  val Z3ArithmeticSolver: Rule = Rule("SMTSolver", {
+    case g@EqualityGoal(c, t1, t2) if isNatOrBoolEquality(c.termVariables, t1, t2) =>
+      val solver = new SMTInterface("smt-sessions/tmp.smt")
+      // Subtrees whose structure the solver can't understand (for example, size(t)), which are therefore just declared
+      // as variables of the corresponding type
+      val subtrees = scala.collection.mutable.Map[Tree, Tree]()
+      var assertions = Seq[Tree]()
 
-  //     c.variables.filter(c.termVariables(_) == NatType).map { id =>
-  //       val v = z3.mkConst(z3.mkStringSymbol(id.toString), i)
-  //       solver.assertCnstr(z3.mkGE(v, z3.mkInt(0, i)))
-  //     }
+      c.termVariables.foreach { case (id, tp) =>
+        tp match {
+          case EqualityType(h1, h2) if isNatOrBoolEquality(c.termVariables, h1, h2) =>
+            addBoolSubtree(subtrees, c.termVariables, Primitive(Eq, h1 :: h2 :: Nil))
+            assertions = Primitive(Eq, h1 :: h2 :: Nil) +: assertions
+          case _ => ()
+        }
+      }
 
-  //     TypeChecker.z3Debug(solver.toString)
+      solver.declareVariables(subtrees.toMap)
+      solver.addAssertions(assertions)
 
-  //     val solverResponse = solver.check
+      val subgoals = scala.collection.mutable.Map[Tree, Tree]()
+      addBoolSubtree(subgoals, c.termVariables, Primitive(Eq, t1 :: t2 :: Nil))
+      solver.declareVariables(subgoals.toMap)
 
-  //     TypeChecker.z3Debug("Response: " + solverResponse + "\n")
+      solver.addAssertion(Primitive(Not, Primitive(Eq, t1 :: t2 :: Nil) :: Nil))
 
-  //     val modelString = solverResponse match {
-  //       case scala.None => ""
-  //       case scala.Some(true) => solver.getModel.toString
-  //       case scala.Some(false) => ""
-  //     }
-
-  //     Solver.reclaim(factory)
-
-  //     solverResponse match {
-  //       case scala.None =>
-  //         None
-
-  //       case scala.Some(true) =>
-  //         None
-
-  //       case scala.Some(false) => Some((List(), _ =>
-  //         (true, AreEqualJudgment("Z3ArithmeticSolver", c, t1, t2, "Validated by Z3"))))
-  //     }
-
-  //   case g =>
-  //     None
-  // }
-
+      if (solver.isSatisfiable) {
+        None
+      } else {
+        Some((subgoals.map{case (t, typ) => (_: List[Derivation.Judgment]) => CheckGoal(c.incrementLevel, t, typ)
+        }.toList, {
+          case l: List[Derivation.Judgment] if l.forall({
+            case _: Derivation.CheckJudgment => true
+            case _ => false
+          }) =>
+            (true, AreEqualJudgment("SMTSolver", c, t1, t2, "Validated by SMT solver"))
+          case _ => emitErrorWithJudgment("SMTSolver", g, None)
+        }
+        ))
+      }
+    case _ => None
+  })
 }

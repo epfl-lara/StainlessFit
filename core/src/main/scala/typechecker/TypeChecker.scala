@@ -44,14 +44,17 @@ class TypeChecker(implicit val rc: RunContext)
   val solveEquality: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     Reflexivity.t ||
     EqualityInContext.t ||
-    UnsoundIgnoreEquality.t
-    // Z3ArithmeticSolver.t ||
-    // ExpandVars.t ||
-    // TopIf.t ||
-    // TopMatch.t ||
-    // NatEqualToEqual.t ||
-    // UnfoldRefinementInContext.t ||
-    // InlineApplications.t ||
+    Z3ArithmeticSolver.t ||
+    TopIf.t ||
+    TopMatch.t ||
+    TopEitherMatch.t ||
+    NatEqualToEqual.t ||
+    DestructPair.t ||
+    ExpandSize.t ||
+    UnfoldRefinementInContext.t ||
+    PartialEval.t ||
+    InlineApplications.t ||
+    ExpandVars.t
 
   val control: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     CatchErrorGoal.t ||
