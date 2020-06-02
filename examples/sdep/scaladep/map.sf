@@ -1,0 +1,16 @@
+fun map (f [Top => Top]) [returns List => List] = {
+  fixD(
+    map_ [List => List] =>
+      fun of (xs [List]) = {
+        list_match xs {
+          case nil => nil
+          case cons x ys => cons (f x) (map_ ys)
+        }
+      },
+    fun of (xs [List]) = { xs })
+}
+
+val xs = cons 1 (cons 2 nil);
+val c = 0;
+val ys [{[List] cons c (cons c nil)}] = map (fun of (x [Top]) = { c }) xs;
+()

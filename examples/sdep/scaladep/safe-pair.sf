@@ -1,0 +1,16 @@
+
+fun pair (x [Top]) (y [Top]) [returns {[List] cons (choose[Top]) (cons (choose[Top]) nil)}] = {
+  cons x (cons y nil)
+}
+
+fun fst (pp [{[List] cons (choose[Top]) (cons (choose[Top]) nil)}]) [returns Top] = {
+  list_match pp {
+    case nil => nil
+    case cons x xs => x
+  }
+}
+
+val res [{[Nat] 1}] = fst (pair 1 2);
+val res [{[Nat] 0}] = fst (fst (pair (pair 0 1) 2));
+
+()

@@ -5,12 +5,13 @@ package extraction
 import util.RunContext
 import trees._
 import parser.FitParser
+import typechecker.SDepSugar._
 
 import scala.collection.mutable. { Map => MutableMap }
 
-
 class Namer(implicit val rc: RunContext) extends Phase[Unit] {
-  val builtInMap = BuiltInIdentifiers.builtInIdentifiers.map(id => Identifier(0, id) -> Identifier(0, id)).toMap
+  val builtInMap = (BuiltInIdentifiers.builtInIdentifiers ++ BuiltInIdentifiers.builtInTypeIdentifiers)
+    .map(id => Identifier(0, id) -> Identifier(0, id)).toMap
 
   def transform(t: Tree): (Tree, Unit) = (namer(t), ())
 

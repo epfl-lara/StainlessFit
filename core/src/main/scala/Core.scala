@@ -85,4 +85,30 @@ object Core {
       }
     }
   }
+
+  def sDepFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
+    parseFile(f) flatMap { src =>
+
+      val pipeline =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new FixIndexing(), "FixIndexing") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new ChooseEncoding(), "ChooseEncoding")
+
+      val (t, _) = pipeline.transform(src)
+
+      rc.bench.time("SDep") { new SDep().infer(t) } match {
+        case None => Left(s"Could not typecheck: $f")
+        case Some((success, tree)) =>
+          if (rc.config.html)
+            rc.bench.time("makeHTMLFile") {
+              util.HTMLOutput.makeHTMLFile(f, List(tree), success)
+            }
+
+          Right((success, tree))
+      }
+    }
+  }
+
 }

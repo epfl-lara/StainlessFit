@@ -5,6 +5,7 @@ package extraction
 import util.RunContext
 import parser.FitParser
 import trees._
+import typechecker.SDepSugar._
 
 class Erasure(implicit val rc: RunContext) extends Phase[Unit] {
   def transform(t: Tree): (Tree, Unit) = (Erasure.erase(t), ())
@@ -42,6 +43,8 @@ object Erasure {
     case Abs(Bind(id, body)) => erase(body)
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)
+    case FixWithDefault(ty, t, td, f) => erase(FixWithDefault.lower(t, td, f))
+    case ListMatch(t, tNil, tCons) => erase(ListMatch.lower(t, tNil, tCons))
     case _ => rc.reporter.fatalError(s"Erasure is not implemented on $t (${t.getClass}).")
   }
 }

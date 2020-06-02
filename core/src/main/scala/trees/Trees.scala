@@ -743,7 +743,18 @@ object Tree {
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
-  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext): Boolean = {
+  trait Solver {
+    def targets: Map[Identifier, Option[Tree]]
+    def recordSolution(x: Identifier, t: Tree): Unit
+    def addTarget(x: Identifier): Unit
+  }
+  object Solver {
+    implicit val defaultSolver: Solver = null
+    def targets(x: Identifier)(implicit solver: Solver) =
+      if (solver ne null) solver.targets.contains(x) else false
+  }
+
+  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext, solver: Solver): Boolean = {
     (t1, t2) match {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
         areEqual(cond1, cond2) && areEqual(t11, t21) && areEqual(t12, t22)
@@ -787,12 +798,72 @@ object Tree {
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (ExistsType(t1, bind1), ExistsType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
-      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) =>
+        if (solver eq null)
+          areEqual(t1, t2) && areEqual(bind1, bind2)
+        else
+          areEqual(bind1, bind2)
+      case (EqualityType(t11, t12), EqualityType(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
       case (Node(name1, args1), Node(name2, args2)) => name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
+      case (Var(x), _) if Solver.targets(x) => solver.recordSolution(x, t2); true
+      case (_, Var(x)) if Solver.targets(x) => solver.recordSolution(x, t1); true
       case _ => t1 == t2
     }
+  }
+
+  def linearVarsOf(t: Tree): Set[Identifier] = {
+    def merge(ids1: Set[Identifier], ids2: Set[Identifier]) =
+      (ids1 union ids2) diff (ids1 intersect ids2)
+    def rec(t: Tree): Set[Identifier] =
+      t match {
+        case Var(id) => Set(id)
+        case IfThenElse(cond, t1, t2) => merge(merge(rec(cond), rec(t1)), rec(t2))
+        case App(t1, t2) => merge(rec(t1), rec(t2))
+        case Pair(t1, t2) => merge(rec(t1), rec(t2))
+        case Size(t) => rec(t)
+        case First(t) => rec(t)
+        case Second(t) => rec(t)
+        case LeftTree(t) => rec(t)
+        case RightTree(t) => rec(t)
+        case Bind(id, t) => rec(t) - id
+        case Lambda(tp, bind) => merge(tp.toSet.flatMap(rec), rec(bind))
+        case Fix(tp, Bind(_, bind)) => merge(tp.toSet.flatMap(rec), rec(bind))
+        case LetIn(tp, v, bind) => merge(merge(tp.toSet.flatMap(rec), rec(v)), rec(bind))
+        case MacroTypeDecl(tp, bind) => ???
+        case MacroTypeInst(v, args) => ???
+        case NatMatch(t, t0, bind) => merge(merge(rec(t), rec(t0)), rec(bind))
+        case EitherMatch(t, bind1, bind2) => merge(merge(rec(t), rec(bind1)), rec(bind2))
+        case Primitive(op, args) => args.map(rec).foldLeft(Set.empty[Identifier])(merge)
+        case Fold(tp, t) => merge(rec(tp), rec(t))
+        case Unfold(t, bind) => merge(rec(t), rec(bind))
+        case UnfoldPositive(t, bind) => merge(rec(t), rec(bind))
+        case Abs(bind) => rec(bind)
+        case ErasableApp(t1, t2) => merge(rec(t1), rec(t2))
+        case TypeApp(abs, tp) => merge(rec(abs), rec(tp))
+
+        case SumType(t1, t2) => merge(rec(t1), rec(t2))
+        case PiType(t1, bind) => merge(rec(t1), rec(bind))
+        case SigmaType(t1, bind) => merge(rec(t1), rec(bind))
+        case IntersectionType(t1, bind) => merge(rec(t1), rec(bind))
+        case ExistsType(t1, bind) => merge(rec(t1), rec(bind))
+        case RefinementType(t1, bind) => merge(rec(t1), rec(bind))
+        case RefinementByType(t1, bind) => merge(rec(t1), rec(bind))
+        case RecType(n, bind) => merge(rec(n), rec(bind))
+        case PolyForallType(bind) => rec(bind)
+        case Node(name, args) => args.map(rec).foldLeft(Set.empty[Identifier])(merge)
+        case EqualityType(t1, t2) => merge(rec(t1), rec(t2))
+
+        case BottomType => Set.empty
+        case TopType => Set.empty
+        case UnitType => Set.empty
+        case BoolType => Set.empty
+        case NatType => Set.empty
+        case UnitLiteral => Set.empty
+        case NatLiteral(_) => Set.empty
+      }
+    rec(t)
   }
 }
 

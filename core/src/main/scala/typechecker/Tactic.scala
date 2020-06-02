@@ -11,6 +11,15 @@ case class Tactic[A,B](apply: (A, (A => Option[B])) => Option[B]) {
         other.apply(g, subgoalSolver)
     }
 
+  def orRecover(other: Tactic[A,B]): Tactic[A,B] =
+    Tactic {
+      case (g, subgoalSolver) =>
+        apply(g, subgoalSolver) match {
+          case result @ Some((true, _)) => result
+          case _ => other.apply(g, subgoalSolver)
+        }
+    }
+
   def andThen(other: Tactic[A,B]): Tactic[A,B] =
     Tactic {
       case (g, subgoalSolver) =>

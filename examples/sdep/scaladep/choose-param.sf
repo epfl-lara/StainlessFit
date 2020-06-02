@@ -1,0 +1,20 @@
+val natOrList = fun of (cond [List]) = {
+  list_match cond {
+    case nil => choose[Nat]
+    case cons x xs => choose[List]
+  }
+};
+
+val f = fun of (cond [List]) (a [{[Top] natOrList cond}]) (b [{[Top] natOrList cond}]) = {
+  0
+};
+
+val goNat = nil;
+val goList = cons nil nil;
+
+val res1 [Nat] = natOrList goNat;
+val res2 [List] = natOrList goList;
+val res3 = f goNat 0 1;
+val res4 = f goNat 2 3;
+val res5 = f goList nil (cons 1 nil);
+()

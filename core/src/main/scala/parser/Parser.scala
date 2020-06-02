@@ -12,6 +12,7 @@ import core.trees.TreeBuilders._
 import util.Utils._
 import util.RunContext
 import stainlessfit.core.extraction.BuiltInIdentifiers
+import typechecker.SDepSugar._
 
 sealed abstract class Indentation
 object Indentation {
@@ -97,8 +98,10 @@ object FitLexer extends Lexers with CharRegExps {
     (elem('[') ~ blank ~ word("unfold") ~ blank ~ word("positive") ~ elem(']')) |
     word("as") | word("fun of") | word("keep") |
     word("if") | word("else") | word("case") |
-    word("match") | word("nat_match") |
-    word("fix") | word("fun") | word("val") |
+    word("match") | word("nat_match") | word("Nat_Match") |
+    word("list_match") | word("List_Match") | word("Cons") |
+    word("nil") | word("cons") | word("List") |
+    word("fix") | word("fixD") | word("fun") | word("val") |
     word("error") |
     word("zero") | word("succ") |
     word("left") | word("right") | word("size") |
@@ -241,6 +244,10 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val funOfK: Syntax[Unit] = elem(KeywordClass("funof")).unit(KeywordToken("funof"))
   val matchK: Syntax[Unit] = elem(KeywordClass("match")).unit(KeywordToken("match"))
   val natMatchK: Syntax[Unit] = elem(KeywordClass("nat_match")).unit(KeywordToken("nat_match"))
+  val natMatchTypeK: Syntax[Unit] = elem(KeywordClass("Nat_Match")).unit(KeywordToken("Nat_Match"))
+  val listMatchK: Syntax[Unit] = elem(KeywordClass("list_match")).unit(KeywordToken("list_match"))
+  val listMatchTypeK: Syntax[Unit] = elem(KeywordClass("List_Match")).unit(KeywordToken("List_Match"))
+  val consTypeK: Syntax[Unit] = elem(KeywordClass("Cons")).unit(KeywordToken("Cons"))
   val returnsK: Syntax[Unit] = elem(KeywordClass("[returns")).unit(KeywordToken("[returns"))
   val caseK: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case"))
   val newLineCase: Syntax[Unit] = elem(KeywordClass("case")).unit(KeywordToken("case").beforePrint("\n"))
@@ -359,14 +366,21 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
   }
 
-  lazy val refinementType: Syntax[Tree] =
-    (lbra.skip ~
+  lazy val refinementOrSingletonType: Syntax[Tree] =
+    (lbra.skip ~ (
       (termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
-      pipe.skip ~ expr ~ rbra.skip)
-    ).map({
-      case x ~ ty ~ p => RefinementType(ty, Bind(x, p))
+      pipe.skip ~ expr ~ rbra.skip) ||
+      (lsbra.skip ~ typeExpr ~ rsbra.skip ~ expr ~ rbra.skip)
+    )).map({
+      case Left(x ~ ty ~ p) => RefinementType(ty, Bind(x, p))
+      case Right(ty ~ t) => SingletonType(ty, t)
     }, {
-      case RefinementType(ty, Bind(x, p)) => Seq(x ~ ty ~ p)
+      case SingletonType(ty, t) =>
+        if (rc.config.printUnderlying)
+          Seq(Right(ty ~ t))
+        else
+          Seq(Right(TopType ~ t))
+      case RefinementType(ty, Bind(x, p)) => Seq(Left(x ~ ty ~ p))
       case _ => Seq()
     })
 
@@ -422,10 +436,10 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val simpleTypeExpr: Syntax[Tree] =
     primitiveType | parTypeExpr | recType |
-    refinementType | refinementByType |
+    refinementOrSingletonType | refinementByType |
     macroTypeInst | equalityType |
     piType | sigmaType | forallType | polyForallType |
-    existsType
+    existsType | natMatchType | listMatchType | consType
 
   lazy val typeExpr: Syntax[Tree] = recursive { arrows }
 
@@ -478,7 +492,9 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     case _ => Seq()
   })
 
-  lazy val typeIdentifier = userTypeIdentifier
+  lazy val typeIdentifier =
+    userTypeIdentifier |
+    BuiltInIdentifiers.builtInTypeIdentifiers.map(s => builtinIdentifier(s)).reduce(_ | _)
 
   lazy val termVariable: Syntax[Tree] = termIdentifier.map(Var(_), {
     case Var(id) => Seq(id)
@@ -614,6 +630,20 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case _ => Seq()
     })
 
+  // `fixD(x [T] => t, td)`
+  lazy val fixpointWithDefault: Syntax[Tree] =
+    (fixDK.skip ~ lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
+      arrow.skip ~ expr ~ comma.skip ~ expr ~ rpar.skip).map({
+      case x ~ tp ~ e ~ ed =>
+        FixWithDefault(tp, Bind(x, e), ed, FixWithDefault.maxRecDepth)
+      case _ =>
+        sys.error("Unreachable")
+    }, {
+      case FixWithDefault(tp, Bind(x, e), ed, _) =>
+        Seq(x ~ tp ~ e ~ ed)
+      case _ => Seq()
+    })
+
   lazy val fold: Syntax[Tree] =
     (foldK.skip ~ asK.skip ~ typeExpr ~ rsbra.skip ~
     lpar.skip ~ expr ~ rpar.skip).map({
@@ -692,11 +722,15 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     (simpleExpr ~ many(appArg)).map({
       case f ~ args => Applications(f, args)
     }, {
+      case LNil()       => Seq(Var(Identifier(0, "nil")) ~ Seq())
+      case LCons(x, xs) => Seq(Var(Identifier(0, "cons")) ~ Seq(AppArg(x), AppArg(xs)))
       case LeftTree(t)  => Seq(Var(Identifier(0, "left"))   ~ Seq(AppArg(t)))
       case RightTree(t) => Seq(Var(Identifier(0, "right"))  ~ Seq(AppArg(t)))
       case Size(t)      => Seq(Var(Identifier(0, "size"))   ~ Seq(AppArg(t)))
       case First(t)     => Seq(Var(Identifier(0, "first"))  ~ Seq(AppArg(t)))
       case Second(t)    => Seq(Var(Identifier(0, "second")) ~ Seq(AppArg(t)))
+      case Choose(ty)   => Seq(Var(Identifier(0, "choose")) ~ Seq(TypeAppArg(ty)))
+      case ChooseWithPath(ty, t) => Seq(Var(Identifier(0, "choose")) ~ Seq(TypeAppArg(ty), AppArg(t)))
       case Applications(f, args) => Seq(f ~ args)
       case _ => Seq()
     })
@@ -720,6 +754,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case id ~ args => MacroTypeInst(Var(id), args)
     }, {
       case Var(id) => Seq(id ~ Nil)
+      case t if t == typechecker.SDepSugar.LList => Seq(Identifier(0, "List") ~ Nil)
       case MacroTypeInst(Var(id), args) => Seq(id ~ args)
       case _ => Seq()
     })
@@ -747,6 +782,60 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case _ => sys.error("Unreachable")
     }, {
       case NatMatch(e, e1, Bind(id2, e2)) => Seq(e ~ e1 ~ id2 ~ e2)
+      case _ => Seq()
+    })
+
+  lazy val natMatchType: Syntax[Tree] =
+    (natMatchTypeK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ zeroK.unit(KeywordToken("zero")).skip ~ arrow.skip ~ typeExpr ~
+      caseK.skip ~ succK.unit(KeywordToken("succ")).skip ~ termIdentifier ~ arrow.skip ~ typeExpr ~
+    rbra.skip
+    ).map({
+      case (e ~ ty1 ~ id ~ ty2) =>
+        NatMatchType(e, ty1, Bind(id, ty2))
+      case _ => sys.error("Unreachable")
+    }, {
+      case NatMatchType(e, ty1, Bind(id, ty2)) =>
+        Seq(e ~ ty1 ~ id ~ ty2)
+      case _ => Seq()
+    })
+
+  lazy val listMatch: Syntax[Tree] =
+    (listMatchK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ nilK.unit(KeywordToken("nil")).skip ~ arrow.skip ~ optBracketExpr ~
+      caseK.skip ~ consK.unit(KeywordToken("cons")).skip ~ termIdentifier ~ termIdentifier ~
+        arrow.skip ~ optBracketExpr ~
+    rbra.skip
+    ).map({
+      case (e ~ e1 ~ idHead ~ idTail ~ e2) => ListMatch(e, e1, Bind(idHead, Bind(idTail, e2)))
+      case _ => sys.error("Unreachable")
+    }, {
+      case ListMatch(e, e1, Bind(idHead, Bind(idTail, e2))) => Seq(e ~ e1 ~ idHead ~ idTail ~ e2)
+      case _ => Seq()
+    })
+
+  lazy val listMatchType: Syntax[Tree] =
+    (listMatchTypeK.skip ~ expr ~ lbra.skip ~
+      caseK.skip ~ nilK.unit(KeywordToken("nil")).skip ~ arrow.skip ~ typeExpr ~
+      caseK.skip ~ consK.unit(KeywordToken("cons")).skip ~ termIdentifier ~ termIdentifier ~
+        arrow.skip ~ typeExpr ~
+    rbra.skip
+    ).map({
+      case (e ~ ty1 ~ idHead ~ idTail ~ ty2) =>
+        ListMatchType(e, ty1, Bind(idHead, Bind(idTail, ty2)))
+      case _ => sys.error("Unreachable")
+    }, {
+      case ListMatchType(e, ty1, Bind(idHead, Bind(idTail, ty2))) =>
+        Seq(e ~ ty1 ~ idHead ~ idTail ~ ty2)
+      case _ => Seq()
+    })
+
+  lazy val consType: Syntax[Tree] =
+    (consTypeK.skip ~ lsbra.skip ~ typeExpr ~ comma.skip ~ typeExpr ~ rsbra.skip).map({
+      case (tyHead ~ tyTail) => LConsType(tyHead, tyTail)
+      case _ => sys.error("Unreachable")
+    }, {
+      case LConsType(tyHead, tyTail) => Seq(tyHead ~ tyTail)
       case _ => Seq()
     })
 
@@ -809,7 +898,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val bracketExpr: Syntax[Tree] = lbraBlock.skip ~ expr ~ rbraBlock.skip
 
   lazy val simpleExpr: Syntax[Tree] =
-    literal | parExpr | fixpoint |
+    fixpointWithDefault | literal | parExpr | fixpoint |
     lambda | keep | error | fold
 
   lazy val macroTypeDeclaration: Syntax[Tree] = {
@@ -830,7 +919,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val expr: Syntax[Tree] = recursive {
     termOrEquality | condition | eitherMatch |
-    natMatch |
+    natMatch | listMatch |
     letIn | unfoldIn | unfoldPositiveIn |
     defFunction | macroTypeDeclaration
   }

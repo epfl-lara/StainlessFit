@@ -34,7 +34,9 @@ object HTMLOutput {
     case ErrorGoal(_, _) => ""
     case InferGoal(c, t) => termOutput(t) + " ⇑ _"
     case CheckGoal(c, t, tp) => termOutput(t) + " ⇓ " + typeOutput(tp)
-    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + " <: " + typeOutput(ty2)
+    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <: " + typeOutput(ty2)
+    case NormalizedSubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <:‖ " + typeOutput(ty2)
+    case NormalizationGoal(c, ty) => typeOutput(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -52,6 +54,12 @@ object HTMLOutput {
       "<span class='sub'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         typeOutput(ty1) + " <: " + typeOutput(ty2) +
+      "</span>"
+
+    case NormalizationJudgment(name, context, ty, tyN) =>
+      "<span class='norm'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        typeOutput(ty) + " ⇥ " + typeOutput(tyN) +
       "</span>"
 
     case InferJudgment(name, context, t, tp) =>
@@ -147,6 +155,14 @@ object HTMLOutput {
                 |
                 |.sub:hover {
                 |  background-color: #ffe9cf
+                |}
+                |
+                |.norm {
+                |  background-color: #87f542
+                |}
+                |
+                |.norm:hover {
+                |  background-color: #5cd90d
                 |}
                 |
                 |.error {

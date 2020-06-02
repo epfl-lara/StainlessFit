@@ -1,0 +1,5 @@
+val f = fun of (ignored [Nat]) = { choose[Nat] };
+val n1 [Nat] = 0;
+val n2 [Nat] = 1;
+val res [{[Top] (f 0, f 0)}] = (n1, n2);
+()
