@@ -77,6 +77,9 @@ object PartialEvaluator {
           Some(t0)
         case NatMatch(NatLiteral(n), _, bind: Bind) => 
           Some(App(Lambda(None,bind),NatLiteral(n-1)))
+        
+        case Primitive(_, (err: Error :: _)) =>                                     Some(err)
+        case Primitive(_, (_ :: err: Error :: _)) =>                                Some(err)
 
         case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          Some(BooleanLiteral(!a))
 
