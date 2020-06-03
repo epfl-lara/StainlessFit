@@ -78,7 +78,7 @@ object PartialEvaluator {
         case NatMatch(NatLiteral(n), _, bind: Bind) => 
           Some(App(Lambda(None,bind),NatLiteral(n-1)))
         
-        case Primitive(_, ((err: Error) :: _)) =>                                     Some(err)
+        case Primitive(_, ((err: Error) :: _)) =>                                   Some(err)
 
         case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          Some(BooleanLiteral(!a))
 
@@ -102,7 +102,7 @@ object PartialEvaluator {
         case Primitive(Gt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a > b))
         
         //Put at the end to allow short circuiting: (true || error) = true
-        case Primitive(_, (_ :: (err: Error) :: _)) =>                                Some(err)
+        case Primitive(_, (_ :: (err: Error) :: _)) =>                              Some(err)
 
         //case Fold(tp, t) => ???
         //case Unfold(t, bind) => ???
@@ -118,7 +118,7 @@ object PartialEvaluator {
   }
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
-    println("=============================================")
+    //println("=============================================")
     //Printer.exprInfo(e)
     smallStep(e)(rc) match {
       case None => e
