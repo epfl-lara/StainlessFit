@@ -82,7 +82,13 @@ object Core {
   def partEvalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
     parseFile(f) flatMap { src =>
 
-      val (t, _) = extraction.evalPipeline.transform(src)
+      val pipeline =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new Erasure(), "Erasure")
+
+      val (t, _) = pipeline.transform(src)
 
       Right(PartialEvaluator.evaluate(t))
       //Can't fail ?

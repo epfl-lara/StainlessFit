@@ -17,11 +17,10 @@ object PartialEvaluator {
 
   //see erasure
 
-  def smallStep(e: Tree)(implicit rc: RunContext, vars: Map[Identifier,Tree]): Option[Tree] = {
+  def smallStep(e: Tree)(implicit rc: RunContext): Option[Tree] = {
     def transform(e: Tree): Option[Tree] = {
       e match {
-        case Var(id) => vars.get(id)
-        case IfThenElse(BooleanLiteral(true), t1, _) =>  
+        case IfThenElse(BooleanLiteral(true), t1, _) => 
           Some(t1)
         case IfThenElse(BooleanLiteral(false), _, t2) => 
           Some(t2)
@@ -64,7 +63,7 @@ object PartialEvaluator {
         //case Lambda(Some(tp), bind) => ???
         case ErasableLambda(tp, Bind(_,body)) => 
           Some(body)//smallStep(body)
-        case Fix(_, bind) => 
+        case Fix(_, Bind(id, bind: Bind)) => 
           //TODO: avoid infinite loops
           //TODO: reference counting, or other means of avoiding code explosion
           Some(Tree.replaceBind(bind,e))
@@ -115,7 +114,7 @@ object PartialEvaluator {
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
     println("=============================================")
-    Printer.exprInfo(e)
+    //Printer.exprInfo(e)
     smallStep(e)(rc,Map()) match {
       case None => e
       case Some(value) => evaluate(value)
