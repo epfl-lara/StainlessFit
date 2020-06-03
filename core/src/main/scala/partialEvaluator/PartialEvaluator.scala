@@ -13,7 +13,7 @@ object PartialEvaluator {
   def subError(a: BigInt,b: BigInt) = s"Substraction between ${a} and ${b} will yield a negative value"
   def divError = s"Attempt to divide by zero"
 
-  val __ignoreRefCounting__ = true
+  val __ignoreRefCounting__ = false
 
   //see erasure
 
@@ -37,18 +37,23 @@ object PartialEvaluator {
           Some(App(Lambda(None, br), rt))
           //Some(Tree.replaceBind(br, rt))
         
-        case App(Lambda(_, Bind(id, body)), varValue) if __ignoreRefCounting__ => 
-          def rec(t: Tree): Tree = {
+        case App(Lambda(_, Bind(id, body)), varValue) => 
+
+          def rec(t: Tree, replaceCount: BigInt): Option[Tree] = {
             TreeUtils.replaceVarSmallStep(id, t, varValue) match{
               case Some(newT) => 
-                rec(newT)
+                if(__ignoreRefCounting__ || replaceCount < 1){
+                  rec(newT, replaceCount+1)
+                }else {
+                  None
+                }
               case None => 
-                t
+                Some(t)
             }
           }
           //Some(Tree.replaceBind(bind, t2))
-          Some(rec(body))
-
+          rec(body, 0)
+        /*
         case App(Lambda(_, bind@Bind(_, bindBody)), t2) =>
           //Counts the number of references to that variable; 0, 1 or 2+ (at least 2)
           TreeUtils.replaceBindSmallStep(bind, t2)
@@ -57,6 +62,7 @@ object PartialEvaluator {
         /*1 */case Some(Right(t)) =>  Some(t)
         /*2+*/case Some(Left(t)) =>   None
           }
+          */
 
         case ErasableApp(t1, t2) => 
           Some(t1)//smallStep(t1)
@@ -68,7 +74,9 @@ object PartialEvaluator {
         case Fix(_, Bind(id, bind: Bind)) => 
           //TODO: avoid infinite loops
           //TODO: reference counting, or other means of avoiding code explosion
-          Some(Tree.replaceBind(bind,e))
+          //Some(Tree.replaceBind(bind,e))
+          transform(App(Lambda(None, bind), e))
+          
         //case LetIn(None, v1, bind) => ???
         //case LetIn(Some(tp), v1, bind) => ???
         //case MacroTypeDecl(tpe, bind) => ???
