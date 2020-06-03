@@ -37,21 +37,23 @@ object PartialEvaluator {
           Some(App(Lambda(None, br), rt))
           //Some(Tree.replaceBind(br, rt))
         
-        case App(Lambda(_, bind: Bind), t2) if __ignoreRefCounting__ => 
-          def rec(op: Option[Tree], old: Tree): (Option[Tree], Tree) = {
-            op match{
-              case Some(value) => 
-                rec(TreeUtils.replaceBindSmallStep(bind, value), value)
-              case None => (None, old)
+        case App(Lambda(_, Bind(id, body)), varValue) if __ignoreRefCounting__ => 
+          def rec(t: Tree): Tree = {
+            TreeUtils.replaceVarSmallStep(id, t, varValue) match{
+              case Some(newT) => 
+                rec(newT)
+              case None => 
+                t
             }
           }
-          Some(Tree.replaceBind(bind, t2))
+          //Some(Tree.replaceBind(bind, t2))
+          Some(rec(body))
 
-        case App(Lambda(_, bind: Bind), t2) =>
+        case App(Lambda(_, bind@Bind(_, bindBody)), t2) =>
           //Counts the number of references to that variable; 0, 1 or 2+ (at least 2)
           TreeUtils.replaceBindSmallStep(bind, t2)
             .map(nT2 => TreeUtils.replaceBindSmallStep(bind, nT2).toRight(nT2)) match {
-        /*0 */case None =>            Some(t2)
+        /*0 */case None =>            Some(bindBody) //Should it be t2 ?
         /*1 */case Some(Right(t)) =>  Some(t)
         /*2+*/case Some(Left(t)) =>   None
           }
@@ -118,8 +120,9 @@ object PartialEvaluator {
   }
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
-    //println("=============================================")
-    //Printer.exprInfo(e)
+    println("=============================================")
+    Printer.exprInfo(e)
+    Thread.sleep(1000)
     smallStep(e)(rc) match {
       case None => e
       case Some(value) => evaluate(value)

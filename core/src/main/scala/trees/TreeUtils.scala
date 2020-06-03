@@ -14,7 +14,7 @@ object TreeUtils{
    * Returns Some(the transformed tree) 
    *         or None, if no subtree was matched by p
    */
-  def replaceSmallStep(p: Tree => Option[Tree], body: Tree): Option[Tree] ={
+  def replaceSmallStep(p: Tree => Option[Tree], body: Tree): Option[Tree] = {
     def rss(body: Tree) = replaceSmallStep(p, body)
     p(body) match {
       case Some(e) => Some(e)
@@ -132,17 +132,22 @@ object TreeUtils{
       }
     }
   }
-  def replaceBindSmallStep(bind: Bind, v: Tree)(implicit rc: RunContext): Option[Tree] = {
+  def replaceBindSmallStep(bind: Bind, varValue: Tree)(implicit rc: RunContext): Option[Tree] = {
     val Bind(id, body) = bind
+    replaceVarSmallStep(id, body, varValue)
+  }
+
+  def replaceVarSmallStep(id: Identifier, body: Tree, varValue: Tree)(implicit rc: RunContext): Option[Tree] = {
     def p(body: Tree) = body match {
-      case Var(id2) if id2 == id => Some(v)
-      case Bind(id2, t) if id2 != id && id2.isFreeIn(v) =>
+      case Var(id2) if id2 == id => Some(varValue)
+      case Bind(id2, t) if id2 != id && id2.isFreeIn(varValue) =>
         rc.reporter.fatalError(
-            s"""Replacing ${Printer.asString(id)} by ${Printer.asString(v)} in
-              |$body would capture variable ${Printer.asString(id2)}""".stripMargin
+          s"""Replacing ${Printer.asString(id)} by ${Printer.asString(varValue)} in
+             |$body would capture variable ${Printer.asString(id2)}""".stripMargin
           )
       case _ => None
     }
     replaceSmallStep(p,body)
   }
+
 }
