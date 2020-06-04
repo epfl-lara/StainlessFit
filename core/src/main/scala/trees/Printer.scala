@@ -172,7 +172,7 @@ object Printer {
     else {
       asStringDebug(t)
       // Should be unreachable code:
-      throw new IllegalStateException(s"unreachable $t")
+      throw new IllegalStateException(s"Unreachable $t")
     }
   }
 

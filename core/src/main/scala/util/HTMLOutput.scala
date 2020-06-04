@@ -24,10 +24,10 @@ object HTMLOutput {
   }
 
   def termOutput(t: Tree)(implicit rc: RunContext): String =
-    termColor(shortString(Printer.exprAsString(t)))
+    termColor(shortString(t.asString))
 
   def typeOutput(t: Tree)(implicit rc: RunContext): String =
-    typeColor(shortString(Printer.typeAsString(t)))
+    typeColor(shortString(t.asString))
 
   def goalToHTML(g: Goal)(implicit rc: RunContext): String = g match {
     case EmptyGoal(_) => ""

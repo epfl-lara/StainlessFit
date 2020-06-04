@@ -401,9 +401,9 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   })
 
   lazy val arrows: Syntax[Tree] = infixRight(sumsAndUnions, arrow)({
-    case (ty1, _, ty2) => PiType(ty1, Bind(Identifier.fresh("X"), ty2))
+    case (ty1, _, ty2) => PiType(ty1, Bind(Identifier.fresh("x"), ty2))
   }, {
-    case PiType(ty1, Bind(id, ty2)) if !id.isFreeIn(ty2) => (ty1, OperatorToken(Plus), ty2)
+    case PiType(ty1, Bind(id, ty2)) if !id.isFreeIn(ty2) => (ty1, SeparatorToken("=>"), ty2)
   })
 
   def some[A](s: Syntax[A]): Syntax[Option[A]] = {

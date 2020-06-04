@@ -598,7 +598,7 @@ trait ProvenRules {
   })
 
   val CheckPi = Rule("CheckPi", {
-    case g @ CheckGoal(c, t, tpe @ PiType(ty1, Bind(id,ty2))) =>
+    case g @ CheckGoal(c, t, tpe @ PiType(ty1, Bind(id, ty2))) =>
       TypeChecker.debugs(g, "CheckPi")
       val (freshId, c1) = c.bindFresh(id.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2.replace(id, Var(freshId)))
