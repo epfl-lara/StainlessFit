@@ -10,10 +10,10 @@ import stainlessfit.core.util.Utils
 
 object PartialEvaluator {
   val zero = BigInt(0)
-  def subError(a: BigInt,b: BigInt) = s"Substraction between ${a} and ${b} will yield a negative value"
+  def subError(a: BigInt,b: BigInt) = s"Subtraction between ${a} and ${b} will yield a negative value"
   def divError = s"Attempt to divide by zero"
 
-  val __ignoreRefCounting__ = false
+  val __ignoreRefCounting__ = true
 
   //see erasure
 
@@ -37,8 +37,8 @@ object PartialEvaluator {
           Some(App(Lambda(None, br), rt))
           //Some(Tree.replaceBind(br, rt))
         
-        case App(Lambda(_, Bind(id, body)), varValue) => 
-
+        case App(Lambda(_, bind@Bind(id, body)), varValue) => 
+          //TODO When implementing leaf-ness, be careful with Errors as they contain expressions
           def rec(t: Tree, replaceCount: BigInt): Option[Tree] = {
             TreeUtils.replaceVarSmallStep(id, t, varValue) match{
               case Some(newT) => 
@@ -51,7 +51,7 @@ object PartialEvaluator {
                 Some(t)
             }
           }
-          //Some(Tree.replaceBind(bind, t2))
+          //Some(Tree.replaceBind(bind, varValue))
           rec(body, 0)
         /*
         case App(Lambda(_, bind@Bind(_, bindBody)), t2) =>
@@ -74,8 +74,8 @@ object PartialEvaluator {
         case Fix(_, Bind(id, bind: Bind)) => 
           //TODO: avoid infinite loops
           //TODO: reference counting, or other means of avoiding code explosion
-          //Some(Tree.replaceBind(bind,e))
-          transform(App(Lambda(None, bind), e))
+          Some(Tree.replaceBind(bind,e))
+          //transform(App(Lambda(None, bind), e))
           
         //case LetIn(None, v1, bind) => ???
         //case LetIn(Some(tp), v1, bind) => ???
@@ -89,14 +89,16 @@ object PartialEvaluator {
           Some(App(Lambda(None,bind),NatLiteral(n-1)))
         
         case Primitive(_, ((err: Error) :: _)) =>                                   Some(err)
+        case Primitive(op, (_ :: (err: Error) :: Nil)) if !op.isBoolToBoolBinOp =>                              Some(err)
+        //Note that BoolToBoolBinOps have to be removed, because a certain value of the first argument could short circuit them out of the error
 
         case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          Some(BooleanLiteral(!a))
 
         case Primitive(Or, (BooleanLiteral(true) :: _ :: Nil)) =>                   Some(BooleanLiteral(true))
-        case Primitive(Or, (BooleanLiteral(a) :: BooleanLiteral(b) :: Nil)) =>      Some(BooleanLiteral(a || b))
+        case Primitive(Or, (BooleanLiteral(false) :: t2 :: Nil)) =>                 Some(t2)
 
         case Primitive(And, (BooleanLiteral(false) :: _ :: Nil)) =>                 Some(BooleanLiteral(false))
-        case Primitive(And, (BooleanLiteral(a) :: BooleanLiteral(b) :: Nil)) =>     Some(BooleanLiteral(a && b))
+        case Primitive(And, (BooleanLiteral(true) :: t2 :: Nil)) =>                 Some(t2)
 
         case Primitive(Plus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>            Some(NatLiteral(a + b))
         case Primitive(Minus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) => if(a>=b)  Some(NatLiteral(a - b))
@@ -111,8 +113,6 @@ object PartialEvaluator {
         case Primitive(Lt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a < b))
         case Primitive(Gt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a > b))
         
-        //Put at the end to allow short circuiting: (true || error) = true
-        case Primitive(_, (_ :: (err: Error) :: _)) =>                              Some(err)
 
         //case Fold(tp, t) => ???
         //case Unfold(t, bind) => ???
@@ -128,9 +128,11 @@ object PartialEvaluator {
   }
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
+    
     println("=============================================")
     Printer.exprInfo(e)
     Thread.sleep(1000)
+    
     smallStep(e)(rc) match {
       case None => e
       case Some(value) => evaluate(value)
