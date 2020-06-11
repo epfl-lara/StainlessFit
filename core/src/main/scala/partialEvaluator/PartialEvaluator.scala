@@ -33,12 +33,13 @@ object PartialEvaluator {
         case EitherMatch(LeftTree(lt), bl: Bind, _) => 
           Some(App(Lambda(None, bl), lt))
           //Some(Tree.replaceBind(bl, lt))
-        case EitherMatch(RightTree(rt), _, br: Bind) =>
+        case EitherMatch(RightTree(rt), _, br: Bind) => 
           Some(App(Lambda(None, br), rt))
           //Some(Tree.replaceBind(br, rt))
         
         case App(Lambda(_, bind@Bind(id, body)), varValue) => 
           //TODO When implementing leaf-ness, be careful with Errors as they contain expressions
+          /*
           def rec(t: Tree, replaceCount: BigInt): Option[Tree] = {
             TreeUtils.replaceVarSmallStep(id, t, varValue) match{
               case Some(newT) => 
@@ -50,9 +51,27 @@ object PartialEvaluator {
               case None => 
                 Some(t)
             }
-          }
+          }*/
           //Some(Tree.replaceBind(bind, varValue))
-          rec(body, 0)
+          //rec(body, 0)
+          def simpleValue(v: Tree): Boolean = v match {
+            case Var(_) => true
+            case BooleanLiteral(b) => true
+            case NatLiteral(n) => true
+            case UnitLiteral => true
+            case Error(s, opT) => opT.forall(simpleValue(_)) //returns true if None
+            case _ => false 
+          }
+
+          lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
+
+          if(__ignoreRefCounting__ || simpleValue(varValue)){
+            Some(Tree.replaceBind(bind, varValue))
+          }else if(count <= 1){
+            Some(t)
+          }else{
+            None
+          }
         /*
         case App(Lambda(_, bind@Bind(_, bindBody)), t2) =>
           //Counts the number of references to that variable; 0, 1 or 2+ (at least 2)
@@ -74,7 +93,8 @@ object PartialEvaluator {
         case Fix(_, Bind(id, bind: Bind)) => 
           //TODO: avoid infinite loops
           //TODO: reference counting, or other means of avoiding code explosion
-          Some(Tree.replaceBind(bind,e))
+          //Some(Tree.replaceBind(bind,e))
+          Some(App(Lambda(None, bind), e))
           //transform(App(Lambda(None, bind), e))
           
         //case LetIn(None, v1, bind) => ???
@@ -89,7 +109,7 @@ object PartialEvaluator {
           Some(App(Lambda(None,bind),NatLiteral(n-1)))
         
         case Primitive(_, ((err: Error) :: _)) =>                                   Some(err)
-        case Primitive(op, (_ :: (err: Error) :: Nil)) if !op.isBoolToBoolBinOp =>                              Some(err)
+        case Primitive(op, (_ :: (err: Error) :: Nil)) if !op.isBoolToBoolBinOp =>  Some(err)
         //Note that BoolToBoolBinOps have to be removed, because a certain value of the first argument could short circuit them out of the error
 
         case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          Some(BooleanLiteral(!a))
@@ -129,9 +149,9 @@ object PartialEvaluator {
 
   def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
     
-    println("=============================================")
-    Printer.exprInfo(e)
-    Thread.sleep(1000)
+    //println("=============================================")
+    //Printer.exprInfo(e)
+    //Thread.sleep(1000)
     
     smallStep(e)(rc) match {
       case None => e
