@@ -1,0 +1,10 @@
+Include("../assert.sf")
+
+val fact = fix(fac =>
+  fun of m acc = {
+    if (m == 0) { acc }
+    else {fac (m - 1) (m * acc) }
+  }
+);
+
+assert(fact 10 1 == 3628800)
