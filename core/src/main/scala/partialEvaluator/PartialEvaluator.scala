@@ -13,12 +13,12 @@ object PartialEvaluator {
   def subError(a: BigInt,b: BigInt) = s"Subtraction between ${a} and ${b} will yield a negative value"
   def divError = s"Attempt to divide by zero"
 
-  val __ignoreRefCounting__ = true
+  val __ignoreRefCounting__ = false
 
   //see erasure
 
-  def smallStep(e: Tree)(implicit rc: RunContext): Option[Tree] = {
-    def transform(e: Tree): Option[Tree] = {
+  def smallStep(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
+    def replaceNoFix(e: Tree): Option[Tree] = {
       e match {
         case IfThenElse(BooleanLiteral(true), t1, _) => 
           Some(t1)
@@ -90,13 +90,14 @@ object PartialEvaluator {
         //case Lambda(Some(tp), bind) => ???
         case ErasableLambda(tp, Bind(_,body)) => 
           Some(body)//smallStep(body)
+        /*
         case Fix(_, Bind(id, bind: Bind)) => 
           //TODO: avoid infinite loops
           //TODO: reference counting, or other means of avoiding code explosion
           //Some(Tree.replaceBind(bind,e))
           Some(App(Lambda(None, bind), e))
           //transform(App(Lambda(None, bind), e))
-          
+          */
         //case LetIn(None, v1, bind) => ???
         //case LetIn(Some(tp), v1, bind) => ???
         //case MacroTypeDecl(tpe, bind) => ???
@@ -144,18 +145,48 @@ object PartialEvaluator {
         case _ => None
       }
     }
-    replaceSmallStep(transform,e)
+    def replaceFix(e: Tree): Option[Tree] = {
+      e match {
+        case Fix(_, Bind(id, bind: Bind)) => 
+          Some(App(Lambda(None, bind), e))
+        case _ => None 
+      }
+    }
+    replaceSmallStep(replaceNoFix,e).map( (_, None) ) orElse { 
+      val op = replaceSmallStep(replaceFix,e)
+      op match {
+        case None => None
+        case Some(tree) => 
+          val measure = TreeSize(tree)
+          val smaller = previousMeasure.map( _ > measure) getOrElse true
+          Option.when(smaller)((tree, Some(measure)))
+      }
+    }
+    //post condition: res.map( (_, op) => (previousMeasure != None) implies (op != None) ) getOrElse true
   }
 
-  def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
+  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Tree = {
     
-    //println("=============================================")
-    //Printer.exprInfo(e)
+    Printer.exprInfo(e)
+    println(s"=============================================${previousMeasure}")
     //Thread.sleep(1000)
     
-    smallStep(e)(rc) match {
+    smallStep(e, previousMeasure) match {
       case None => e
-      case Some(value) => evaluate(value)
+      case Some((value, measure)) => 
+        val postCond = previousMeasure match {
+          case None => true
+          case Some(prev) => 
+            measure match {
+              case None => true
+              case Some(curr) => curr < prev
+            }
+        }
+        if(!postCond){
+          rc.reporter.fatalError(s"previousMeasure: $previousMeasure, measure: $measure")
+        }
+        val currentMeasure = measure orElse previousMeasure
+        evaluate(value, currentMeasure)
     }
   }
 }
