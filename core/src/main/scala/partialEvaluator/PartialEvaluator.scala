@@ -10,8 +10,8 @@ import stainlessfit.core.util.Utils
 
 object PartialEvaluator {
   val zero = BigInt(0)
-  def subError(a: BigInt,b: BigInt) = s"Subtraction between ${a} and ${b} will yield a negative value"
-  def divError = s"Attempt to divide by zero"
+  def subError(a: BigInt,b: BigInt) = Error(s"Subtraction between ${a} and ${b} will yield a negative value", None)
+  def divError = Error(s"Attempt to divide by zero", None)
 
   val __ignoreRefCounting__ = false
 
@@ -117,15 +117,17 @@ object PartialEvaluator {
 
         case Primitive(Or, (BooleanLiteral(true) :: _ :: Nil)) =>                   Some(BooleanLiteral(true))
         case Primitive(Or, (BooleanLiteral(false) :: t2 :: Nil)) =>                 Some(t2)
+        case Primitive(Or, (t1 :: BooleanLiteral(false) :: Nil)) =>                  Some(t1)
 
         case Primitive(And, (BooleanLiteral(false) :: _ :: Nil)) =>                 Some(BooleanLiteral(false))
         case Primitive(And, (BooleanLiteral(true) :: t2 :: Nil)) =>                 Some(t2)
+        case Primitive(And, (t1 :: BooleanLiteral(true) :: Nil)) =>                 Some(t1)
 
         case Primitive(Plus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>            Some(NatLiteral(a + b))
         case Primitive(Minus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) => if(a>=b)  Some(NatLiteral(a - b))
-                                                                          else      Some(Error(subError(a,b),None))
+                                                                          else      Some(subError(a,b))
         case Primitive(Mul, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(NatLiteral(a * b))
-        case Primitive(Div, (     _   :: NatLiteral(`zero`) :: Nil)) =>             Some(Error(divError, None))
+        case Primitive(Div, (     _   :: NatLiteral(`zero`) :: Nil)) =>             Some(divError)
         case Primitive(Div, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(NatLiteral(a / b))
         case Primitive(Eq,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a == b))
         case Primitive(Neq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a != b))
