@@ -20,23 +20,20 @@ object Printer {
 
     def output(suffix: String, ext: String) = s"$outDirName/${filename}_$suffix.$ext"
 
-    val (clang, opt) = {
+    val clang = {
       import Env._
       os match {
-        case Linux   => ("clang", "opt")
-        case Windows => ("clang.exe", "opt.exe")
-        case Mac     => ("clang", "opt")
+        case Linux   => "clang"
+        case Windows => "clang.exe"
+        case Mac     => "clang"
       }
     }
 
     val genOutput = output("gen", "ll")
-
     val passname = rc.config.llvmPassName
-    val optiOutput = output(passname, "ll")
     val compiled = output(passname, "out")
 
-    val optOptions = s"-S $genOutput -$passname -o $optiOutput"
-    val clangOptions = s"$optiOutput -o $compiled"
+    val clangOptions = s"$genOutput -$passname -o $compiled"
 
     def printErrOutput(errOutput: String) = {
       if(errOutput.contains("error")){
@@ -46,30 +43,6 @@ object Printer {
       }
     }
 
-    def llvm(action: String) = {
-      val (exec, program, errorMsg) = if(action == "optimize"){
-        (s"$opt $optOptions", opt, s"opt failed to optimise file $optiOutput")
-      } else if(action == "compile"){
-        (s"$clang $clangOptions", clang, s"clang failed to compile text file $optiOutput to binary")
-      } else {
-        rc.reporter.fatalError(s"Unknown action $action")
-      }
-
-      try {
-          val (exitValue, standardOutput, errOutput) = Core.runCommand(exec)
-          printErrOutput(errOutput)
-
-        } catch {
-          case _: IOException =>
-            rc.reporter.fatalError(
-                  s"$program utility was not found under system path, " +
-                  "or did not have permission to execute"
-            )
-          case _: RuntimeException =>
-            rc.reporter.fatalError(errorMsg)
-        }
-    }
-
     val outDir = new File(outDirName)
     if (!outDir.exists()) {
       outDir.mkdir()
@@ -77,9 +50,21 @@ object Printer {
 
     module.printToFile(genOutput)(rc)
 
-    llvm("optimize")
+    val exec = s"$clang $clangOptions"
 
-    llvm("compile")
+    try {
+        val (exitValue, standardOutput, errOutput) = Core.runCommand(exec)
+        printErrOutput(errOutput)
+
+      } catch {
+        case _: IOException =>
+          rc.reporter.fatalError(
+                s"clang utility was not found under system path, " +
+                "or did not have permission to execute"
+          )
+        case _: RuntimeException =>
+          rc.reporter.fatalError(s"clang failed to compile text file $genOutput to binary")
+      }
 
     Right(s"./$compiled")
   }

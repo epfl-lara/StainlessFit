@@ -99,7 +99,7 @@ object ConfigParser {
         ),
 
       checkConfig {
-        case c if c.mode == null => failure("Please specify a command: eval, typecheck, compile")
+        case c if c.mode == null => failure("Please specify a command: eval, typecheck, compile or execute")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
         case c =>
           c.debugSections.find(!DebugSection.available(_)) match {
