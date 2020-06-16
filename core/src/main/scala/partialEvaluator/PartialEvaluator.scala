@@ -13,7 +13,8 @@ object PartialEvaluator {
   def subError(a: BigInt,b: BigInt) = Error(s"Subtraction between ${a} and ${b} will yield a negative value", None)
   def divError = Error(s"Attempt to divide by zero", None)
 
-  val __ignoreRefCounting__ = false
+  val __ignoreRefCounting__ = true
+  val __ignoreMeasure__ = true
 
   //see erasure
 
@@ -156,12 +157,16 @@ object PartialEvaluator {
     }
     replaceSmallStep(replaceNoFix,e).map( (_, None) ) orElse { 
       val op = replaceSmallStep(replaceFix,e)
-      op match {
-        case None => None
-        case Some(tree) => 
-          val measure = TreeSize(tree)
-          val smaller = previousMeasure.map( _ > measure) getOrElse true
-          Option.when(smaller)((tree, Some(measure)))
+      if(__ignoreMeasure__){
+        op.map((_,None))
+      }else{
+        op match {
+          case None => None
+          case Some(tree) => 
+            val measure = TreeSize(tree)
+            val smaller = previousMeasure.map( _ > measure) getOrElse true
+            Option.when(smaller)((tree, Some(measure)))
+        }
       }
     }
     //post condition: res.map( (_, op) => (previousMeasure != None) implies (op != None) ) getOrElse true
