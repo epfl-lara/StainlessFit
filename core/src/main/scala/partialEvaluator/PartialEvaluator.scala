@@ -7,6 +7,7 @@ import util.RunContext
 import TreeUtils.replaceSmallStep
 import parser.FitParser
 import stainlessfit.core.util.Utils
+import interpreter.Interpreter
 
 object PartialEvaluator {
   val zero = BigInt(0)
@@ -172,7 +173,7 @@ object PartialEvaluator {
     //post condition: res.map( (_, op) => (previousMeasure != None) implies (op != None) ) getOrElse true
   }
 
-  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Tree = {
+  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None)(implicit rc: RunContext): Tree = {
     
     //Printer.exprInfo(e)
     //println(s"=============================================${previousMeasure}")
@@ -181,7 +182,7 @@ object PartialEvaluator {
     smallStep(e, previousMeasure) match {
       case None => e
       case Some((value, measure)) => 
-        val postCond = previousMeasure match {
+        val postCond1 = previousMeasure match {
           case None => true
           case Some(prev) => 
             measure match {
@@ -189,11 +190,17 @@ object PartialEvaluator {
               case Some(curr) => curr < prev
             }
         }
-        if(!postCond){
-          rc.reporter.fatalError(s"previousMeasure: $previousMeasure, measure: $measure")
+        if(!postCond1){
+          rc.reporter.fatalError(s"First postcond fail: previousMeasure: $previousMeasure, measure: $measure")
+        }
+
+        val afterEval = Interpreter.evaluate(value)
+        val postCond2 = pastEval.map(_ == afterEval) getOrElse true
+        if(!postCond2){
+          rc.reporter.fatalError(s"Second postcond fail: old tree: \n${pastEval.map(Printer.exprAsString(_))}\nBut new tree was: \n${Printer.exprAsString(afterEval)}")
         }
         val currentMeasure = measure orElse previousMeasure
-        evaluate(value, currentMeasure)
+        evaluate(value, currentMeasure, Some(afterEval))
     }
   }
 }
