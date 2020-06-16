@@ -156,7 +156,7 @@ object Interpreter {
 
       case Error(msg, _) => Error(msg, None)
 
-      case _ => rc.reporter.fatalError(s"Evaluation is stuck on: $e")
+      case _ => rc.reporter.fatalError(s"Evaluation is stuck on: $e") //TODO? ${Printer.exprAsString(e)}
     }
   }
 

@@ -169,8 +169,8 @@ object PartialEvaluator {
 
   def evaluate(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Tree = {
     
-    Printer.exprInfo(e)
-    println(s"=============================================${previousMeasure}")
+    //Printer.exprInfo(e)
+    //println(s"=============================================${previousMeasure}")
     //Thread.sleep(1000)
     
     smallStep(e, previousMeasure) match {
