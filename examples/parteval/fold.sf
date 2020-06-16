@@ -1,0 +1,22 @@
+[type List[X] = Forall(n: Nat, Rec(n)(List => (Unit + (X, List))))]
+fun nil[X]  [returns List[X]] = {
+  [fold as List[X]](left ())
+}
+fun cons[X] (x [X]) (xs [List[X]])  [returns List[X]] = {
+  [fold as List[X]](right ((x, xs)))
+}
+fun fold[X][Y](acc [Y]) (f [Y => X => Y]) (xs [List[X]]) [returns Y]= {
+  [decreases (size xs)]
+  [unfold] val xs = xs;
+  match xs {
+    case left u => acc
+    case right pair =>
+      val head = first(pair) ;
+      val tail = second(pair) ;
+      val newAcc = f acc head ;
+      fold[X][Y] newAcc f tail
+  }
+}
+fun plus (x [Nat]) (y [Nat]) = { x + y }
+val list = cons[Nat] 1 (cons[Nat] 2 (cons[Nat] 3 (nil[Nat]))) ;
+fold [Nat] [Nat] 0 plus list
