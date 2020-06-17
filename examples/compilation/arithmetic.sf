@@ -1,0 +1,9 @@
+if(true && false && false){
+  1 + 2
+} else {
+  if(2 < 2 * 4){
+    0
+  } else {
+    5
+  }
+}

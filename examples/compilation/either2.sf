@@ -1,0 +1,5 @@
+fun select(choice [Nat + Bool]) [returns Nat] = {
+  5
+}
+
+select(right true)

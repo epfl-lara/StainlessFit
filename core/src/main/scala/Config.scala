@@ -7,6 +7,8 @@ sealed abstract class Mode
 object Mode {
   case object Eval      extends Mode
   case object TypeCheck extends Mode
+  case object Compile   extends Mode
+  case object Execute   extends Mode
 }
 
 case class Config(
@@ -21,6 +23,7 @@ case class Config(
   info: Boolean                    = true,
   printUniqueIds: Boolean          = false,
   debugSections: Set[DebugSection] = Set.empty,
+  llvmPassName: String             = "O1",
 )
 
 object Config {

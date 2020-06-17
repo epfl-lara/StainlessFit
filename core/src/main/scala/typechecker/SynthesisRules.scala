@@ -9,7 +9,7 @@ import util.Utils._
 
 import Derivation._
 
-trait TypeCheckerSynthesisRules {
+trait SynthesisRules {
 
   implicit val rc: RunContext
 

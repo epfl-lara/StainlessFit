@@ -1,0 +1,12 @@
+fun fibo(x [Nat]) [returns Nat] = {
+  x
+}
+
+fun fibo(y [Bool]) [returns Unit] = {
+  ()
+}
+
+val test = 10;
+val test = true;
+
+fibo 100

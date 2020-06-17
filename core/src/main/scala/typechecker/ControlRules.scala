@@ -9,7 +9,7 @@ import util.Utils._
 
 import Derivation._
 
-trait TypeCheckerControlRules {
+trait ControlRules {
 
   implicit val rc: RunContext
 

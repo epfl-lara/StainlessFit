@@ -1,5 +1,5 @@
-[fold as Rec(1)(List => Unit + (Nat, List))](
-  right (2, [fold as Rec(0)(List => Unit + (Nat, List))](
+[fold as Rec(1)(Lst => Unit + (Nat, Lst))](
+  right (2, [fold as Rec(0)(Lst => Unit + (Nat, Lst))](
     left ()
   ))
 )

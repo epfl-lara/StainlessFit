@@ -1,0 +1,33 @@
+fun assert(b [{b [Bool] | b}])  [returns Unit] = {
+  if (b) { () }
+  else { error[Unit]("Assertion failed") }
+}
+
+fun f (x [Nat]) = { 6 }
+
+assert(f 0 > 0)
+
+// eq: [b = f 0 > 0]
+// eq: [f = fun of (x [Nat]) = { 6 }]
+// f: Nat => Nat
+// b: Bool
+// ==>
+// (b = true)
+
+// ExpandVars
+
+// eq: [b = (fun of (x [Nat]) = { 6 }) 0 > 0]
+// f: Nat => Nat
+// b: Bool
+// ==>
+// (b = true)
+
+// InlineApplication
+
+// eq: [b = 6 > 0]
+// f: Nat => Nat
+// b: Bool
+// ==>
+// (b = true)
+
+// Z3ArithmeticSolver: OK

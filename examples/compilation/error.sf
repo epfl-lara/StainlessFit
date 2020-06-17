@@ -1,0 +1,2 @@
+if (false) { () }
+else { error[Unit]("This is an error message") }
