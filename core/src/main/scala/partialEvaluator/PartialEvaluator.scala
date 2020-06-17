@@ -63,24 +63,14 @@ object PartialEvaluator {
             println(s"App(lambda) no ref count: $id")//: $varValue")
             Some(Tree.replaceBind(bind, varValue))
           }else if(simpleValue(varValue)){
-            println("App(lambda) simplevalue")
+            println(s"App(lambda) simplevalue: $id")
             Some(Tree.replaceBind(bind, varValue))
           }else if(count <= 1){
-            println("App(lambda) ref <= 1")
+            println(s"App(lambda) ref <= 1: $id")
             Some(t)
           }else{
             None
           }
-        /*
-        case App(Lambda(_, bind@Bind(_, bindBody)), t2) =>
-          //Counts the number of references to that variable; 0, 1 or 2+ (at least 2)
-          TreeUtils.replaceBindSmallStep(bind, t2)
-            .map(nT2 => TreeUtils.replaceBindSmallStep(bind, nT2).toRight(nT2)) match {
-        /*0 */case None =>            Some(bindBody) //Should it be t2 ?
-        /*1 */case Some(Right(t)) =>  Some(t)
-        /*2+*/case Some(Left(t)) =>   None
-          }
-          */
 
         case ErasableApp(t1, t2) => 
           Some(t1)//smallStep(t1)
@@ -209,7 +199,7 @@ object PartialEvaluator {
         }
 
         lazy val afterEval = Interpreter.evaluate(value)
-        val usePost2 = true
+        val usePost2 = false
         lazy val postCond2 = pastEval.map(_ == afterEval) getOrElse true
       
         if(usePost2 && !postCond2){
