@@ -14,7 +14,11 @@ object TreeUtils{
    * Returns Some(the transformed tree) 
    *         or None, if no subtree was matched by p
    */
-  def replaceSmallStep(p: Tree => Option[Tree], body: Tree): Option[Tree] = {
+  def replaceSmallStep(p: Tree => Option[Tree], body: Tree)(implicit rc: RunContext): Option[Tree] = {
+    def np(t: Tree, op:Option[Tree]): Option[Tree] = p(t)
+    replaceFirstConditionalOnSuperTree(np,body,_ => false)
+    
+    /* TODO: Remove v
     def rss(body: Tree) = replaceSmallStep(p, body)
     p(body) match {
       case Some(e) => Some(e)
@@ -131,23 +135,23 @@ object TreeUtils{
         case _ => throw new java.lang.Exception(s"Function `replaceSmallStep` is not implemented on $body (${body.getClass}).")
       }
     }
+    */
   }
-  def replaceBindSmallStep(bind: Bind, varValue: Tree)(implicit rc: RunContext): Option[Tree] = {
-    val Bind(id, body) = bind
-    replaceVarSmallStep(id, body, varValue)
-  }
-
-  def replaceVarSmallStep(id: Identifier, body: Tree, varValue: Tree)(implicit rc: RunContext): Option[Tree] = {
-    def p(body: Tree) = body match {
-      case Var(id2) if id2 == id => Some(varValue)
-      case Bind(id2, t) if id2 != id && id2.isFreeIn(varValue) =>
-        rc.reporter.fatalError(
-          s"""Replacing ${Printer.asString(id)} by ${Printer.asString(varValue)} in
-             |$body would capture variable ${Printer.asString(id2)}""".stripMargin
-          )
-      case _ => None
-    }
-    replaceSmallStep(p,body)
+  
+  def replaceFirstConditionalOnSuperTree(
+    p: (Tree, Option[Tree]) => Option[Tree], body: Tree,
+    superTreeFilter: Tree => Boolean, superTree: Option[Tree] = None)
+    (implicit rc: RunContext): 
+    Option[Tree] = {
+      p(body, superTree) match {
+        case Some(value) => Some(value)
+        case None => 
+          val newSuperTree = Option.when(superTreeFilter(body)){body} orElse superTree
+          def rfcs: Tree => Option[Tree] = replaceFirstConditionalOnSuperTree(p,_,superTreeFilter,newSuperTree)
+          val subTrees = body.subTrees()
+          val newSubTrees = mapFirst2(subTrees,rfcs)
+          newSubTrees.map(body.newSubTrees(_))
+      }
   }
 
 }

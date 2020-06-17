@@ -45,7 +45,7 @@ object PartialEvaluator {
           println("EitherMatch(right)")
           Some(App(Lambda(None, br), rt))
 
-        case App(Lambda(_, bind@Bind(id, body)), _varValue) => 
+        case App(Lambda(_, bind@Bind(id, body)), varValue) => 
 
           def simpleValue(v: Tree): Boolean = v match {
             case Var(_) => true
@@ -56,7 +56,7 @@ object PartialEvaluator {
             case _ => false 
           }
 
-          val varValue = _varValue.freshenIdentifiers()
+          //val varValue = _varValue.freshenIdentifiers()
 
           lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
           if(__ignoreRefCounting__){
