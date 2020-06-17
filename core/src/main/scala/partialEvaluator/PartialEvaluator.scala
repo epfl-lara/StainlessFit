@@ -2,6 +2,10 @@ package stainlessfit
 package core
 package partialEvaluator
 
+import java.io.File
+import java.io.BufferedWriter
+import java.io.FileWriter
+import smtlib.printer.Printer
 import trees._
 import util.RunContext
 import TreeUtils.replaceSmallStep
@@ -23,39 +27,28 @@ object PartialEvaluator {
     def replaceNoFix(e: Tree): Option[Tree] = {
       e match {
         case IfThenElse(BooleanLiteral(true), t1, _) => 
+          println("If(true)")
           Some(t1)
         case IfThenElse(BooleanLiteral(false), _, t2) => 
+          println("If(false)")
           Some(t2)
         
         case First(Pair(t1,t2)) => 
+          println("First(pair)")
           Some(t1)
         case Second(Pair(t1,t2)) => 
+          println("Second(pair)")
           Some(t2)
 
         case EitherMatch(LeftTree(lt), bl: Bind, _) => 
+          println("EitherMatch(left)")
           Some(App(Lambda(None, bl), lt))
-          //Some(Tree.replaceBind(bl, lt))
         case EitherMatch(RightTree(rt), _, br: Bind) => 
+          println("EitherMatch(right)")
           Some(App(Lambda(None, br), rt))
-          //Some(Tree.replaceBind(br, rt))
         
         case App(Lambda(_, bind@Bind(id, body)), varValue) => 
-          //TODO When implementing leaf-ness, be careful with Errors as they contain expressions
-          /*
-          def rec(t: Tree, replaceCount: BigInt): Option[Tree] = {
-            TreeUtils.replaceVarSmallStep(id, t, varValue) match{
-              case Some(newT) => 
-                if(__ignoreRefCounting__ || replaceCount < 1){
-                  rec(newT, replaceCount+1)
-                }else {
-                  None
-                }
-              case None => 
-                Some(t)
-            }
-          }*/
-          //Some(Tree.replaceBind(bind, varValue))
-          //rec(body, 0)
+
           def simpleValue(v: Tree): Boolean = v match {
             case Var(_) => true
             case BooleanLiteral(b) => true
@@ -66,10 +59,14 @@ object PartialEvaluator {
           }
 
           lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
-
-          if(__ignoreRefCounting__ || simpleValue(varValue)){
+          if(__ignoreRefCounting__){
+            println(s"App(lambda) no ref count: $id")//: $varValue")
+            Some(Tree.replaceBind(bind, varValue))
+          }else if(simpleValue(varValue)){
+            println("App(lambda) simplevalue")
             Some(Tree.replaceBind(bind, varValue))
           }else if(count <= 1){
+            println("App(lambda) ref <= 1")
             Some(t)
           }else{
             None
@@ -107,8 +104,10 @@ object PartialEvaluator {
         //case NatMatch(t, t0, bind) => ???
 
         case NatMatch(NatLiteral(`zero`), t0, _) => 
+          println("NatMatch(0)")
           Some(t0)
         case NatMatch(NatLiteral(n), _, bind: Bind) => 
+          println("NatMatch(n)")
           Some(App(Lambda(None,bind),NatLiteral(n-1)))
         
         case Primitive(_, ((err: Error) :: _)) =>                                   Some(err)
@@ -119,7 +118,7 @@ object PartialEvaluator {
 
         case Primitive(Or, (BooleanLiteral(true) :: _ :: Nil)) =>                   Some(BooleanLiteral(true))
         case Primitive(Or, (BooleanLiteral(false) :: t2 :: Nil)) =>                 Some(t2)
-        case Primitive(Or, (t1 :: BooleanLiteral(false) :: Nil)) =>                  Some(t1)
+        case Primitive(Or, (t1 :: BooleanLiteral(false) :: Nil)) =>                 Some(t1)
 
         case Primitive(And, (BooleanLiteral(false) :: _ :: Nil)) =>                 Some(BooleanLiteral(false))
         case Primitive(And, (BooleanLiteral(true) :: t2 :: Nil)) =>                 Some(t2)
@@ -152,6 +151,7 @@ object PartialEvaluator {
     def replaceFix(e: Tree): Option[Tree] = {
       e match {
         case Fix(_, Bind(id, bind: Bind)) => 
+          println("Fix")
           Some(App(Lambda(None, bind), e))
         case _ => None 
       }
@@ -159,7 +159,7 @@ object PartialEvaluator {
     replaceSmallStep(replaceNoFix,e).map( (_, None) ) orElse { 
       val op = replaceSmallStep(replaceFix,e)
       if(__ignoreMeasure__){
-        op.map((_,None))
+        op.map((_, None))
       }else{
         op match {
           case None => None
@@ -171,6 +171,20 @@ object PartialEvaluator {
       }
     }
     //post condition: res.map( (_, op) => (previousMeasure != None) implies (op != None) ) getOrElse true
+  }
+
+  def writeFile(filename: String, s: String): Unit = {
+      val file = new File(filename)
+      val bw = new BufferedWriter(new FileWriter(file))
+      bw.write(s)
+      bw.close()
+  }
+
+  def writeTreeToFile(filename: String, tree: Tree)(implicit rc: RunContext): Unit = {
+    val folder = "error\\"
+    val path = s"$folder$filename"
+    writeFile(path, Printer.exprAsString(tree))
+    println(s"wrote to $path")
   }
 
   def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None)(implicit rc: RunContext): Tree = {
@@ -194,11 +208,18 @@ object PartialEvaluator {
           rc.reporter.fatalError(s"First postcond fail: previousMeasure: $previousMeasure, measure: $measure")
         }
 
-        val afterEval = Interpreter.evaluate(value)
-        val postCond2 = pastEval.map(_ == afterEval) getOrElse true
-        if(!postCond2){
-          rc.reporter.fatalError(s"Second postcond fail: old tree: \n${pastEval.map(Printer.exprAsString(_))}\nBut new tree was: \n${Printer.exprAsString(afterEval)}")
+        lazy val afterEval = Interpreter.evaluate(value)
+        val usePost2 = true
+        lazy val postCond2 = pastEval.map(_ == afterEval) getOrElse true
+      
+        if(usePost2 && !postCond2){
+          writeTreeToFile("oldTree.sf",e)
+          writeTreeToFile("oldEval.sf",pastEval.get)
+          writeTreeToFile("newTree.sf",value)
+          writeTreeToFile("newEval.sf",afterEval)
+          rc.reporter.fatalError(s"Second postcond fail: \nold tree: $e \npartevaled tree: \n${Printer.exprAsString(value)}\nevaluates to: \n${Printer.exprAsString(afterEval)}\nBut old evaluated tree was: \n${pastEval.map(Printer.exprAsString(_)).getOrElse("")}")
         }
+        
         val currentMeasure = measure orElse previousMeasure
         evaluate(value, currentMeasure, Some(afterEval))
     }
