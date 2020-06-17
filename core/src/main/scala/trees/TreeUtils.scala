@@ -15,8 +15,8 @@ object TreeUtils{
    *         or None, if no subtree was matched by p
    */
   def replaceSmallStep(p: Tree => Option[Tree], body: Tree)(implicit rc: RunContext): Option[Tree] = {
-    def np(t: Tree, op:Option[Tree]): Option[Tree] = p(t)
-    replaceFirstConditionalOnSuperTree(np,body,_ => false)
+    def np[A](t: Tree, discarted: A): Option[Tree] = p(t)
+    replaceFirstConditionalOnSuperTree(np,body,(_,_) => false)
     
     /* TODO: Remove v
     def rss(body: Tree) = replaceSmallStep(p, body)
@@ -139,17 +139,21 @@ object TreeUtils{
   }
   
   def replaceFirstConditionalOnSuperTree(
-    p: (Tree, Option[Tree]) => Option[Tree], body: Tree,
-    superTreeFilter: Tree => Boolean, superTree: Option[Tree] = None)
+    p: (Tree, Option[(Tree, Int)]) => Option[Tree], body: Tree,
+    superTreeFilter: (Tree, Int) => Boolean, superTree: Option[(Tree, Int)] = None)
     (implicit rc: RunContext): 
     Option[Tree] = {
       p(body, superTree) match {
         case Some(value) => Some(value)
         case None => 
-          val newSuperTree = Option.when(superTreeFilter(body)){body} orElse superTree
-          def rfcs: Tree => Option[Tree] = replaceFirstConditionalOnSuperTree(p,_,superTreeFilter,newSuperTree)
-          val subTrees = body.subTrees()
-          val newSubTrees = mapFirst2(subTrees,rfcs)
+          def newSuperTree(index: Int) = Option.when( superTreeFilter(body, index) ){ (body, index) } orElse superTree
+
+          def rfcs_(t: Tree, index: Int): Option[Tree] = replaceFirstConditionalOnSuperTree(p,t,superTreeFilter,newSuperTree(index))
+          def rfcs(p: (Tree, Int)): Option[(Tree,Int)] = rfcs_(p._1, p._2).map((_, 0)) //Second argument will be unzipped and discarted
+          
+          val subTrees = body.subTrees().zipWithIndex
+          val opOfListOfPairs = mapFirst2[(Tree, Int)](subTrees,rfcs)
+          val (newSubTrees, _) = opOfListOfPairs.map(_.unzip).unzip //removes second argument from above
           newSubTrees.map(body.newSubTrees(_))
       }
   }

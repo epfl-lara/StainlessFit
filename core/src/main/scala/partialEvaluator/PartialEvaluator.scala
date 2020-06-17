@@ -8,10 +8,11 @@ import java.io.FileWriter
 import smtlib.printer.Printer
 import trees._
 import util.RunContext
-import TreeUtils.replaceSmallStep
+import TreeUtils._
 import parser.FitParser
 import stainlessfit.core.util.Utils
 import interpreter.Interpreter
+import scala.io.StdIn._
 
 object PartialEvaluator {
   val zero = BigInt(0)
@@ -20,29 +21,30 @@ object PartialEvaluator {
 
   val __ignoreRefCounting__ = true
   val __ignoreMeasure__ = true
+  val __debugPrint__ = true
 
   def smallStep(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
     def replaceNoFix(e: Tree): Option[Tree] = {
       e match {
         case IfThenElse(BooleanLiteral(true), t1, _) => 
-          println("If(true)")
+          if (__debugPrint__) println("If(true)")
           Some(t1)
         case IfThenElse(BooleanLiteral(false), _, t2) => 
-          println("If(false)")
+          if (__debugPrint__) println("If(false)")
           Some(t2)
         
         case First(Pair(t1,t2)) => 
-          println("First(pair)")
+          if (__debugPrint__) println("First(pair)")
           Some(t1)
         case Second(Pair(t1,t2)) => 
-          println("Second(pair)")
+          if (__debugPrint__) println("Second(pair)")
           Some(t2)
 
         case EitherMatch(LeftTree(lt), bl: Bind, _) => 
-          println("EitherMatch(left)")
+          if (__debugPrint__) println("EitherMatch(left)")
           Some(App(Lambda(None, bl), lt))
         case EitherMatch(RightTree(rt), _, br: Bind) => 
-          println("EitherMatch(right)")
+          if (__debugPrint__) println("EitherMatch(right)")
           Some(App(Lambda(None, br), rt))
 
         case App(Lambda(_, bind@Bind(id, body)), varValue) => 
@@ -60,13 +62,13 @@ object PartialEvaluator {
 
           lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
           if(__ignoreRefCounting__){
-            println(s"App(lambda) no ref count: $id")//: $varValue")
+            if (__debugPrint__) println(s"App(lambda) no ref count: $id")//: $varValue")
             Some(Tree.replaceBind(bind, varValue))
           }else if(simpleValue(varValue)){
-            println(s"App(lambda) simplevalue: $id")
+            if (__debugPrint__) println(s"App(lambda) simplevalue: $id")
             Some(Tree.replaceBind(bind, varValue))
           }else if(count <= 1){
-            println(s"App(lambda) ref <= 1: $id")
+            if (__debugPrint__) println(s"App(lambda) ref <= 1: $id")
             Some(t)
           }else{
             None
@@ -94,38 +96,38 @@ object PartialEvaluator {
         //case NatMatch(t, t0, bind) => ???
 
         case NatMatch(NatLiteral(`zero`), t0, _) => 
-          println("NatMatch(0)")
+          if (__debugPrint__) println("NatMatch(0)")
           Some(t0)
         case NatMatch(NatLiteral(n), _, bind: Bind) => 
-          println("NatMatch(n)")
+          if (__debugPrint__) println("NatMatch(n)")
           Some(App(Lambda(None,bind),NatLiteral(n-1)))
         
-        case Primitive(_, ((err: Error) :: _)) =>                                   Some(err)
-        case Primitive(op, (_ :: (err: Error) :: Nil)) if !op.isBoolToBoolBinOp =>  Some(err)
+        case Primitive(_, ((err: Error) :: _)) =>                                   if (__debugPrint__) println("err _"); Some(err)
+        case Primitive(op, (_ :: (err: Error) :: Nil)) if !op.isBoolToBoolBinOp =>  if (__debugPrint__) println("_ err"); Some(err)
         //Note that BoolToBoolBinOps have to be removed, because a certain value of the first argument could short circuit them out of the error
 
-        case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          Some(BooleanLiteral(!a))
+        case Primitive(Not, (BooleanLiteral(a) :: Nil)) =>                          if (__debugPrint__) println("!a"); Some(BooleanLiteral(!a))
 
-        case Primitive(Or, (BooleanLiteral(true) :: _ :: Nil)) =>                   Some(BooleanLiteral(true))
-        case Primitive(Or, (BooleanLiteral(false) :: t2 :: Nil)) =>                 Some(t2)
-        case Primitive(Or, (t1 :: BooleanLiteral(false) :: Nil)) =>                 Some(t1)
+        case Primitive(Or, (BooleanLiteral(true) :: _ :: Nil)) =>                   if (__debugPrint__) println("true || _"); Some(BooleanLiteral(true))
+        case Primitive(Or, (BooleanLiteral(false) :: t2 :: Nil)) =>                 if (__debugPrint__) println("false || _"); Some(t2)
+        case Primitive(Or, (t1 :: BooleanLiteral(false) :: Nil)) =>                 if (__debugPrint__) println("_ || false"); Some(t1)
 
-        case Primitive(And, (BooleanLiteral(false) :: _ :: Nil)) =>                 Some(BooleanLiteral(false))
-        case Primitive(And, (BooleanLiteral(true) :: t2 :: Nil)) =>                 Some(t2)
-        case Primitive(And, (t1 :: BooleanLiteral(true) :: Nil)) =>                 Some(t1)
+        case Primitive(And, (BooleanLiteral(false) :: _ :: Nil)) =>                 if (__debugPrint__) println("false && _"); Some(BooleanLiteral(false))
+        case Primitive(And, (BooleanLiteral(true) :: t2 :: Nil)) =>                 if (__debugPrint__) println("true && _"); Some(t2)
+        case Primitive(And, (t1 :: BooleanLiteral(true) :: Nil)) =>                 if (__debugPrint__) println("_ && true"); Some(t1)
 
-        case Primitive(Plus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>            Some(NatLiteral(a + b))
-        case Primitive(Minus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) => if(a>=b)  Some(NatLiteral(a - b))
-                                                                          else      Some(subError(a,b))
-        case Primitive(Mul, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(NatLiteral(a * b))
-        case Primitive(Div, (     _   :: NatLiteral(`zero`) :: Nil)) =>             Some(divError)
-        case Primitive(Div, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(NatLiteral(a / b))
-        case Primitive(Eq,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a == b))
-        case Primitive(Neq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a != b))
-        case Primitive(Leq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a <= b))
-        case Primitive(Geq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a >= b))
-        case Primitive(Lt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a < b))
-        case Primitive(Gt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             Some(BooleanLiteral(a > b))
+        case Primitive(Plus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>            if (__debugPrint__) println("a + b"); Some(NatLiteral(a + b))
+        case Primitive(Minus, (NatLiteral(a) :: NatLiteral(b) :: Nil)) => if(a>=b)  {if (__debugPrint__) println("a - b"); Some(NatLiteral(a - b))}
+                                                                          else      {if (__debugPrint__) println("a - b < 0"); Some(subError(a,b))}
+        case Primitive(Mul, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a * b"); Some(NatLiteral(a * b))
+        case Primitive(Div, (     _   :: NatLiteral(`zero`) :: Nil)) =>             if (__debugPrint__) println("_ / 0"); Some(divError)
+        case Primitive(Div, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a / b"); Some(NatLiteral(a / b))
+        case Primitive(Eq,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a == b"); Some(BooleanLiteral(a == b))
+        case Primitive(Neq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a != b"); Some(BooleanLiteral(a != b))
+        case Primitive(Leq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a <= b"); Some(BooleanLiteral(a <= b))
+        case Primitive(Geq, (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a >= b"); Some(BooleanLiteral(a >= b))
+        case Primitive(Lt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a < b"); Some(BooleanLiteral(a < b))
+        case Primitive(Gt,  (NatLiteral(a) :: NatLiteral(b) :: Nil)) =>             if (__debugPrint__) println("a > b"); Some(BooleanLiteral(a > b))
         
 
         //case Fold(tp, t) => ???
@@ -138,16 +140,32 @@ object PartialEvaluator {
         case _ => None
       }
     }
-    def replaceFix(e: Tree): Option[Tree] = {
+    def replaceFix(e: Tree, superTree: Option[(Tree, Int)]): Option[Tree] = {
       e match {
         case Fix(_, Bind(id, bind: Bind)) => 
-          println("Fix")
-          Some(App(Lambda(None, bind), e))
+          Option.when(superTree.isEmpty){
+            println(s"Fix: ${bind.id}")
+            App(Lambda(None, bind), e)
+            //Tree.replaceBind(bind, e)
+          }
+          
         case _ => None 
       }
     }
+    def fixTreeFilter(e: Tree, index: Int): Boolean = {
+      val inside = index != 0
+      e match {
+        case _: IfThenElse => inside
+        case _: EitherMatch => inside 
+        case _: NatMatch => inside
+
+        case _ => false
+      }
+    }
+
     replaceSmallStep(replaceNoFix,e).map( (_, None) ) orElse { 
-      val op = replaceSmallStep(replaceFix,e)
+      val op = replaceFirstConditionalOnSuperTree(replaceFix, e, fixTreeFilter)
+      //replaceSmallStep(replaceFix,e)
       if(__ignoreMeasure__){
         op.map((_, None))
       }else{
@@ -186,6 +204,7 @@ object PartialEvaluator {
     smallStep(e, previousMeasure) match {
       case None => e
       case Some((value, measure)) => 
+        readLine()
         val postCond1 = previousMeasure match {
           case None => true
           case Some(prev) => 
@@ -203,10 +222,10 @@ object PartialEvaluator {
           val afterEval = Interpreter.evaluate(value)
           val postCond2 = pastEval.map(_ == afterEval) getOrElse true
           if(!postCond2){
-            writeTreeToFile("oldTree.sf",e)
+            /*writeTreeToFile("oldTree.sf",e)
             writeTreeToFile("oldEval.sf",pastEval.get)
             writeTreeToFile("newTree.sf",value)
-            writeTreeToFile("newEval.sf",afterEval)
+            writeTreeToFile("newEval.sf",afterEval)*/
             rc.reporter.fatalError(s"Second postcond fail: \nold tree: $e \npartevaled tree: \n${Printer.exprAsString(value)}\nevaluates to: \n${Printer.exprAsString(afterEval)}\nBut old evaluated tree was: \n${pastEval.map(Printer.exprAsString(_)).getOrElse("")}")
           }
           afterEval
