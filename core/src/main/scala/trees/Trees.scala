@@ -231,6 +231,44 @@ sealed abstract class Tree extends Positioned {
     val (children, reconstruct) = this.deconstruct
     reconstruct(children.map(f))
   }
+  /*TODO
+  def map(t: Tree, p: Tree => Option[Tree])(implicit rc: RunContext): Tree = {
+    p(t) getOrElse {
+      val subtrees = t.subTrees()
+      t.newSubTrees(subtrees.map(map(_,p)))
+    }
+  }
+
+  def freshenIdentifiers(t: Tree)(implicit rc: RunContext): Tree = {
+    def discover(t: Tree): List[Identifier] = {
+      t match {
+        case Var(id) => 
+          List(id)
+        case _ =>
+          t.subTrees().flatMap(discover(_))
+      }
+    }
+
+    def update(t: Tree, idMap: Map[Identifier, Identifier]): Option[Tree] = {
+      t match {
+        case Var(id) => 
+          Some( Var(idMap(id)) )
+        case _ =>
+          None 
+      }
+    }
+
+    val ids = discover(t)
+    val idMap = ids.map(id => (id, id.freshen())).toMap
+    map(t, update(_, idMap))
+  }
+}
+
+case class Identifier(id: Int, name: String) extends Positioned {
+  override def toString: String = name + "#" + id
+  // override def toString: String = name
+
+  def asString(implicit rc: RunContext): String = Printer.asString(this)*/
 
   def postMap(p: Tree => Tree => Tree): Tree = {
     val resultTransformer = p(this)

@@ -21,8 +21,6 @@ object PartialEvaluator {
   val __ignoreRefCounting__ = true
   val __ignoreMeasure__ = true
 
-  //see erasure
-
   def smallStep(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
     def replaceNoFix(e: Tree): Option[Tree] = {
       e match {
@@ -46,7 +44,7 @@ object PartialEvaluator {
         case EitherMatch(RightTree(rt), _, br: Bind) => 
           println("EitherMatch(right)")
           Some(App(Lambda(None, br), rt))
-        
+
         case App(Lambda(_, bind@Bind(id, body)), varValue) => 
 
           def simpleValue(v: Tree): Boolean = v match {
