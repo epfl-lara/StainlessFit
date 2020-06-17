@@ -45,7 +45,7 @@ object PartialEvaluator {
           println("EitherMatch(right)")
           Some(App(Lambda(None, br), rt))
 
-        case App(Lambda(_, bind@Bind(id, body)), varValue) => 
+        case App(Lambda(_, bind@Bind(id, body)), _varValue) => 
 
           def simpleValue(v: Tree): Boolean = v match {
             case Var(_) => true
@@ -55,6 +55,8 @@ object PartialEvaluator {
             case Error(s, opT) => opT.forall(simpleValue(_)) //returns true if None
             case _ => false 
           }
+
+          val varValue = _varValue.freshenIdentifiers()
 
           lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
           if(__ignoreRefCounting__){
@@ -195,21 +197,24 @@ object PartialEvaluator {
         if(!postCond1){
           rc.reporter.fatalError(s"First postcond fail: previousMeasure: $previousMeasure, measure: $measure")
         }
-
-        lazy val afterEval = Interpreter.evaluate(value)
         val usePost2 = false
-        lazy val postCond2 = pastEval.map(_ == afterEval) getOrElse true
-      
-        if(usePost2 && !postCond2){
-          writeTreeToFile("oldTree.sf",e)
-          writeTreeToFile("oldEval.sf",pastEval.get)
-          writeTreeToFile("newTree.sf",value)
-          writeTreeToFile("newEval.sf",afterEval)
-          rc.reporter.fatalError(s"Second postcond fail: \nold tree: $e \npartevaled tree: \n${Printer.exprAsString(value)}\nevaluates to: \n${Printer.exprAsString(afterEval)}\nBut old evaluated tree was: \n${pastEval.map(Printer.exprAsString(_)).getOrElse("")}")
+        
+        val afterEvalOpt = Option.when(usePost2){
+          val afterEval = Interpreter.evaluate(value)
+          val postCond2 = pastEval.map(_ == afterEval) getOrElse true
+          if(!postCond2){
+            writeTreeToFile("oldTree.sf",e)
+            writeTreeToFile("oldEval.sf",pastEval.get)
+            writeTreeToFile("newTree.sf",value)
+            writeTreeToFile("newEval.sf",afterEval)
+            rc.reporter.fatalError(s"Second postcond fail: \nold tree: $e \npartevaled tree: \n${Printer.exprAsString(value)}\nevaluates to: \n${Printer.exprAsString(afterEval)}\nBut old evaluated tree was: \n${pastEval.map(Printer.exprAsString(_)).getOrElse("")}")
+          }
+          afterEval
         }
         
+        
         val currentMeasure = measure orElse previousMeasure
-        evaluate(value, currentMeasure, Some(afterEval))
+        evaluate(value, currentMeasure, afterEvalOpt)
     }
   }
 }
