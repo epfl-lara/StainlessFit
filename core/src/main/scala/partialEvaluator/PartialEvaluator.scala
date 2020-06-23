@@ -2,6 +2,7 @@ package stainlessfit
 package core
 package partialEvaluator
 
+import stainlessfit.core.extraction._
 import java.io.File
 import java.io.BufferedWriter
 import java.io.FileWriter
@@ -15,13 +16,21 @@ import interpreter.Interpreter
 import scala.io.StdIn._
 
 object PartialEvaluator {
+  def pipeline()(implicit rc: RunContext) =
+        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+        DebugPhase(new Namer(), "Namer") andThen
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new Erasure(), "Erasure")
+
+
+
   val zero = BigInt(0)
   def subError(a: BigInt,b: BigInt) = Error(s"Subtraction between ${a} and ${b} will yield a negative value", None)
   def divError = Error(s"Attempt to divide by zero", None)
 
   val __ignoreRefCounting__ = true
   val __ignoreMeasure__ = true
-  val __debugPrint__ = true
+  val __debugPrint__ = false
 
   def smallStep(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
     def replaceNoFix(e: Tree): Option[Tree] = {
@@ -144,9 +153,9 @@ object PartialEvaluator {
       e match {
         case Fix(_, Bind(id, bind: Bind)) => 
           Option.when(superTree.isEmpty){
-            println(s"Fix: ${bind.id}")
-            App(Lambda(None, bind), e)
-            //Tree.replaceBind(bind, e)
+            if (__debugPrint__) println(s"Fix: ${bind.id}")
+            //App(Lambda(None, bind), e)
+            Tree.replaceBind(bind, e)
           }
           
         case _ => None 
@@ -196,15 +205,17 @@ object PartialEvaluator {
   }
 
   def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None)(implicit rc: RunContext): Tree = {
-    
-    //Printer.exprInfo(e)
-    //println(s"=============================================${previousMeasure}")
+    if(__debugPrint__){
+      println(s"=============================================${previousMeasure}")
+      Printer.exprInfo(e)
+    }
+    //println(e)
     //Thread.sleep(1000)
     
     smallStep(e, previousMeasure) match {
       case None => e
       case Some((value, measure)) => 
-        readLine()
+        //readLine()
         val postCond1 = previousMeasure match {
           case None => true
           case Some(prev) => 

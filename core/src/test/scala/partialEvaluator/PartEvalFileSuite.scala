@@ -4,6 +4,7 @@ import Utils._
 import org.scalatest.funsuite.AnyFunSuite
 
 import core.Core
+import stainlessfit.core.partialEvaluator.PartialEvaluator
 
 class PartEvalFileSuite extends AnyFunSuite {
 
@@ -27,10 +28,20 @@ class PartEvalFileSuite extends AnyFunSuite {
       val expectedResultFile = new java.io.File(f)
       val codeFile = new java.io.File(codeFileName)
 
-      val expectedResult = Core.parseFile(expectedResultFile)
-      val result = Core.partEvalFile(codeFile)
-
-      assert(result === expectedResult)
+      val pe = Core.parseFile(expectedResultFile)
+      pe match {
+        case Left(value) => 
+          assert(false,value)
+        case Right(value) =>
+          val (expectedResult, _) = PartialEvaluator.pipeline().transform(value)
+          val res = Core.partEvalFile(codeFile)
+          res match {
+            case Left(value) => 
+              assert(false, value)
+            case Right(result) =>
+              assert(result === expectedResult)
+          }
+      }
     }
   }
   
