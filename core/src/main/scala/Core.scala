@@ -56,7 +56,7 @@ object Core {
 
       val (t, _) = pipeline.transform(src)
 
-      Interpreter.evaluate(t) match {
+      rc.bench.time("Evaluation") { Interpreter.evaluate(t) } match {
         case Error(error, _) => Left(error)
         case v => Right(v)
       }
@@ -80,6 +80,11 @@ object Core {
             rc.bench.time("makeHTMLFile") {
               util.HTMLOutput.makeHTMLFile(f, List(tree), success)
             }
+          if (rc.config.coq)
+            rc.bench.time("makeCoqFile") {
+              util.CoqOutput.makeCoqFile(f, List(tree), success)
+            }
+
 
           Right((success, tree))
       }

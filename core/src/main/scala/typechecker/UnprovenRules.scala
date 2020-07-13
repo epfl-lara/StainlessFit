@@ -22,7 +22,7 @@ trait UnprovenRules {
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
-          case InferJudgment(_, _, _, tpe) :: _ =>
+          case InferJudgment(_, _, _, tpe, _) :: _ =>
             (true, InferJudgment("InferSize", c, e, NatType))
           case _ =>
             emitErrorWithJudgment("InferSize", g, None)
@@ -38,7 +38,7 @@ trait UnprovenRules {
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
-          case InferJudgment(_, _, _, tpe) :: _ =>
+          case InferJudgment(_, _, _, tpe, _) :: _ =>
             (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType)))
           case _ =>
             emitErrorWithJudgment("InferLeft", g, None)
@@ -54,7 +54,7 @@ trait UnprovenRules {
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
-          case InferJudgment(_, _, _, tpe) :: _ =>
+          case InferJudgment(_, _, _, tpe, _) :: _ =>
             (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe)))
           case _ =>
             emitErrorWithJudgment("InferRight", g, None)
@@ -77,7 +77,7 @@ trait UnprovenRules {
       )
       Some((List(_ => subgoal),
         {
-          case CheckJudgment(_, _, _, _) :: _ =>
+          case CheckJudgment(_, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckSum", c, t, tpe))
           case _ =>
             emitErrorWithJudgment("CheckSum", g, None)
@@ -99,8 +99,8 @@ trait UnprovenRules {
         {
           case
             AreEqualJudgment(_, _, _, _, _) ::
-            CheckJudgment(_, _, _, _) ::
-            CheckJudgment(_, _, _, _) :: _ =>
+            CheckJudgment(_, _, _, _, _) ::
+            CheckJudgment(_, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("NatEqualToEqual", c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true), ""))
           case _ =>
             emitErrorWithJudgment("NatEqualToEqual", g, None)
@@ -256,11 +256,11 @@ trait UnprovenRules {
       res.map {
         case (g2, (subgoal, freshId)) =>
           def newGoal(prev: List[Judgment]): Goal = prev match {
-            case InferJudgment(_, _, t, tp) :: Nil =>
+            case InferJudgment(_, _, t, tp, _) :: Nil =>
               val c1 = g2.c.incrementLevel.bind(freshId, tp)
               val c2 = c1.addEquality(Var(freshId), t)
               g2.updateContext(c2)
-            case CheckJudgment(_, _, t, tp) :: Nil =>
+            case CheckJudgment(_, _, t, tp, _) :: Nil =>
               val c1 = g2.c.incrementLevel.bind(freshId, tp)
               val c2 = c1.addEquality(Var(freshId), t)
               g2.updateContext(c2)
@@ -290,7 +290,7 @@ trait UnprovenRules {
         Some((
           List(_ => checkC, _ => equalT1, _ => equalT2),
           {
-            case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+            case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopIf", c, t1, t2, ""))
             case _ =>
               emitErrorWithJudgment("TopIf", EqualityGoal(c, t1, t2), None)
@@ -324,7 +324,7 @@ trait UnprovenRules {
         Some((
           List(_ => checkC, _ => equalT1, _ => equalT2),
           {
-            case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+            case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopMatch", c, t1, t2, ""))
             case _ =>
               emitErrorWithJudgment("TopMatch", EqualityGoal(c, t1, t2), None)

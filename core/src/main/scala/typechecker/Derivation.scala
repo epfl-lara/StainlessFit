@@ -10,11 +10,13 @@ object Derivation {
   sealed abstract class Judgment {
     val context: Context
     val name: String
+    val coqName: Option[(String, Option[Tree])] = None
   }
 
-  case class CheckJudgment(override val name: String, override val context: Context, e: Tree, t: Tree) extends Judgment
+  case class CheckJudgment(override val name: String, override val context: Context, e: Tree, t: Tree, override val coqName: Option[(String, Option[Tree])] = None) extends Judgment
+
   case class SubtypeJudgment(override val name: String, override val context: Context, ty1: Tree, ty2: Tree) extends Judgment
-  case class InferJudgment(override val name: String, override val context: Context, e: Tree, t: Tree) extends Judgment
+  case class InferJudgment(override val name: String, override val context: Context, e: Tree, t: Tree, override val coqName: Option[(String, Option[Tree])] = None) extends Judgment
   case class AreEqualJudgment(override val name: String, override val context: Context, t1: Tree, t2: Tree, s: String) extends Judgment
   case class ErrorJudgment(override val name: String, goal: Goal, err: Option[String]) extends Judgment {
      override val context: Context = goal.c

@@ -42,7 +42,7 @@ object HTMLOutput {
   }
 
   def judgementToHTML(j: Judgment)(implicit rc: RunContext): String = j match {
-    case CheckJudgment(name, context, t, tp) =>
+    case CheckJudgment(name, context, t, tp, _) =>
       "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termOutput(t) + " ⇓ " + typeOutput(tp) +
@@ -54,7 +54,7 @@ object HTMLOutput {
         typeOutput(ty1) + " <: " + typeOutput(ty2) +
       "</span>"
 
-    case InferJudgment(name, context, t, tp) =>
+    case InferJudgment(name, context, t, tp, _) =>
       "<span class='infer'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termOutput(t) + " ⇑ " + typeOutput(tp) +
