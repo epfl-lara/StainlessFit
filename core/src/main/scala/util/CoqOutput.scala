@@ -52,23 +52,31 @@ object CoqOutput {
     if (context.termVariables.isEmpty) {
       "nil"
     } else {
-       "(" +context.termVariables.foldRight("nil")({
-        case ((id,tp), acc) => "(" + toCoqIndex(id).toString() +","+ treeToCoq(toNamelessRep(tp)(Map()))+")::"+acc
-      })+ ")"
+       "(" +context.termVariables.foldRight("")({
+        case ((id,tp), acc) => acc+ "(" + toCoqIndex(id).toString() +","+ treeToCoq(toNamelessRep(tp)(Map()))+")::"
+      })+ "nil)"
     }
   }
 
+  def printJudgement(name: String, context: Context, t: Tree, tp: Tree): String =
+    "( J (" + name + ") "+ typecontextToCoq(context) +" "+ termcontextToCoq(context) +" " + treeToCoq(toNamelessRep(t)(Map())) + " " + treeToCoq(toNamelessRep(tp)(Map())) + ")"
+
+
   def judgementToCoq(j: Judgment)(implicit rc: RunContext): String = j match {
-    case CheckJudgment(name, context, t, tp, _) =>
-        "( J (" + name + ") "+ typecontextToCoq(context) +" "+ termcontextToCoq(context) +" " + treeToCoq(toNamelessRep(t)(Map())) + " " + treeToCoq(toNamelessRep(tp)(Map())) + ")"
+    
+    case CheckJudgment(name, context, t, tp, None) => printJudgement(name, context, t, tp)
+    case CheckJudgment(_, context, t, tp, Some((name, None))) => printJudgement(name, context, t, tp)
+    case CheckJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement(name+ " " + treeToCoq(toNamelessRep(t_ind)(Map())), context, t, tp)
 
     case SubtypeJudgment(name, context, ty1, ty2) =>
         "(" + (context.level.toString) + " - " + (name) + ") ⊢ " +
         typeOutput(ty1) + " <: " + typeOutput(ty2) 
 
-    case InferJudgment(name, context, t, tp, _) =>
-        "( J (" + name+ ") "+ typecontextToCoq(context) +" "+ termcontextToCoq(context) +" " + treeToCoq(toNamelessRep(t)(Map())) + " " + treeToCoq(toNamelessRep(tp)(Map())) + ")"
+    case InferJudgment(name, context, t, tp, None) => printJudgement(name, context, t, tp)
+    case InferJudgment(_, context, t, tp, Some((name, None))) => printJudgement(name, context, t, tp)
+    case InferJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement(name+ " " + treeToCoq(toNamelessRep(t_ind)(Map())), context, t, tp)
 
+    
     case AreEqualJudgment(name, context, t1, t2, _) =>
         "(" + (context.level.toString) + " - " + (name) + ") ⊢ " +
         termOutput(t1) + " ≡ " + termOutput(t2) 
@@ -93,7 +101,7 @@ object CoqOutput {
     case Nil => " nil"
     case _ => {
       val indentation = "  " * depth
-      "\n" + indentation + l.map(t => nodeTreeToCoq(t, depth)).mkString("\n"+indentation+"::") + "::nil"
+      "\n" + indentation + "(" + l.map(t => nodeTreeToCoq(t, depth)).mkString("\n"+indentation+"::") + "::nil)"
     }
   } 
 
@@ -109,8 +117,12 @@ object CoqOutput {
     val fw = new FileWriter(coqfile)
     val status = if (success) "Success" else "Failed"
     val name = file.getName()
-    fw.write(s"(* Type Checking File $name: $status *)\n")
-    fw.write(nodeTreeToCoq(trees, 0) + "\n")
+    fw.write(s"(* Type Checking File $name: $status *)\n\n")
+    fw.write("Require Export SystemFR.Derivation.\n\n")
+    fw.write("Definition ds : (list derivation) := ")
+    fw.write(nodeTreeToCoq(trees, 0) + ".\n \n")
+    fw.write("Lemma derivationValid: List.forallb is_valid ds = true.\n")
+    fw.write("Proof. unfold ds, List.forallb, is_valid. reflexivity. Qed.\n")
     fw.close()
     rc.reporter.info(s"Created Coq file with derivations in: $coqfile")
   }
@@ -193,7 +205,7 @@ object CoqOutput {
     case NatLiteral(n) if (n.intValue == 0) => "zero"
     case NatLiteral(n) => s"(succ ${treeToCoq(NatLiteral(n-1))})"
     case Succ(t0) => s"(succ ${treeToCoq(t0)})"
-    case BooleanLiteral(b) => s"t_${b.toString()}"
+    case BooleanLiteral(b) => s"t${b.toString()}"
     case IfThenElse(cond, t1, t2) => s"(ite ${treeToCoq(cond)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case App(t1, t2) => s"(app ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case Lambda(None, Bind(id, body)) => s"(notype_lambda ${treeToCoq(body)})"
@@ -203,6 +215,9 @@ object CoqOutput {
     case Second(t0) => s"(succ ${treeToCoq(t0)})"
     case LetIn(Some(tp), v, body) => s"(tlet ${treeToCoq(v)} ${treeToCoq(tp)} ${treeToCoq(body)})"
     case LetIn(None, v, body) => s"(notype_tlet ${treeToCoq(v)} ${treeToCoq(body)})"
+    case EitherMatch(t, t1, t2) => s"(sum_match ${treeToCoq(t)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
+    case LeftTree(t) => s"(tleft ${treeToCoq(t)})"
+    case RightTree(t) => s"(tright ${treeToCoq(t)})"
 
     // Binder
     case Bind(id, body) => treeToCoq(body) // Not sure about this one
@@ -225,54 +240,5 @@ object CoqOutput {
 
     case _ => s"NOCOQPRINT [${t.toString()}]"
   }
-/*
-  case class Succ(t: Tree) extends Tree
-case object UnitLiteral extends Tree
-case class BooleanLiteral(b: Boolean) extends Tree
-case class Bind(id: Identifier, body: Tree) extends Tree
-case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree
-case class Lambda(tp: Option[Tree], bind: Tree) extends Tree
-case class DefFunction(args: Seq[DefArgument], optRet: Option[Tree], optMeasure: Option[Tree], body: Tree, rest: Tree) extends Tree
-case class ErasableLambda(ty: Tree, bind: Tree) extends Tree
-case class App(t1: Tree, t2: Tree) extends Tree
-case class Pair(t1: Tree, t2: Tree) extends Tree
-case class Size(t: Tree) extends Tree
-case class First(t: Tree) extends Tree
-case class Second(t: Tree) extends Tree
-case class Fix(tp: Option[Tree], bind: Tree) extends Tree
-case class NatMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
-case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
-case class LeftTree(t: Tree) extends Tree
-case class RightTree(t: Tree) extends Tree
-case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree
-case class MacroTypeDecl(tp: Tree, body: Tree) extends Tree
-case class MacroTypeInst(v: Tree, args: Seq[(Boolean, Tree)]) extends Tree
-case class Error(s: String, t: Option[Tree]) extends Tree
-case class Primitive(op: Operator, args: List[Tree]) extends Tree
-case class ErasableApp(t1: Tree, t2: Tree) extends Tree
-case class Refl(t1: Tree, t2: Tree) extends Tree
-case class Fold(tp: Tree, t: Tree) extends Tree
-case class Unfold(t: Tree, bind: Tree) extends Tree
-case class UnfoldPositive(t: Tree, bind: Tree) extends Tree
-case class Abs(t: Tree) extends Tree
-case class TypeApp(t1: Tree, t2: Tree) extends Tree
-case object BottomType extends Tree
-case object TopType extends Tree
-case object UnitType extends Tree
-case object BoolType extends Tree
-case object NatType extends Tree
-case class SigmaType(t1: Tree, t2: Tree) extends Tree
-case class SumType(t1: Tree, t2: Tree) extends Tree
-case class PiType(t1: Tree, t2: Tree) extends Tree
-case class IntersectionType(t1: Tree, t2: Tree) extends Tree
-case class ExistsType(t1: Tree, t2: Tree) extends Tree
-case class RefinementType(t1: Tree, t2: Tree) extends Tree
-case class RefinementByType(t1: Tree, t2: Tree) extends Tree
-case class RecType(n: Tree, bind: Tree) extends Tree
-case class PolyForallType(t: Tree) extends Tree
-case class UnionType(t1: Tree, t2: Tree) extends Tree
-case class EqualityType(t1: Tree, t2: Tree) extends Tree
-case class Because(t1: Tree, t2: Tree) extends Tree
-case class Node(name: String, children: Seq[Tree]) extends Tree
-*/
+
 }

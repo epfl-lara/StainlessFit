@@ -20,7 +20,7 @@ trait ProvenRules {
       TypeChecker.debugs(g, "InferBool")
       Some((
         List(),
-        _ => (true, InferJudgment("InferBool", c, BooleanLiteral(b), BoolType))
+        _ => (true, InferJudgment("InferBool", c, BooleanLiteral(b), BoolType, Some("J_Bool", None)))
       ))
     case g =>
       None
@@ -31,7 +31,7 @@ trait ProvenRules {
       TypeChecker.debugs(g, "CheckBool")
       Some((
         List(),
-        _ => (true, CheckJudgment("CheckBool", c, BooleanLiteral(b), BoolType))
+        _ => (true, CheckJudgment("CheckBool", c, BooleanLiteral(b), BoolType, Some("J_Bool", None)))
       ))
     case g =>
       None
@@ -40,7 +40,7 @@ trait ProvenRules {
   val InferNat = Rule("InferNat", {
     case g @ InferGoal(c, NatLiteral(n)) =>
       TypeChecker.debugs(g, "InferNat")
-      Some((List(), _ => (true, InferJudgment("InferNat", c, NatLiteral(n), NatType))))
+      Some((List(), _ => (true, InferJudgment("InferNat", c, NatLiteral(n), NatType, Some("J_Nat", None)))))
     case g =>
       None
   })
@@ -48,7 +48,7 @@ trait ProvenRules {
   val CheckNat = Rule("CheckNat", {
     case g @ CheckGoal(c, NatLiteral(n), NatType) =>
       TypeChecker.debugs(g, "CheckNat")
-      Some((List(), _ => (true, CheckJudgment("CheckNat", c, NatLiteral(n), NatType))))
+      Some((List(), _ => (true, CheckJudgment("CheckNat", c, NatLiteral(n), NatType, Some("J_Nat", None)))))
     case g =>
       None
   })
@@ -56,7 +56,7 @@ trait ProvenRules {
   val InferUnit = Rule("InferUnit", {
     case g @ InferGoal(c, UnitLiteral) =>
       TypeChecker.debugs(g, "InferUnit")
-      Some((List(), _ => (true, InferJudgment("InferUnit", c, UnitLiteral, UnitType))))
+      Some((List(), _ => (true, InferJudgment("InferUnit", c, UnitLiteral, UnitType, Some("J_Unit", None)))))
     case g =>
       None
   })
@@ -64,7 +64,7 @@ trait ProvenRules {
   val CheckUnit = Rule("CheckUnit", {
     case g @ CheckGoal(c, UnitLiteral, UnitType) =>
       TypeChecker.debugs(g, "CheckUnit")
-      Some((List(), _ => (true, CheckJudgment("CheckUnit", c, UnitLiteral, UnitType))))
+      Some((List(), _ => (true, CheckJudgment("CheckUnit", c, UnitLiteral, UnitType, Some("J_Unit", None)))))
     case g =>
       None
   })
@@ -75,7 +75,7 @@ trait ProvenRules {
       Some((List(), _ =>
         c.getTypeOf(id) match {
           case None => emitErrorWithJudgment("InferVar", g, Some(s"$id is not in context"))
-          case Some(tpe) => (true, InferJudgment("InferVar", c, Var(id), tpe))
+          case Some(tpe) => (true, InferJudgment("InferVar", c, Var(id), tpe, Some("J_Var", None)))
         }
       ))
 
@@ -88,7 +88,7 @@ trait ProvenRules {
       if c.termVariables.contains(id) && c.termVariables(id).isEqual(ty) =>
 
       TypeChecker.debugs(g, "CheckVar")
-      Some((List(), _ => (true, CheckJudgment("CheckVar", c, Var(id), ty))))
+      Some((List(), _ => (true, CheckJudgment("CheckVar", c, Var(id), ty, Some("J_Var", None)))))
     case g =>
       None
   })
@@ -140,7 +140,7 @@ trait ProvenRules {
         List(_ => gv, _ => gb),
         {
           case CheckJudgment(_, _, _, _, _) :: InferJudgment(_, _, _, tyb, _) :: _ =>
-            (true, InferJudgment("InferLet", c, e, tyb.replace(id, v)))
+            (true, InferJudgment("InferLet", c, e, tyb.replace(id, v), Some("J_Let", Some(tyb))))
           case _ =>
             emitErrorWithJudgment("InferLet", g, None)
         }
@@ -159,7 +159,7 @@ trait ProvenRules {
         List(_ => gb),
         {
           case InferJudgment(_, _, _, tyb, _) :: _ =>
-            (true, InferJudgment("InferLambda", c, e, PiType(ty1, Bind(id, tyb))))
+            (true, InferJudgment("InferLambda", c, e, PiType(ty1, Bind(id, tyb)), Some("J_Lambda", None)))
           case _ =>
             // Returning Top is sound but a bit misleading
             // (true, InferJudgment(c, e, TopType))
@@ -216,7 +216,7 @@ trait ProvenRules {
                 )
               )
               case Some(ty) =>
-                (true, InferJudgment("InferIf", c, e, ty))
+                (true, InferJudgment("InferIf", c, e, ty, Some("J_If", None)))
             }
 
           case _ =>
@@ -290,7 +290,7 @@ trait ProvenRules {
                   Some(s"Cannot unify types $ty0 and $tyn")
                 )
               )
-              case Some(ty) => (true, InferJudgment("InferMatch", c, e, ty))
+              case Some(ty) => (true, InferJudgment("InferMatch", c, e, ty, Some("J_Match", None)))
             }
 
           case _ =>
@@ -338,7 +338,7 @@ trait ProvenRules {
                 case None => emitErrorWithJudgment("InferEitherMatch", g,
                   Some(s"Cannot unify types $ty1 and $ty2")
                 )
-                case Some(ty) => (true, InferJudgment("InferEitherMatch", c, e, ty))
+                case Some(ty) => (true, InferJudgment("InferEitherMatch", c, e, ty, Some("J_SumMatch", Some(ty))))
               }
 
           case _ => emitErrorWithJudgment("InferEitherMatch", g, None)
@@ -375,7 +375,7 @@ trait ProvenRules {
         Some((
           List(_ => CheckGoal(c3, t.replace(n1, freshN).replace(y, freshY), ty.replace(n, freshN))), {
             case CheckJudgment(_, _, _, _, _) :: _ =>
-              (true, InferJudgment("InferFix", c, e, IntersectionType(NatType, Bind(n, ty))))
+              (true, InferJudgment("InferFix", c, e, IntersectionType(NatType, Bind(n, ty)), Some("J_Fix", None)))
             case _ =>
               emitErrorWithJudgment("InferFix", g, None)
           }
@@ -442,7 +442,7 @@ trait ProvenRules {
                 CheckJudgment(_, _, _, _, _) :: _ =>
             dropRefinements(ty) match {
               case PiType(_, Bind(x, ty)) =>
-                (true, InferJudgment("InferApp", c, e, ty.replace(x, t2)))
+                (true, InferJudgment("InferApp", c, e, ty.replace(x, t2), Some("J_App", None)))
               case _ => emitErrorWithJudgment("InferApp", g,
                 Some(s"Expected a Pi-type for ${t1}, found ${ty} instead")
               )
@@ -506,7 +506,7 @@ trait ProvenRules {
         {
           case InferJudgment(_, _, _, ty1, _) :: InferJudgment(_, _, _, ty2, _) :: _ =>
             val inferredType = SigmaType(ty1, Bind(Identifier.fresh("X"), ty2))
-            (true, InferJudgment("InferPair", c, e, inferredType))
+            (true, InferJudgment("InferPair", c, e, inferredType, Some("J_PP", None)))
           case _ =>
             emitErrorWithJudgment("InferPair", g, None)
         }
@@ -522,7 +522,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, SigmaType(ty, _), _) :: _ =>
-            (true, InferJudgment("InferFirst", c, e, ty))
+            (true, InferJudgment("InferFirst", c, e, ty, Some("J_Pi1", None)))
           case _ =>
             emitErrorWithJudgment("InferFirst", g, None)
         }
@@ -538,7 +538,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, SigmaType(_, Bind(x, ty)), _) :: _ =>
-            (true, InferJudgment("InferSecond", c, e, ty.replace(x, First(t))))
+            (true, InferJudgment("InferSecond", c, e, ty.replace(x, First(t)), Some("J_Pi2", None)))
           case _ =>
             emitErrorWithJudgment("InferSecond", g, None)
         }
@@ -554,7 +554,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckLeft", c, e, tpe))
+            (true, CheckJudgment("CheckLeft", c, e, tpe, Some("J_Left", None)))
           case _ =>
             emitErrorWithJudgment("CheckLeft", g, None)
         }
@@ -570,7 +570,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckRight", c, e, tpe))
+            (true, CheckJudgment("CheckRight", c, e, tpe, Some("J_Right", None)))
           case _ =>
             emitErrorWithJudgment("CheckRight", g, None)
         }
@@ -587,7 +587,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckLambda", c, e, tpe))
+            (true, CheckJudgment("CheckLambda", c, e, tpe, Some("J_Lambda", None)))
           case _ =>
             emitErrorWithJudgment("CheckLambda", g, None)
         }
@@ -629,7 +629,7 @@ trait ProvenRules {
                 CheckJudgment(_, _, _, _, _) ::
                 CheckJudgment(_, _, _, _, _) ::
                 _ =>
-            (true, CheckJudgment("CheckIf", c, e, ty))
+            (true, CheckJudgment("CheckIf", c, e, ty, Some("J_If", None)))
           case _ =>
             emitErrorWithJudgment("CheckIf", g, None)
         }
@@ -669,7 +669,7 @@ trait ProvenRules {
         case InferJudgment(_, _, _, ty, _) :: _ =>
           dropRefinements(ty) match {
             case SumType(ty1, ty2) =>
-              val c1 = c0.addEquality(t, LeftTree(Var(id1))).bind(id1, ty1)
+              val c1 = c0.bind(id1, ty1).addEquality(t, LeftTree(Var(id1)))
               CheckGoal(c1, t1, tpe)
             case _ => ErrorGoal(c, Some("Expected a sum type for " + t + ", found: " + ty))
           }
@@ -679,7 +679,7 @@ trait ProvenRules {
         case InferJudgment(_, _, _, ty, _) :: _ =>
           dropRefinements(ty) match {
             case SumType(ty1, ty2) =>
-              val c2 = c0.addEquality(t, RightTree(Var(id2))).bind(id2, ty2)
+              val c2 = c0.bind(id2, ty2).addEquality(t, RightTree(Var(id2)))
               CheckGoal(c2, t2, tpe)
             case _ => ErrorGoal(c, Some("Expected a sum type for " + t + ", found: " + ty))
           }
@@ -690,7 +690,7 @@ trait ProvenRules {
           case  InferJudgment(_, _, _, _, _) ::
                 CheckJudgment(_, _, _, _, _) ::
                 CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckEitherMatch", c, e, tpe))
+            (true, CheckJudgment("CheckEitherMatch", c, e, tpe, Some("J_SumMatch", Some(tpe))))
 
           case _ => emitErrorWithJudgment("CheckEitherMatch", g, None)
         }

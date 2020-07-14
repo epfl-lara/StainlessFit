@@ -4,14 +4,15 @@ package typechecker
 
 import trees._
 import util.RunContext
+import scala.collection.immutable.SeqMap
 
 object Context {
-  def empty(implicit rc: RunContext): Context = Context(Map(), Set(), 0, 0)
-  def empty(max: Int)(implicit rc: RunContext): Context = Context(Map(), Set(), 0, max)
+  def empty(implicit rc: RunContext): Context = Context(SeqMap(), Set(), 0, 0)
+  def empty(max: Int)(implicit rc: RunContext): Context = Context(SeqMap(), Set(), 0, max)
 }
 
 case class Context(
-  val termVariables: Map[Identifier, Tree],
+  val termVariables: SeqMap[Identifier, Tree],
   val typeVariables: Set[Identifier],
   val level: Int,
   val n: Int // All variables in the context must have an identifier strictly smaller than n.
