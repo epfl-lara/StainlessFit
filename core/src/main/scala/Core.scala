@@ -15,6 +15,8 @@ import java.io.File
 
 import core.util.RunContext
 
+import scala.sys.process._
+
 object Core {
 
   def parseString(s: String)(implicit rc: RunContext): Either[String, Tree] = {
@@ -62,18 +64,56 @@ object Core {
       }
     }
 
+  def hasZ3(): Boolean = {
+    try {
+      "z3 --version".!(ProcessLogger(_ => ()))
+      true
+    } catch {
+      case _: Throwable => false
+    }
+  }
+
   def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
+    if (hasZ3()) {
+      parseFile(f) flatMap { src =>
+
+        val pipeline =
+          DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
+          DebugPhase(new FixIndexing(), "FixIndexing") andThen
+          DebugPhase(new Namer(), "Namer") andThen
+          DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers")
+
+        val (t, _) = pipeline.transform(src)
+
+        rc.bench.time("Type Checking") { new TypeChecker().infer(t) } match {
+          case None => Left(s"Could not typecheck: $f")
+          case Some((success, tree)) =>
+            if (rc.config.html)
+              rc.bench.time("makeHTMLFile") {
+                util.HTMLOutput.makeHTMLFile(f, List(tree), success)
+              }
+
+            Right((success, tree))
+        }
+      }
+    } else {
+      Left("The z3 solver is required for the typecheck command")
+    }
+  }
+
+  def sDepFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     parseFile(f) flatMap { src =>
 
       val pipeline =
         DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
         DebugPhase(new FixIndexing(), "FixIndexing") andThen
         DebugPhase(new Namer(), "Namer") andThen
-        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers")
+        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
+        DebugPhase(new ChooseEncoding(), "ChooseEncoding")
 
-      val (t, ((_, max), _)) = pipeline.transform(src)
+      val (t, _) = pipeline.transform(src)
 
-      rc.bench.time("Type Checking") { new TypeChecker().infer(t, max) } match {
+      rc.bench.time("SDep") { new SDep().infer(t) } match {
         case None => Left(s"Could not typecheck: $f")
         case Some((success, tree)) =>
           if (rc.config.html)
@@ -90,4 +130,5 @@ object Core {
       }
     }
   }
+
 }

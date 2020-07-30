@@ -1,0 +1,9 @@
+val n = choose[Nat];
+val f = fun of (a [{[Nat] n}]) (b [{[Nat] n}]) = { 0 };
+val m = n;
+
+val res1 = f n n;
+val res2 = f m n;
+val res3 = f m m;
+// val o = 0; val res4 = f m o;  // Fails (as it should)
+()

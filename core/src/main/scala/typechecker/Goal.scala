@@ -44,7 +44,32 @@ case class SubtypeGoal(c: Context, tp1: Tree, tp2: Tree) extends Goal {
   }
 
   def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Goal = {
-    CheckGoal(c.replace(id, t), tp1.replace(id, t), tp2.replace(id, t))
+    SubtypeGoal(c.replace(id, t), tp1.replace(id, t), tp2.replace(id, t))
+  }
+
+  def updateContext(newC: Context): Goal = copy(c = newC)
+}
+
+case class NormalizedSubtypeGoal(c: Context, tp1: Tree, tp2: Tree) extends Goal {
+  override def toString: String = {
+    s"Checking ${tp1} <:‖ ${tp2}"
+  }
+
+  def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Goal = {
+    NormalizedSubtypeGoal(c.replace(id, t), tp1.replace(id, t), tp2.replace(id, t))
+  }
+
+  def updateContext(newC: Context): Goal = copy(c = newC)
+}
+
+case class NormalizationGoal(c: Context, ty: Tree) extends Goal {
+  override def toString: String = {
+    s"Normalizing $ty"
+  }
+
+  def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Goal = {
+    // NormalizationGoal(c.replace(id, t), ty.replace(id, t))
+    ???
   }
 
   def updateContext(newC: Context): Goal = copy(c = newC)

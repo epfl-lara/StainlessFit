@@ -1,0 +1,16 @@
+val listOfLength = fixD(
+  listOfLength [List => List] => fun of (xs [List]) = { list_match xs {
+    case nil => nil
+    case cons x ys => cons (choose[Nat]) (listOfLength ys)
+  } },
+  fun of (n [List]) = { nil }
+);
+
+val head = fun of (xs [List]) = { list_match xs {
+    case nil => nil
+    case cons x ys => x
+  } };
+
+val xs = cons true (cons true nil);
+val res [Nat] = head (listOfLength xs);
+()

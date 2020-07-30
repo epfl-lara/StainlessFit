@@ -59,28 +59,32 @@ object CoqOutput {
   }
 
   def printJudgement(name: String, context: Context, t: Tree, tp: Tree): String =
-    "( J (" + name + ") "+ typecontextToCoq(context) +" "+ termcontextToCoq(context) +" " + treeToCoq(toNamelessRep(t)(Map())) + " " + treeToCoq(toNamelessRep(tp)(Map())) + ")"
+    "("+ name + " "+ typecontextToCoq(context) +" "+ termcontextToCoq(context) +" " + treeToCoq(toNamelessRep(t)(Map())) + " " + treeToCoq(toNamelessRep(tp)(Map())) + ")"
 
 
   def judgementToCoq(j: Judgment)(implicit rc: RunContext): String = j match {
-    
-    case CheckJudgment(name, context, t, tp, None) => printJudgement(name, context, t, tp)
-    case CheckJudgment(_, context, t, tp, Some((name, None))) => printJudgement(name, context, t, tp)
-    case CheckJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement(name+ " " + treeToCoq(toNamelessRep(t_ind)(Map())), context, t, tp)
 
-    case SubtypeJudgment(name, context, ty1, ty2) =>
-        "(" + (context.level.toString) + " - " + (name) + ") ⊢ " +
-        typeOutput(ty1) + " <: " + typeOutput(ty2) 
 
-    case InferJudgment(name, context, t, tp, None) => printJudgement(name, context, t, tp)
-    case InferJudgment(_, context, t, tp, Some((name, None))) => printJudgement(name, context, t, tp)
-    case InferJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement(name+ " " + treeToCoq(toNamelessRep(t_ind)(Map())), context, t, tp)
+    // Infer and Check Judgements are considered as `Typing Judgements`
+    case CheckJudgment(name, context, t, tp, None) => printJudgement("TJ " + name, context, t, tp)
+    case CheckJudgment(_, context, t, tp, Some((name, None))) => printJudgement("TJ " + name, context, t, tp)
+    case CheckJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
-    
-    case AreEqualJudgment(name, context, t1, t2, _) =>
-        "(" + (context.level.toString) + " - " + (name) + ") ⊢ " +
-        termOutput(t1) + " ≡ " + termOutput(t2) 
+    case InferJudgment(name, context, t, tp, None) => printJudgement("TJ " + name, context, t, tp)
+    case InferJudgment(_, context, t, tp, Some((name, None))) => printJudgement("TJ " + name, context, t, tp)
+    case InferJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
+    // Subtyping judgments
+    case SubtypeJudgment(name, context, t, tp, None) => printJudgement("StJ "+ name, context, t, tp)
+    case SubtypeJudgment(_, context, t, tp, Some((name, None))) => printJudgement("StJ " + name, context, t, tp)
+    case SubtypeJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("StJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+
+    // Equivalence judgements
+    case AreEqualJudgment(name, context, t, tp, _, None) => printJudgement("E "+ name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, Some((name, None))) => printJudgement("E " + name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, Some((name, Some(t_ind)))) => printJudgement("E (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+
+    // Unsupported in Coq yet :
     case SynthesisJudgment(name, context, tp, t) =>
       s"(${(context.level.toString)} - ${(name)}) ⊢ ${(shortString(t.toString))} ⇐ ${typeOutput(tp)}"
 
@@ -158,20 +162,20 @@ object CoqOutput {
     case Lambda(tp, bind) => Lambda(tp.map(toNamelessRep), toNamelessRep(bind))
     case Fix(tp, bind) => Fix(tp.map(toNamelessRep), toNamelessRep(bind)) 
     case LetIn(tp, v, bind) => LetIn(tp.map(toNamelessRep), toNamelessRep(v), toNamelessRep(bind)) 
-    case MacroTypeDecl(tp, bind) => ???
-    case MacroTypeInst(v, args) => ???
+    //case MacroTypeDecl(tp, bind) => ???
+    //case MacroTypeInst(v, args) => ???
     case NatMatch(t, t0, bind) => NatMatch(toNamelessRep(t), toNamelessRep(t0), toNamelessRep(bind))
     case EitherMatch(t, bind1, bind2) => EitherMatch(toNamelessRep(t), toNamelessRep(bind1), toNamelessRep(bind2))
-    case Primitive(op, args) => ???
+    case Primitive(op, args) => Primitive(op, args.map(toNamelessRep))
     case Fold(tp, t) => Fold(toNamelessRep(tp), toNamelessRep(t))
     case Unfold(t, bind) => Unfold(toNamelessRep(t), toNamelessRep(bind))
-    case UnfoldPositive(t, bind) => ???
+    //case UnfoldPositive(t, bind) => ???
     case Abs(bind) => Abs(toNamelessRep(bind))
     case ErasableApp(t1, t2) => ErasableApp(toNamelessRep(t1), toNamelessRep(t2))
     case TypeApp(abs, tp) => TypeApp(toNamelessRep(abs), toNamelessRep(tp))
     case Error(e, t) => Error(e, t.map(toNamelessRep))
-    case DefFunction(args, optRet, optMeasure, body, rest) => ???
-    case ErasableLambda(ty, bind) => ???
+    //case DefFunction(args, optRet, optMeasure, body, rest) => ???
+    //case ErasableLambda(ty, bind) => ???
 
     case SumType(t1, t2) => SumType(toNamelessRep(t1), toNamelessRep(t2))
     case PiType(t1, bind) => PiType(toNamelessRep(t1), toNamelessRep(bind))
@@ -182,7 +186,7 @@ object CoqOutput {
     case RefinementByType(t1, bind) => RefinementByType(toNamelessRep(t1), toNamelessRep(bind))
     case RecType(n, bind) => RecType(toNamelessRep(n), toNamelessRep(bind))
     case PolyForallType(bind) => PolyForallType(toNamelessRep(bind))
-    case Node(name, args) => ???
+    //case Node(name, args) => ???
     case EqualityType(t1, t2) => EqualityType(toNamelessRep(t1), toNamelessRep(t2))
 
     case BottomType => t
@@ -193,6 +197,11 @@ object CoqOutput {
     case UnitLiteral => t 
     case NatLiteral(_) => t
     case BooleanLiteral(_) => t
+
+    case _ => {
+      println(t);
+      ???
+    }
 
   }
 
@@ -218,6 +227,7 @@ object CoqOutput {
     case EitherMatch(t, t1, t2) => s"(sum_match ${treeToCoq(t)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case LeftTree(t) => s"(tleft ${treeToCoq(t)})"
     case RightTree(t) => s"(tright ${treeToCoq(t)})"
+    case Primitive(op, arg1::Nil) => s"(app (fvar ${op.coqIndex} term_var) ${treeToCoq(arg1)})"
 
     // Binder
     case Bind(id, body) => treeToCoq(body) // Not sure about this one

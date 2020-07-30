@@ -1,0 +1,6 @@
+val cont [{[Nat] choose[Nat]} => Nat] =
+  fun of (xs [{[Nat] choose[Nat]}]) = {
+    0
+  };
+
+()

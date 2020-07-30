@@ -51,6 +51,9 @@ object ConfigParser {
       opt[Unit]("print-ids")
         .action((_, c) => c.copy(printUniqueIds = true))
         .text("Print unique identifiers"),
+      opt[Unit]("print-underlying")
+        .action((_, c) => c.copy(printUnderlying = true))
+        .text("Print underlying types of singleton types"),
 
       note(""),
       cmd("eval")
@@ -74,8 +77,19 @@ object ConfigParser {
             .text("The file to typecheck, in `sf` format")
         ),
 
+      note(""),
+      cmd("sdep")
+        .action((_, c) => c.copy(mode = Mode.SDep))
+        .text("Typecheck the given file using experimental dependent types in Scala algorithm")
+        .children(
+          arg[File]("<file>")
+            .required()
+            .action((f, c) => c.copy(file = f))
+            .text("The file to typecheck, in `sf` format")
+        ),
+
       checkConfig {
-        case c if c.mode == null => failure("Please specify a command: eval, typecheck")
+        case c if c.mode == null => failure("Please specify a command: eval, typecheck, or sdep")
         case c if c.file != null && !c.file.exists => failure(s"File not found: ${c.file}")
         case c =>
           c.debugSections.find(!DebugSection.available(_)) match {

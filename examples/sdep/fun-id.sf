@@ -1,0 +1,5 @@
+val f [Pi(x:Top, {[Top] x})] = fun of (x [Top]) = { x };
+
+val g [Pi(xs:List, {[List] xs})] = fun of (xs [List]) = { f xs };
+
+()

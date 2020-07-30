@@ -1,0 +1,60 @@
+fun pair (x [Top]) (y [Top]) [returns List] = {
+  cons x (cons y nil)
+}
+
+fun fst (pp [List]) [returns Top] = {
+  list_match pp {
+    case nil => nil
+    case cons x xs => x
+  }
+}
+
+val sizedLike = fixD(
+  sizedLike_ [List => List] =>
+    fun of (xs [List]) = {
+      list_match xs {
+        case nil => nil                                       // xs == nil
+        case cons x ys => cons (choose[Top]) (sizedLike_ ys)  // xs == cons x ys
+      }
+    },
+  fun of (xs [List]) = { xs }
+);
+
+/// This works
+// fun bla (bs [List]) = {
+//   val safeZip [{[List] sizedLike bs} => List] =
+//     fun of (cs [{[List] sizedLike bs}]) = {
+//       cs
+//     };
+//   ()
+// }
+
+/// This doesn't work (requires an inductive proof)
+// val listId [Pi(bs: List, {[List] sizedLike bs})] =
+//   fun of (bs [List]) = { bs };
+
+val unsafeZip = fixD(
+  unsafeZip_ [List => List => List] =>
+    fun of (bs [List]) (cs [List]) = {
+      list_match bs {
+        case nil => nil
+        case cons b bs0 =>
+          list_match cs {
+            case nil => nil
+            case cons c cs0 => cons (pair b c) (unsafeZip_ bs0 cs0)
+          }
+      }
+    },
+  fun of (bs [List]) (cs [List]) = { nil }
+);
+
+fun safeZip (bs [List]) (cs [{[List] sizedLike bs}]) [returns List] = {
+  unsafeZip bs cs
+}
+
+val xs1 = cons 1 (cons 2 nil);
+val xs2 = cons 3 (cons 4 nil);
+val res [{[Nat] 1}] = fst (fst (safeZip xs1 xs2));
+val res [{[Nat] 3}] = fst (fst (safeZip xs2 xs1));
+
+()

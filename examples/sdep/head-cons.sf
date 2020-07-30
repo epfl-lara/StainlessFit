@@ -1,0 +1,10 @@
+fun headOrElse(l [List])(default [Top])  [returns Top] = {
+  list_match l {
+    case nil => default
+    case cons x xs => x
+  }
+}
+
+fun example (l [List]) (default [Top])  [returns { [Nat] 1 }] = {
+  headOrElse (cons 1 l) default
+}

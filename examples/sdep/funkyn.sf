@@ -1,0 +1,20 @@
+val listOfN = fixD(
+  listOfN_ [Nat => List] =>
+    fun of (n1 [Nat]) = {
+      nat_match n1 {
+        case zero => nil
+        case succ nn => cons 0 (listOfN_ nn)
+      }
+    },
+  fun of (n2 [Nat]) = {
+    nil
+  }
+);
+
+// val foo [Pi(n:Nat, {[List] listOfN n} => Nat)] =
+//   fun of (n [Nat]) = { fun of (xs [{[List] listOfN n}]) = { 0 } };
+
+val foo [Pi(n:Nat, {[List] listOfN n})] =
+  fun of (k [Nat]) = { listOfN k };
+
+()

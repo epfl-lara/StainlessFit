@@ -24,17 +24,19 @@ object HTMLOutput {
   }
 
   def termOutput(t: Tree)(implicit rc: RunContext): String =
-    termColor(shortString(Printer.exprAsString(t)))
+    termColor(shortString(t.asString))
 
   def typeOutput(t: Tree)(implicit rc: RunContext): String =
-    typeColor(shortString(Printer.typeAsString(t)))
+    typeColor(shortString(t.asString))
 
   def goalToHTML(g: Goal)(implicit rc: RunContext): String = g match {
     case EmptyGoal(_) => ""
     case ErrorGoal(_, _) => ""
     case InferGoal(c, t) => termOutput(t) + " ⇑ _"
     case CheckGoal(c, t, tp) => termOutput(t) + " ⇓ " + typeOutput(tp)
-    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + " <: " + typeOutput(ty2)
+    case SubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <: " + typeOutput(ty2)
+    case NormalizedSubtypeGoal(c, ty1, ty2) => typeOutput(ty1) + s" <:‖ " + typeOutput(ty2)
+    case NormalizationGoal(c, ty) => typeOutput(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -48,10 +50,16 @@ object HTMLOutput {
         termOutput(t) + " ⇓ " + typeOutput(tp) +
       "</span>"
 
-    case SubtypeJudgment(name, context, ty1, ty2) =>
+    case SubtypeJudgment(name, context, ty1, ty2, _) =>
       "<span class='sub'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         typeOutput(ty1) + " <: " + typeOutput(ty2) +
+      "</span>"
+
+    case NormalizationJudgment(name, context, ty, tyN) =>
+      "<span class='norm'>" +
+        "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
+        typeOutput(ty) + " ⇥ " + typeOutput(tyN) +
       "</span>"
 
     case InferJudgment(name, context, t, tp, _) =>
@@ -60,7 +68,7 @@ object HTMLOutput {
         termOutput(t) + " ⇑ " + typeOutput(tp) +
       "</span>"
 
-    case AreEqualJudgment(name, context, t1, t2, _) =>
+    case AreEqualJudgment(name, context, t1, t2, _, _) =>
       "<span class='equal'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termOutput(t1) + " ≡ " + termOutput(t2) +
@@ -147,6 +155,14 @@ object HTMLOutput {
                 |
                 |.sub:hover {
                 |  background-color: #ffe9cf
+                |}
+                |
+                |.norm {
+                |  background-color: #87f542
+                |}
+                |
+                |.norm:hover {
+                |  background-color: #5cd90d
                 |}
                 |
                 |.error {

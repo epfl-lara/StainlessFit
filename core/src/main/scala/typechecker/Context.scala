@@ -7,29 +7,30 @@ import util.RunContext
 import scala.collection.immutable.SeqMap
 
 object Context {
-  def empty(implicit rc: RunContext): Context = Context(SeqMap(), Set(), 0, 0)
-  def empty(max: Int)(implicit rc: RunContext): Context = Context(SeqMap(), Set(), 0, max)
+  def empty(implicit rc: RunContext): Context = Context(SeqMap(), Seq(), 0)
+  def empty(max: Int)(implicit rc: RunContext): Context = Context(SeqMap(), Seq(), 0)
 }
 
 case class Context(
   val termVariables: SeqMap[Identifier, Tree],
-  val typeVariables: Set[Identifier],
-  val level: Int,
-  val n: Int // All variables in the context must have an identifier strictly smaller than n.
+  val typeVariables: Seq[Identifier],
+  val level: Int
 )(implicit rc: RunContext) extends Positioned {
 
-  def bind(i: Identifier, t: Tree): Context = {
+  def bind(i: Identifier, ty: Tree): Context = {
     if (termVariables.contains(i)) throw new Exception("Already bound " + i.toString)
     copy(
-      termVariables = termVariables.updated(i, t)
+      termVariables = termVariables.updated(i, ty)
     )
   }
 
-  def addTypeVariable(i: Identifier): Context = copy(typeVariables = typeVariables + i)
+  def addTypeVariable(i: Identifier): Context = 
+    copy(typeVariables = typeVariables :+ i )
 
-  def bindFresh(s: String, t: Tree): (Identifier, Context) = (Identifier(n, s), bind(Identifier(n, s), t).copy(n = n+1))
-
-  def getFresh(s: String): (Identifier, Context) = (Identifier(n, s), copy(n = n+1))
+  def bindFresh(s: String, t: Tree): (Identifier, Context) = {
+    val freshId = Identifier.fresh(s)
+    (freshId, bind(freshId, t))
+  }
 
   def contains(id: Identifier): Boolean = termVariables.contains(id)
 
@@ -64,5 +65,23 @@ case class Context(
         case (v, tp) => (v, tp.replace(id, t))
       }
     )
+  }
+
+  def freshen(t: Tree)(implicit rc: RunContext): Tree = {
+    var newIds = Map.empty[Identifier, Identifier]
+    def visit(t: Tree): Option[Tree] = t match {
+      case Bind(id, t) if this.termVariables.contains(id) =>
+        val idN = id.freshen()
+        newIds += id -> idN
+        Some(Bind(idN, t.replace(id, idN)))
+      case _ =>
+        None
+    }
+    t.preMap(visit)
+  }
+
+  def bindAndFreshen(id: Identifier, ty: Tree, t: Tree)(implicit rc: RunContext): (Context, Tree) = {
+    val c = this.bind(id, ty)
+    (c, c.freshen(t))
   }
 }

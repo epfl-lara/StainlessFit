@@ -1,0 +1,7 @@
+//val pred = nat_match 0 {
+//  case zero => 0
+//  case succ n => n
+//};
+//pred
+
+()

@@ -1,0 +1,3 @@
+val ys [{[Cons[List, List]] val xs = choose[List]; cons xs xs}] = cons nil nil;
+
+()

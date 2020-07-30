@@ -74,6 +74,7 @@ object Printer {
     case (KeywordToken("cons"), _) => true
     case (KeywordToken("match"), _) => true
     case (KeywordToken("nat_match"), _) => true
+    case (KeywordToken("Nat_Match"), _) => true
     case (KeywordToken("list_match"), _) => true
     case (KeywordToken("List_Match"), _) => true
     case (KeywordToken("[returns"), _) => true
@@ -171,7 +172,7 @@ object Printer {
     else {
       asStringDebug(t)
       // Should be unreachable code:
-      throw new IllegalStateException("unreachable")
+      throw new IllegalStateException(s"Unreachable $t")
     }
   }
 
@@ -214,6 +215,8 @@ object Printer {
     case InferGoal(c, t) => exprAsString(t) + " ⇑ _"
     case CheckGoal(c, t, tp) => exprAsString(t) + " ⇓ " + typeAsString(tp)
     case SubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <: " + typeAsString(ty2)
+    case NormalizedSubtypeGoal(c, ty1, ty2) => typeAsString(ty1) + " <:‖ " + typeAsString(ty2)
+    case NormalizationGoal(c, ty) => typeAsString(ty) + s" ⇥ ?"
     case SynthesisGoal(c, tp) =>
       s"_ ⇐ ${typeAsString(tp)}"
     case EqualityGoal(c, t1, t2) =>
@@ -225,12 +228,12 @@ object Printer {
 
     val syntaxes: Seq[Syntax[Tree]] = Seq(
       primitiveType, parTypeExpr, piType, sigmaType, forallType, polyForallType, existsType,
-      recType, refinementType, refinementByType, sumsAndUnions, arrows,
-      equalityType, simpleTypeExpr,
+      recType, refinementOrSingletonType, refinementByType, sumsAndUnions, arrows,
+      equalityType, simpleTypeExpr, natMatchType, listMatchType,
       typeExpr, boolean, number, termVariable, unit, literal,
-      defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fold,
+      defFunction, retTypeP, measureP, lambda, keep, error, fixpoint, fixpointWithDefault, fold,
       unfoldIn, unfoldPositiveIn, letIn, parExpr, application, macroTypeInst,
-      eitherMatch, natMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,
+      eitherMatch, natMatch, listMatch, notApplication, mulDivAnd, plusMinusOr, ltGtLeqGeq,
       termOrEquality, condition, optBracketExpr, bracketExpr, simpleExpr,
       macroTypeDeclaration, expr
     )

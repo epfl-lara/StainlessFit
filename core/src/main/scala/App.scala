@@ -35,6 +35,7 @@ class App()(implicit rc: RunContext) {
     rc.config.mode match {
       case Mode.Eval      => eval()
       case Mode.TypeCheck => typeCheck()
+      case Mode.SDep  => sDep()
     }
   }
 
@@ -51,6 +52,22 @@ class App()(implicit rc: RunContext) {
 
   def typeCheck(): Unit = FileWatcher.watchable(file) {
     Core.typeCheckFile(file) match {
+      case Left(error) =>
+        rc.reporter.error(s"$error")
+        false
+
+      case Right((success, _)) if success =>
+        rc.reporter.info(s"Successfully typechecked file '$file'.")
+        true
+
+      case _ =>
+        rc.reporter.error(s"There was an error while typechecking file '$file'.")
+        false
+    }
+  }
+
+  def sDep(): Unit = FileWatcher.watchable(file) {
+    Core.sDepFile(file) match {
       case Left(error) =>
         rc.reporter.error(s"$error")
         false

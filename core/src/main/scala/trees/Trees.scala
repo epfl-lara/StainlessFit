@@ -10,11 +10,12 @@ sealed abstract class Operator {
   def isNatToBoolBinOp: Boolean = Operator.isNatToBoolBinOp(this)
   def isNatBinOp: Boolean = Operator.isNatBinOp(this)
   def isBoolToBoolBinOp: Boolean = Operator.isBoolToBoolBinOp(this)
-  def isBoolToBoolUnOp: Boolean = Operator.isBoolToBoolBinOp(this)
+  def isBoolToBoolUnOp: Boolean = Operator.isBoolToBoolUnOp(this)
   def returnedType: Tree = Operator.returnedType(this)
   def operandsType: Tree = Operator.operandsType(this)
   def isBinOp: Boolean = Operator.isBinOp(this)
   def isUnOp: Boolean = Operator.isUnOp(this)
+  def coqIndex: String = Operator.coqIndex(this)
 }
 
 case object Not extends Operator {
@@ -149,6 +150,24 @@ object Operator {
     case ">" => Some(Gt)
     case _ => None
   }
+
+  def coqIndex(op:Operator): String = op match {
+    case And => "10"
+    case Div => "9"
+    case Eq => "0"
+    case Geq => "3"
+    case Gt => "5"
+    case Leq => "2"
+    case Lt => "4"
+    case Minus => "7"
+    case Mul => "8"
+    case Not => "12"
+    case Or => "11"
+    case Neq => "1"
+    case Plus => "6"
+    case _ => "Unknown primitive"
+  }
+
 }
 
 object Tree {
@@ -231,248 +250,215 @@ object Tree {
     }
   }
 
-  def traversePost(t: Tree, f: Tree => Unit): Unit = {
+  def traverse(t: Tree, pre: Tree => Unit, post: Tree => Unit): Unit = {
+    pre(t)
     t match {
-      case Var(_) => f(t)
-      case UnitLiteral => f(t)
-      case NatLiteral(_) => f(t)
-      case BooleanLiteral(_) => f(t)
+      case Var(_) => ()
+      case UnitLiteral => ()
+      case NatLiteral(_) => ()
+      case BooleanLiteral(_) => ()
       case IfThenElse(cond, t1, t2) =>
-        traversePost(cond, f)
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(cond, pre, post)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case App(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case Pair(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
-      case Size(t) => traversePost(t, f); f(t)
-      case First(t) => traversePost(t, f); f(t)
-      case Second(t) => traversePost(t, f); f(t)
-      case LeftTree(t) => traversePost(t, f); f(t)
-      case RightTree(t) => traversePost(t, f); f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
+      case Size(t) => traverse(t, pre, post)
+      case First(t) => traverse(t, pre, post)
+      case Second(t) => traverse(t, pre, post)
+      case LeftTree(t) => traverse(t, pre, post)
+      case RightTree(t) => traverse(t, pre, post)
       case Because(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case Bind(id2, e) =>
-        traversePost(e, f)
-        // We don't feed Bind to `f` as it is not a tree on its own
+        traverse(e, pre, post)
       case Lambda(optTy, bind) =>
-        optTy.foreach(ty => traversePost(ty, f))
-        traversePost(bind, f)
-        f(t)
+        optTy.foreach(ty => traverse(ty, pre, post))
+        traverse(bind, pre, post)
       case ErasableLambda(ty, bind) =>
-        traversePost(ty, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(ty, pre, post)
+        traverse(bind, pre, post)
       case Fix(optTy, bind) =>
-        optTy.foreach(ty => traversePost(ty, f))
-        traversePost(bind, f)
-        f(t)
+        optTy.foreach(ty => traverse(ty, pre, post))
+        traverse(bind, pre, post)
       case LetIn(optTy, t, bind) =>
-        optTy.foreach(ty => traversePost(ty, f))
-        traversePost(t, f)
-        traversePost(bind, f)
-        f(t)
+        optTy.foreach(ty => traverse(ty, pre, post))
+        traverse(t, pre, post)
+        traverse(bind, pre, post)
       case MacroTypeDecl(ty, bind) =>
-        traversePost(ty, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(ty, pre, post)
+        traverse(bind, pre, post)
       case MacroTypeInst(v, args) =>
-        traversePost(v, f)
-        args.foreach(arg => traversePost(arg._2, f))
-        f(t)
+        traverse(v, pre, post)
+        args.foreach(arg => traverse(arg._2, pre, post))
       case NatMatch(t, t0, bind) =>
-        traversePost(t, f)
-        traversePost(t0, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t, pre, post)
+        traverse(t0, pre, post)
+        traverse(bind, pre, post)
       case EitherMatch(t, bind1, bind2) =>
-        traversePost(t, f)
-        traversePost(bind1, f)
-        traversePost(bind2, f)
-        f(t)
+        traverse(t, pre, post)
+        traverse(bind1, pre, post)
+        traverse(bind2, pre, post)
       case Primitive(op, args) =>
-        args.foreach(arg => traversePost(arg, f))
-        f(t)
+        args.foreach(arg => traverse(arg, pre, post))
       case ErasableApp(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case Fold(tp, t) =>
-        traversePost(tp, f)
-        traversePost(t, f)
-        f(t)
+        traverse(tp, pre, post)
+        traverse(t, pre, post)
       case Unfold(t, bind) =>
-        traversePost(t, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t, pre, post)
+        traverse(bind, pre, post)
       case UnfoldPositive(t, bind) =>
-        traversePost(t, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t, pre, post)
+        traverse(bind, pre, post)
       case Abs(bind) =>
-        traversePost(bind, f)
-        f(t)
+        traverse(bind, pre, post)
       case TypeApp(abs, t) =>
-        traversePost(abs, f)
-        traversePost(t, f)
-        f(t)
+        traverse(abs, pre, post)
+        traverse(t, pre, post)
       case Error(_, optTy) =>
-        optTy.foreach(ty => traversePost(ty, f))
-        f(t)
+        optTy.foreach(ty => traverse(ty, pre, post))
 
-      case NatType => f(t)
-      case BoolType => f(t)
-      case UnitType => f(t)
+      case NatType => ()
+      case BoolType => ()
+      case UnitType => ()
       case SumType(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case PiType(t1, bind) =>
-        traversePost(t1, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(bind, pre, post)
       case SigmaType(t1, bind) =>
-        traversePost(t1, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(bind, pre, post)
       case UnionType(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case IntersectionType(t1, bind) =>
-        traversePost(t1, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(bind, pre, post)
       case ExistsType(t1, bind) =>
-        traversePost(t1, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(bind, pre, post)
       case RefinementType(t1, bind) =>
-        traversePost(t1, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(bind, pre, post)
       case RefinementByType(t1, bind) =>
-        traversePost(t1, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(bind, pre, post)
       case RecType(n, bind) =>
-        traversePost(n, f)
-        traversePost(bind, f)
-        f(t)
+        traverse(n, pre, post)
+        traverse(bind, pre, post)
       case PolyForallType(bind) =>
-        traversePost(bind, f)
-        f(t)
+        traverse(bind, pre, post)
       case EqualityType(t1, t2) =>
-        traversePost(t1, f)
-        traversePost(t2, f)
-        f(t)
+        traverse(t1, pre, post)
+        traverse(t2, pre, post)
       case Node(name, args) =>
-        args.foreach(arg => traversePost(arg, f))
-        f(t)
+        args.foreach(arg => traverse(arg, pre, post))
 
       case BottomType =>
-        f(t)
       case TopType =>
-        f(t)
 
-      case _ => throw new java.lang.Exception(s"Function `traversePost` is not implemented on $t (${t.getClass}).")
+      case _ => throw new java.lang.Exception(s"Function `traverse` is not implemented on $t (${t.getClass}).")
     }
+    post(t)
   }
 
-  def replace(p: Tree => Option[Either[String,Tree]], body: Tree): Either[String, Tree] = {
-    p(body).getOrElse(body match {
+  def replace(p: Tree => Option[Either[String,Tree]], body: Tree, post: Tree => Unit): Either[String, Tree] = {
+    val res = p(body).getOrElse(body match {
       case Var(_) => Right(body)
       case UnitLiteral => Right(body)
       case NatLiteral(_) => Right(body)
       case BooleanLiteral(_) => Right(body)
       case IfThenElse(cond, t1, t2) =>
         for (
-          rcond <- replace(p,cond);
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rcond <- replace(p,cond,post);
+          rt1 <- replace(p,t1,post);
+          rt2 <- replace(p,t2,post)
         ) yield
         IfThenElse(rcond, rt1, rt2)
 
       case App(t1, t2) =>
         for (
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rt1 <- replace(p,t1,post);
+          rt2 <- replace(p,t2,post)
         ) yield
           App(rt1, rt2)
 
       case Pair(t1, t2) =>
         for (
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rt1 <- replace(p,t1,post);
+          rt2 <- replace(p,t2,post)
         ) yield
           Pair(rt1, rt2)
 
-      case Size(t) => replace(p, t).map(Size(_))
-      case First(t) => replace(p, t).map(First(_))
-      case Second(t) => replace(p, t).map(Second(_))
-      case LeftTree(t) => replace(p, t).map(LeftTree(_))
-      case RightTree(t) => replace(p, t).map(RightTree(_))
+      case Size(t) => replace(p, t,post).map(Size(_))
+      case First(t) => replace(p, t,post).map(First(_))
+      case Second(t) => replace(p, t,post).map(Second(_))
+      case LeftTree(t) => replace(p, t,post).map(LeftTree(_))
+      case RightTree(t) => replace(p, t,post).map(RightTree(_))
       case Because(t1, t2) =>
         for (
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rt1 <- replace(p,t1,post);
+          rt2 <- replace(p,t2,post)
         ) yield
           Because(rt1, rt2)
 
-      case Bind(id, t) => replace(p, t).map(Bind(id, _))
-      case Lambda(None, bind) => replace(p, bind).map(Lambda(None, _))
+      case Bind(id, t) => replace(p, t, post).map(Bind(id, _))
+      case Lambda(None, bind) => replace(p, bind, post).map(Lambda(None, _))
       case Lambda(Some(tp), bind) =>
         for (
-          rtp <- replace(p, tp);
-          rbind <- replace(p, bind)
+          rtp <- replace(p, tp, post);
+          rbind <- replace(p, bind, post)
         ) yield
           Lambda(Some(rtp), rbind)
 
       case ErasableLambda(tp, bind) =>
         for (
-          rtp <- replace(p, tp);
-          rbind <- replace(p, bind)
+          rtp <- replace(p, tp, post);
+          rbind <- replace(p, bind, post)
         ) yield
           ErasableLambda(rtp, rbind)
 
-      case Fix(None, bind) => replace(p, bind).map(Fix(None, _))
+      case Fix(None, bind) => replace(p, bind, post).map(Fix(None, _))
       case Fix(Some(tp), bind) =>
         for (
-          rtp <- replace(p, tp);
-          rbind <- replace(p, bind)
+          rtp <- replace(p, tp, post);
+          rbind <- replace(p, bind, post)
         ) yield
           Fix(Some(rtp), rbind)
 
       case LetIn(None, v1, bind) =>
         for (
-          rv1 <- replace(p, v1);
-          rbind <- replace(p, bind)
+          rv1 <- replace(p, v1, post);
+          rbind <- replace(p, bind, post)
         ) yield
           LetIn(None, rv1, rbind)
       case LetIn(Some(tp), v1, bind) =>
         for (
-          rtp <- replace(p, tp);
-          rv1 <- replace(p, v1);
-          rbind <- replace(p, bind)
+          rtp <- replace(p, tp, post);
+          rv1 <- replace(p, v1, post);
+          rbind <- replace(p, bind, post)
         ) yield
           LetIn(Some(rtp), rv1, rbind)
       case MacroTypeDecl(tp, bind) =>
         for (
-          rtp <- replace(p, tp);
-          rbind <- replace(p, bind)
+          rtp <- replace(p, tp, post);
+          rbind <- replace(p, bind, post)
         ) yield
           MacroTypeDecl(rtp, rbind)
       case MacroTypeInst(v1, args) =>
         for(
-          rv1 <- replace(p, v1);
-          eithers = args.map(arg => replace(p, arg._2));
+          rv1 <- replace(p, v1, post);
+          eithers = args.map(arg => replace(p, arg._2, post));
           rargs <- eithers.foldLeft(Right(Seq()): Either[String, Seq[Tree]]) {
             case (acc @ Left(_), _) => acc
             case (_, Left(error)) => Left(error)
@@ -483,20 +469,20 @@ object Tree {
 
       case NatMatch(t, t0, bind) =>
         for (
-          rt <- replace(p, t);
-          rt0 <- replace(p, t0);
-          rbind <- replace(p, bind)
+          rt <- replace(p, t, post);
+          rt0 <- replace(p, t0, post);
+          rbind <- replace(p, bind, post)
         ) yield
           NatMatch(rt, rt0, rbind)
       case EitherMatch(t, bind1, bind2) =>
         for (
-          rt <- replace(p, t);
-          rbind1 <- replace(p, bind1);
-          rbind2 <- replace(p, bind2)
+          rt <- replace(p, t, post);
+          rbind1 <- replace(p, bind1, post);
+          rbind2 <- replace(p, bind2, post)
         ) yield
           EitherMatch(rt, rbind1, rbind2)
       case Primitive(op, args) =>
-        val eithers = args.map(arg => replace(p, arg));
+        val eithers = args.map(arg => replace(p, arg, post));
         for(
           rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
             case (acc @ Left(_), _) => acc
@@ -506,7 +492,7 @@ object Tree {
         ) yield
           Primitive(op, rargs)
       case Node(name, children) =>
-        val eithers = children.map(arg => replace(p, arg));
+        val eithers = children.map(arg => replace(p, arg, post));
         for(
           rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
             case (acc @ Left(_), _) => acc
@@ -517,35 +503,35 @@ object Tree {
           Node(name, rargs)
       case ErasableApp(t1, t2) =>
         for (
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rt1 <- replace(p,t1, post);
+          rt2 <- replace(p,t2, post)
         ) yield
           ErasableApp(rt1, rt2)
 
       case Fold(tp, t) =>
         for (
-          rtp <- replace(p, tp);
-          rt <- replace(p, t)
+          rtp <- replace(p, tp, post);
+          rt <- replace(p, t, post)
         ) yield
           Fold(rtp, rt)
       case Unfold(t, bind) =>
         for (
-          rt <- replace(p,t);
-          rbind <- replace(p,bind)
+          rt <- replace(p,t, post);
+          rbind <- replace(p,bind, post)
         ) yield
           Unfold(rt, rbind)
       case UnfoldPositive(t, bind) =>
         for (
-          rt <- replace(p,t);
-          rbind <- replace(p,bind)
+          rt <- replace(p,t, post);
+          rbind <- replace(p,bind, post)
         ) yield
           UnfoldPositive(rt, rbind)
 
-      case Abs(bind) => replace(p, bind).map(Abs(_))
+      case Abs(bind) => replace(p, bind, post).map(Abs(_))
       case TypeApp(abs, t) =>
         for (
-          rabs <- replace(p,abs);
-          rt <- replace(p,t)
+          rabs <- replace(p,abs, post);
+          rt <- replace(p,t, post)
         ) yield
           TypeApp(rabs, rt)
 
@@ -556,59 +542,59 @@ object Tree {
       case UnitType => Right(body)
       case SumType(t1, t2) =>
         for (
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rt1 <- replace(p,t1,post);
+          rt2 <- replace(p,t2,post)
         ) yield
           SumType(rt1, rt2)
       case PiType(t1, bind) =>
         for (
-          rt1 <- replace(p,t1);
-          rbind <- replace(p,bind)
+          rt1 <- replace(p,t1,post);
+          rbind <- replace(p,bind,post)
         ) yield
           PiType(rt1, rbind)
       case SigmaType(t1, bind) =>
         for (
-          rt1 <- replace(p,t1);
-          rbind <- replace(p,bind)
+          rt1 <- replace(p,t1,post);
+          rbind <- replace(p,bind,post)
         ) yield
           SigmaType(rt1, rbind)
       case IntersectionType(t1, bind) =>
         for (
-          rt1 <- replace(p,t1);
-          rbind <- replace(p,bind)
+          rt1 <- replace(p,t1,post);
+          rbind <- replace(p,bind,post)
         ) yield
           IntersectionType(rt1, rbind)
       case ExistsType(t1, bind) =>
         for (
-          rt1 <- replace(p,t1);
-          rbind <- replace(p,bind)
+          rt1 <- replace(p,t1,post);
+          rbind <- replace(p,bind,post)
         ) yield
           ExistsType(rt1, rbind)
       case RefinementType(t1, bind) =>
         for (
-          rt1 <- replace(p,t1);
-          rbind <- replace(p,bind)
+          rt1 <- replace(p,t1,post);
+          rbind <- replace(p,bind,post)
         ) yield
           RefinementType(rt1, rbind)
       case RefinementByType(t1, bind) =>
         for (
-          rt1 <- replace(p,t1);
-          rbind <- replace(p,bind)
+          rt1 <- replace(p,t1,post);
+          rbind <- replace(p,bind,post)
         ) yield
           RefinementByType(rt1, rbind)
       case RecType(n, bind) =>
         for (
-          rn <- replace(p,n);
-          rbind <- replace(p,bind)
+          rn <- replace(p,n,post);
+          rbind <- replace(p,bind,post)
         ) yield
           RecType(rn, rbind)
       case PolyForallType(bind) =>
-        replace(p, bind).map(PolyForallType(_))
+        replace(p, bind, post).map(PolyForallType(_))
 
       case EqualityType(t1, t2) =>
         for (
-          rt1 <- replace(p,t1);
-          rt2 <- replace(p,t2)
+          rt1 <- replace(p,t1,post);
+          rt2 <- replace(p,t2,post)
         ) yield
           EqualityType(rt1, rt2)
 
@@ -617,71 +603,141 @@ object Tree {
 
       case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
     })
+    post(body)
+    res
   }
 
-  def replaceMany(p: Tree => Option[Tree], body: Tree): Tree = p(body) match {
-    case Some(e) => replaceMany(p, e)
-    case None => body match {
+  def preMap(p: Tree => Option[Tree], body: Tree)(implicit rc: RunContext): Tree = {
+    p(body) match {
+      case Some(e) => preMap(p, e)
+      case None => body match {
+        case Var(_) => body
+        case UnitLiteral => body
+        case NatLiteral(_) => body
+        case BooleanLiteral(_) => body
+        case IfThenElse(cond, t1, t2) =>
+          IfThenElse(preMap(p, cond), preMap(p, t1), preMap(p, t2))
+        case App(t1, t2) =>
+          App(preMap(p, t1), preMap(p, t2))
+        case Pair(t1, t2) => Pair(preMap(p, t1), preMap(p, t2))
+        case Size(t) => Size(preMap(p, t))
+        case First(t) => First(preMap(p, t))
+        case Second(t) => Second(preMap(p, t))
+        case LeftTree(t) => LeftTree(preMap(p, t))
+        case RightTree(t) => RightTree(preMap(p, t))
+        case Because(t1, t2) => Because(preMap(p, t1), preMap(p, t2))
+        case Bind(id2, e) => Bind(id2, preMap(p, e))
+        case Lambda(None, bind) => Lambda(None, preMap(p, bind))
+        case Lambda(Some(tp), bind) => Lambda(Some(preMap(p, tp)), preMap(p, bind))
+        case ErasableLambda(tp, bind) => ErasableLambda(preMap(p, tp), preMap(p, bind))
+        case Fix(None, bind) => Fix(None, preMap(p, bind))
+        case Fix(Some(tp), bind) => Fix(Some(preMap(p, tp)), preMap(p, bind))
+        case LetIn(None, v1, bind) => LetIn(None, preMap(p, v1), preMap(p, bind))
+        case LetIn(Some(tp), v1, bind) => LetIn(Some(preMap(p, tp)), preMap(p, v1), preMap(p, bind))
+        case MacroTypeDecl(tpe, bind) => MacroTypeDecl(preMap(p, tpe), preMap(p, bind))
+        case MacroTypeInst(v1, args) =>
+          MacroTypeInst(
+            preMap(p, v1),
+            args.map(a => (a._1, preMap(p, a._2)))
+          )
+        case NatMatch(t, t0, bind) => NatMatch(preMap(p, t), preMap(p, t0), preMap(p, bind))
+        case EitherMatch(t, bind1, bind2) => EitherMatch(preMap(p, t), preMap(p, bind1), preMap(p, bind2))
+        case Primitive(op, args) => Primitive(op, args.map(preMap(p, _)))
+        case ErasableApp(t1, t2) => ErasableApp(preMap(p, t1), preMap(p, t2))
+        case Fold(tp, t) => Fold(preMap(p, tp), preMap(p, t))
+        case Unfold(t, bind) => Unfold(preMap(p, t), preMap(p, bind))
+        case UnfoldPositive(t, bind) => UnfoldPositive(preMap(p, t), preMap(p, bind))
+        case Abs(bind) => Abs(preMap(p, bind))
+        case TypeApp(abs, t) => TypeApp(preMap(p, abs), preMap(p, t))
+        case Error(_, _) => body
+
+        case NatType => body
+        case BoolType => body
+        case UnitType => body
+        case SumType(t1, t2) => SumType(preMap(p, t1), preMap(p, t2))
+        case PiType(t1, bind) => PiType(preMap(p, t1), preMap(p, bind))
+        case SigmaType(t1, bind) => SigmaType(preMap(p, t1), preMap(p, bind))
+        case IntersectionType(t1, bind) => IntersectionType(preMap(p, t1), preMap(p, bind))
+        case ExistsType(t1, bind) => ExistsType(preMap(p, t1), preMap(p, bind))
+        case RefinementType(t1, bind) => RefinementType(preMap(p, t1), preMap(p, bind))
+        case RefinementByType(t1, bind) => RefinementByType(preMap(p, t1), preMap(p, bind))
+        case RecType(n, bind) => RecType(preMap(p, n), preMap(p, bind))
+        case PolyForallType(bind) => PolyForallType(preMap(p, bind))
+        case EqualityType(t1, t2) => EqualityType(preMap(p, t1), preMap(p, t2))
+        case Node(name, children) => Node(name, children.map(preMap(p, _)))
+
+        case BottomType => BottomType
+        case TopType => TopType
+
+        case _ => rc.reporter.fatalError(s"Function `preMap` is not implemented on $body (${body.getClass}).")
+      }
+    }
+  }
+
+  def postMap(p: Tree => Tree => Tree, body: Tree): Tree = {
+    val resultTransformer = p(body)
+    val res = body match {
       case Var(_) => body
       case UnitLiteral => body
       case NatLiteral(_) => body
       case BooleanLiteral(_) => body
       case IfThenElse(cond, t1, t2) =>
-        IfThenElse(replaceMany(p, cond), replaceMany(p, t1), replaceMany(p, t2))
+        IfThenElse(postMap(p, cond), postMap(p, t1), postMap(p, t2))
       case App(t1, t2) =>
-        App(replaceMany(p, t1), replaceMany(p, t2))
-      case Pair(t1, t2) => Pair(replaceMany(p, t1), replaceMany(p, t2))
-      case Size(t) => Size(replaceMany(p, t))
-      case First(t) => First(replaceMany(p, t))
-      case Second(t) => Second(replaceMany(p, t))
-      case LeftTree(t) => LeftTree(replaceMany(p, t))
-      case RightTree(t) => RightTree(replaceMany(p, t))
-      case Because(t1, t2) => Because(replaceMany(p, t1), replaceMany(p, t2))
-      case Bind(id2, e) => Bind(id2, replaceMany(p, e))
-      case Lambda(None, bind) => Lambda(None, replaceMany(p, bind))
-      case Lambda(Some(tp), bind) => Lambda(Some(replaceMany(p, tp)), replaceMany(p, bind))
-      case ErasableLambda(tp, bind) => ErasableLambda(replaceMany(p, tp), replaceMany(p, bind))
-      case Fix(None, bind) => Fix(None, replaceMany(p, bind))
-      case Fix(Some(tp), bind) => Fix(Some(replaceMany(p, tp)), replaceMany(p, bind))
-      case LetIn(None, v1, bind) => LetIn(None, replaceMany(p, v1), replaceMany(p, bind))
-      case LetIn(Some(tp), v1, bind) => LetIn(Some(replaceMany(p, tp)), replaceMany(p, v1), replaceMany(p, bind))
-      case MacroTypeDecl(tpe, bind) => MacroTypeDecl(replaceMany(p, tpe), replaceMany(p, bind))
+        App(postMap(p, t1), postMap(p, t2))
+      case Pair(t1, t2) => Pair(postMap(p, t1), postMap(p, t2))
+      case Size(t) => Size(postMap(p, t))
+      case First(t) => First(postMap(p, t))
+      case Second(t) => Second(postMap(p, t))
+      case LeftTree(t) => LeftTree(postMap(p, t))
+      case RightTree(t) => RightTree(postMap(p, t))
+      case Because(t1, t2) => Because(postMap(p, t1), postMap(p, t2))
+      case Bind(id2, e) => Bind(id2, postMap(p, e))
+      case Lambda(None, bind) => Lambda(None, postMap(p, bind))
+      case Lambda(Some(tp), bind) => Lambda(Some(postMap(p, tp)), postMap(p, bind))
+      case ErasableLambda(tp, bind) => ErasableLambda(postMap(p, tp), postMap(p, bind))
+      case Fix(None, bind) => Fix(None, postMap(p, bind))
+      case Fix(Some(tp), bind) => Fix(Some(postMap(p, tp)), postMap(p, bind))
+      case LetIn(None, v1, bind) => LetIn(None, postMap(p, v1), postMap(p, bind))
+      case LetIn(Some(tp), v1, bind) => LetIn(Some(postMap(p, tp)), postMap(p, v1),postMap(p, bind))
+      case MacroTypeDecl(tpe, bind) => MacroTypeDecl(postMap(p, tpe), postMap(p, bind))
       case MacroTypeInst(v1, args) =>
         MacroTypeInst(
-          replaceMany(p, v1),
-          args.map(a => (a._1, replaceMany(p, a._2)))
+          postMap(p, v1),
+          args.map(a => (a._1, postMap(p, a._2)))
         )
-      case NatMatch(t, t0, bind) => NatMatch(replaceMany(p, t), replaceMany(p, t0), replaceMany(p, bind))
-      case EitherMatch(t, bind1, bind2) => EitherMatch(replaceMany(p, t), replaceMany(p, bind1), replaceMany(p, bind2))
-      case Primitive(op, args) => Primitive(op, args.map(replaceMany(p, _)))
-      case ErasableApp(t1, t2) => ErasableApp(replaceMany(p, t1), replaceMany(p, t2))
-      case Fold(tp, t) => Fold(replaceMany(p, tp), replaceMany(p, t))
-      case Unfold(t, bind) => Unfold(replaceMany(p, t), replaceMany(p, bind))
-      case UnfoldPositive(t, bind) => UnfoldPositive(replaceMany(p, t), replaceMany(p, bind))
-      case Abs(bind) => Abs(replaceMany(p, bind))
-      case TypeApp(abs, t) => TypeApp(replaceMany(p, abs), replaceMany(p, t))
+      case NatMatch(t, t0, bind) => NatMatch(postMap(p, t), postMap(p, t0), postMap(p, bind))
+      case EitherMatch(t, bind1, bind2) => EitherMatch(postMap(p, t), postMap(p, bind1), postMap(p, bind2))
+      case Primitive(op, args) => Primitive(op, args.map(postMap(p, _)))
+      case ErasableApp(t1, t2) => ErasableApp(postMap(p, t1), postMap(p, t2))
+      case Fold(tp, t) => Fold(postMap(p, tp), postMap(p, t))
+      case Unfold(t, bind) => Unfold(postMap(p, t), postMap(p, bind))
+      case UnfoldPositive(t, bind) => UnfoldPositive(postMap(p, t), postMap(p, bind))
+      case Abs(bind) => Abs(postMap(p, bind))
+      case TypeApp(abs, t)=> TypeApp(postMap(p, abs), postMap(p, t))
       case Error(_, _) => body
 
       case NatType => body
       case BoolType => body
       case UnitType => body
-      case SumType(t1, t2) => SumType(replaceMany(p, t1), replaceMany(p, t2))
-      case PiType(t1, bind) => PiType(replaceMany(p, t1), replaceMany(p, bind))
-      case SigmaType(t1, bind) => SigmaType(replaceMany(p, t1), replaceMany(p, bind))
-      case IntersectionType(t1, bind) => IntersectionType(replaceMany(p, t1), replaceMany(p, bind))
-      case ExistsType(t1, bind) => ExistsType(replaceMany(p, t1), replaceMany(p, bind))
-      case RefinementType(t1, bind) => RefinementType(replaceMany(p, t1), replaceMany(p, bind))
-      case RefinementByType(t1, bind) => RefinementByType(replaceMany(p, t1), replaceMany(p, bind))
-      case RecType(n, bind) => RecType(replaceMany(p, n), replaceMany(p, bind))
-      case PolyForallType(bind) => PolyForallType(replaceMany(p, bind))
-      case EqualityType(t1, t2) => EqualityType(replaceMany(p, t1), replaceMany(p, t2))
-      case Node(name, children) => Node(name, children.map(replaceMany(p, _)))
+      case SumType(t1, t2) => SumType(postMap(p, t1), postMap(p, t2))
+      case PiType(t1, bind) => PiType(postMap(p, t1), postMap(p, bind))
+      case SigmaType(t1, bind) => SigmaType(postMap(p, t1), postMap(p, bind))
+      case IntersectionType(t1, bind) => IntersectionType(postMap(p, t1), postMap(p, bind))
+      case ExistsType(t1, bind) => ExistsType(postMap(p, t1), postMap(p, bind))
+      case RefinementType(t1, bind) => RefinementType(postMap(p, t1), postMap(p, bind))
+      case RefinementByType(t1, bind) => RefinementByType(postMap(p, t1),postMap(p, bind))
+      case RecType(n, bind) => RecType(postMap(p, n), postMap(p, bind))
+      case PolyForallType(bind) => PolyForallType(postMap(p, bind))
+      case EqualityType(t1, t2) => EqualityType(postMap(p, t1), postMap(p, t2))
+      case Node(name, children) => Node(name, children.map(postMap(p, _)))
 
       case BottomType => BottomType
       case TopType => TopType
 
-      case _ => throw new java.lang.Exception(s"Function `replaceMany` is not implemented on $body (${body.getClass}).")
+      case _ => throw new java.lang.Exception(s"Function `postMap` is not implemented on $body (${body.getClass}).")
     }
+    resultTransformer(res)
   }
 
   def isError(e: Tree): Boolean = {
@@ -706,7 +762,18 @@ object Tree {
 
   def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
-  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext): Boolean = {
+  trait Solver {
+    def targets: Map[Identifier, Option[Tree]]
+    def recordSolution(x: Identifier, t: Tree): Unit
+    def addTarget(x: Identifier): Unit
+  }
+  object Solver {
+    implicit val defaultSolver: Solver = null
+    def targets(x: Identifier)(implicit solver: Solver) =
+      if (solver ne null) solver.targets.contains(x) else false
+  }
+
+  def areEqual(t1: Tree, t2: Tree)(implicit rc: RunContext, solver: Solver): Boolean = {
     (t1, t2) match {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
         areEqual(cond1, cond2) && areEqual(t11, t21) && areEqual(t12, t22)
@@ -750,12 +817,72 @@ object Tree {
       case (IntersectionType(t1, bind1), IntersectionType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (ExistsType(t1, bind1), ExistsType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (RefinementType(t1, bind1), RefinementType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
-      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
+      case (RefinementByType(t1, bind1), RefinementByType(t2, bind2)) =>
+        if (solver eq null)
+          areEqual(t1, t2) && areEqual(bind1, bind2)
+        else
+          areEqual(bind1, bind2)
+      case (EqualityType(t11, t12), EqualityType(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (RecType(t1, bind1), RecType(t2, bind2)) => areEqual(t1, t2) && areEqual(bind1, bind2)
       case (PolyForallType(bind1), PolyForallType(bind2)) => areEqual(bind1, bind2)
       case (Node(name1, args1), Node(name2, args2)) => name1 == name2 && args1.zip(args2).forall { case (arg1, arg2) => areEqual(arg1, arg2) }
+      case (Var(x), _) if Solver.targets(x) => solver.recordSolution(x, t2); true
+      case (_, Var(x)) if Solver.targets(x) => solver.recordSolution(x, t1); true
       case _ => t1 == t2
     }
+  }
+
+  def linearVarsOf(t: Tree): Set[Identifier] = {
+    def merge(ids1: Set[Identifier], ids2: Set[Identifier]) =
+      (ids1 union ids2) diff (ids1 intersect ids2)
+    def rec(t: Tree): Set[Identifier] =
+      t match {
+        case Var(id) => Set(id)
+        case IfThenElse(cond, t1, t2) => merge(merge(rec(cond), rec(t1)), rec(t2))
+        case App(t1, t2) => merge(rec(t1), rec(t2))
+        case Pair(t1, t2) => merge(rec(t1), rec(t2))
+        case Size(t) => rec(t)
+        case First(t) => rec(t)
+        case Second(t) => rec(t)
+        case LeftTree(t) => rec(t)
+        case RightTree(t) => rec(t)
+        case Bind(id, t) => rec(t) - id
+        case Lambda(tp, bind) => merge(tp.toSet.flatMap(rec), rec(bind))
+        case Fix(tp, Bind(_, bind)) => merge(tp.toSet.flatMap(rec), rec(bind))
+        case LetIn(tp, v, bind) => merge(merge(tp.toSet.flatMap(rec), rec(v)), rec(bind))
+        case MacroTypeDecl(tp, bind) => ???
+        case MacroTypeInst(v, args) => ???
+        case NatMatch(t, t0, bind) => merge(merge(rec(t), rec(t0)), rec(bind))
+        case EitherMatch(t, bind1, bind2) => merge(merge(rec(t), rec(bind1)), rec(bind2))
+        case Primitive(op, args) => args.map(rec).foldLeft(Set.empty[Identifier])(merge)
+        case Fold(tp, t) => merge(rec(tp), rec(t))
+        case Unfold(t, bind) => merge(rec(t), rec(bind))
+        case UnfoldPositive(t, bind) => merge(rec(t), rec(bind))
+        case Abs(bind) => rec(bind)
+        case ErasableApp(t1, t2) => merge(rec(t1), rec(t2))
+        case TypeApp(abs, tp) => merge(rec(abs), rec(tp))
+
+        case SumType(t1, t2) => merge(rec(t1), rec(t2))
+        case PiType(t1, bind) => merge(rec(t1), rec(bind))
+        case SigmaType(t1, bind) => merge(rec(t1), rec(bind))
+        case IntersectionType(t1, bind) => merge(rec(t1), rec(bind))
+        case ExistsType(t1, bind) => merge(rec(t1), rec(bind))
+        case RefinementType(t1, bind) => merge(rec(t1), rec(bind))
+        case RefinementByType(t1, bind) => merge(rec(t1), rec(bind))
+        case RecType(n, bind) => merge(rec(n), rec(bind))
+        case PolyForallType(bind) => rec(bind)
+        case Node(name, args) => args.map(rec).foldLeft(Set.empty[Identifier])(merge)
+        case EqualityType(t1, t2) => merge(rec(t1), rec(t2))
+
+        case BottomType => Set.empty
+        case TopType => Set.empty
+        case UnitType => Set.empty
+        case BoolType => Set.empty
+        case NatType => Set.empty
+        case UnitLiteral => Set.empty
+        case NatLiteral(_) => Set.empty
+      }
+    rec(t)
   }
 }
 
@@ -763,8 +890,12 @@ case class Identifier(id: Int, name: String) extends Positioned {
   override def toString: String = name + "#" + id
   // override def toString: String = name
 
+  def asString(implicit rc: RunContext): String = Printer.asString(this)
+
   def isTypeIdentifier: Boolean = name.size > 0 && name(0).isUpper
   def isTermIdentifier: Boolean = name.size > 0 && name(0).isLower
+
+  def freshen(): Identifier = Identifier.fresh(name)
 
   def wrap: String = {
     if (isTypeIdentifier) s"[$this]"
@@ -806,8 +937,14 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
       case Error(_, t) => t.map(isFreeIn).getOrElse(false)
       case DefFunction(args, optRet, optMeasure, body, rest) =>
-        // FIXME: Actually traverse?
-        false
+        args.foldLeft((false, false))({
+          case ((isFreeAcc, isBoundAcc), arg) =>
+            if (isFreeAcc) (isFreeAcc, isBoundAcc)
+            else (
+              isFreeAcc || (!isBoundAcc && arg.tpe.exists(isFreeIn)),
+              isBoundAcc || this == arg.id
+            )
+        })._1 || optRet.exists(isFreeIn) || optMeasure.exists(isFreeIn) || isFreeIn(body) || isFreeIn(rest)
       case ErasableLambda(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
 
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
@@ -848,6 +985,8 @@ object Identifier {
 }
 
 sealed abstract class Tree extends Positioned {
+  def asString(implicit rc: RunContext): String = Printer.asString(this)
+
   def isBind: Boolean = Tree.isBind(this)
 
   def isError: Boolean = Tree.isError(this)
@@ -858,11 +997,16 @@ sealed abstract class Tree extends Positioned {
 
   def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Tree = Tree.replace(id, t, this)
 
-  def traversePost(f: Tree => Unit): Unit = Tree.traversePost(this, f)
+  def traversePost(f: Tree => Unit): Unit = Tree.traverse(this, _ => (), f)
+  def traversePre(f: Tree => Unit): Unit = Tree.traverse(this, f, _ => ())
+  def traverse(pre: Tree => Unit, post: Tree => Unit): Unit = Tree.traverse(this, pre, post)
 
-  def replace(p: Tree => Option[Either[String,Tree]]): Either[String,Tree] = Tree.replace(p, this)
+  def replace(p: Tree => Option[Either[String,Tree]], post: Tree => Unit)(implicit rc: RunContext): Either[String,Tree] = Tree.replace(p, this, post)
+  def replace(p: Tree => Option[Either[String,Tree]])(implicit rc: RunContext): Either[String,Tree] = replace(p, _ => ())
 
-  def replaceMany(p: Tree => Option[Tree]): Tree = Tree.replaceMany(p, this)
+  def preMap(p: Tree => Option[Tree])(implicit rc: RunContext): Tree = Tree.preMap(p, this)
+
+  def postMap(p: Tree => Tree => Tree): Tree = Tree.postMap(p, this)
 
   def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
@@ -885,22 +1029,27 @@ case class ErasableAppArg(t: Tree) extends AppArgument
 sealed abstract class DefArgument {
   val id: Identifier
   def toAppArgument(): AppArgument
+  val tpe: Option[Tree]
 }
 
 case class TypeArgument(id: Identifier) extends DefArgument {
   def toAppArgument(): AppArgument = TypeAppArg(Var(id))
+  val tpe = None
 }
 
 case class ForallArgument(id: Identifier, ty: Tree) extends DefArgument {
   def toAppArgument(): AppArgument = ErasableAppArg(Var(id))
+  val tpe = Some(ty)
 }
 
 case class UntypedArgument(id: Identifier) extends DefArgument {
   def toAppArgument(): AppArgument = AppArg(Var(id))
+  val tpe = None
 }
 
 case class TypedArgument(id: Identifier, ty: Tree) extends DefArgument {
   def toAppArgument(): AppArgument = AppArg(Var(id))
+  val tpe = Some(ty)
 }
 
 case class Succ(t: Tree) extends Tree

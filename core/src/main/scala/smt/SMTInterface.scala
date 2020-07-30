@@ -1,109 +1,148 @@
-// package stainlessfit
-// package core
+package stainlessfit
+package core
 
-// import smtlib.trees.Terms. {
-//   Identifier => TermIdentifier,
-//   _
-// }
-// import smtlib.trees.Commands._
-// import smtlib.theories.Core. {
-//   And => TermAnd,
-//   Or => TermOr,
-//   Implies => TermImplies,
-//   Not => TermNot,
-//   Equals => TermEquals,
-//   _
-// }
-// import smtlib.theories.Ints. {
-//   Div => TermDiv,
-//   Mod => TermMod,
-//   _
-// }
-// import smtlib.printer.RecursivePrinter
+import java.io.{File, PrintWriter, Writer}
 
-// import scala.language.postfixOps
+import smtlib.printer.RecursivePrinter
+import smtlib.theories.Core.{BoolSort, And => TermAnd, Equals => TermEquals, Not => TermNot, Or => TermOr}
+import smtlib.theories.Ints.{Div => TermDiv, Mul => TermMul, _}
+import smtlib.trees.Commands._
+import smtlib.trees.Terms.{QualifiedIdentifier, SNumeral, SSymbol, SimpleIdentifier, Sort, Term}
+import stainlessfit.core.trees._
 
-// import java.io.{File, Writer}
+import scala.language.postfixOps
+import scala.sys.process._
 
-// import sys.process._
+class SMTInterface(path: String) {
+  private val writer = new SMTWriter(path)
+  private val declaredVariables: scala.collection.mutable.Map[Tree, Term] = scala.collection.mutable.Map()
+  private var variableToType: Map[Tree, Tree] = Map()
+  private var satisfiable: Option[Boolean] = None
 
-// import trees._
+  def declareVariables(subtrees: Map[Tree, Tree]): Unit = {
+    variableToType = variableToType ++ subtrees
+    subtrees.foreachEntry(declareVar)
+  }
 
-// object SMTInterface {
-//   def sy(s: String) = SSymbol(s)
-//   def si(s: SSymbol) = SimpleIdentifier(s)
-//   def t(s: SSymbol): QualifiedIdentifier = QualifiedIdentifier(si(s))
-//   def t(s: String): Term = t(sy(s))
+  def addAssertions(assertions: Seq[Tree]): Unit =
+    assertions.foreach(addAssertion)
 
-//   implicit class SymbolDecoration(s: SSymbol) {
-//     def apply(ts: Term*) = FunctionApplication(t(s), ts.toSeq)
-//   }
+  def addAssertion(t: Tree): Unit = {
+    writer.addAssertion(treeToTerm(t, BoolType).get)
+  }
 
-//   def treeToTerm(e: Tree): Term = e match {
-//     case BooleanLiteral(false) => t("false")
-//     case BooleanLiteral(true) => t("true")
-//     case NatLiteral(i) => SNumeral(i)
-//     case UnaryMinus(e0) => Neg(treeToTerm(e0))
-//     case And(e1, e2) => TermAnd(treeToTerm(e1), treeToTerm(e2))
-//     case Or(e1, e2) => TermOr(treeToTerm(e1), treeToTerm(e2))
-//     case Implies(e1, e2) => TermImplies(treeToTerm(e1), treeToTerm(e2))
-//     case Not(e0) => TermNot(treeToTerm(e0))
-//     case Plus(e1, e2) => Add(treeToTerm(e1), treeToTerm(e2))
-//     case Minus(e1, e2) => Sub(treeToTerm(e1), treeToTerm(e2))
-//     case Mult(e1, e2) => Mul(treeToTerm(e1), treeToTerm(e2))
-//     case Div(e1, e2) => TermDiv(treeToTerm(e1), treeToTerm(e2))
-//     case Mod(e1, e2) => TermMod(treeToTerm(e1), treeToTerm(e2))
-//     case Equals(e1, e2) => TermEquals(treeToTerm(e1), treeToTerm(e2))
-//     case Geq(e1, e2) => GreaterEquals(treeToTerm(e1), treeToTerm(e2))
-//     case Gt(e1, e2) => GreaterThan(treeToTerm(e1), treeToTerm(e2))
-//     case Leq(e1, e2) => LessEquals(treeToTerm(e1), treeToTerm(e2))
-//     case Lt(e1, e2) => LessThan(treeToTerm(e1), treeToTerm(e2))
-//     case Var(Identifier(name)) => t(name)
-//     case Old(_) => throw new Exception("`Old` cannot be translated to SMT")
-//   }
+  // TODO: refactor this
+  def isSatisfiable: Boolean = {
+    if (satisfiable.isDefined)
+      satisfiable.get
+    else {
+      writer.close()
 
-//   def typeToSort(t: Type): Sort = t match {
-//     case BoolType => BoolSort()
-//     case BigIntType => IntSort()
-//   }
+      val solverInput = scala.io.Source.fromFile(path).mkString
 
-//   def treeToSMT(fresh: Int, vds: Seq[VarDef], args: Seq[Arg], e: Tree, writer: Writer): Unit = {
-//     def pc(c: Command) = RecursivePrinter.printCommand(c, writer)
-//     def passert(t: Term) = pc(Assert(t))
+      val cmd = s"""z3 dump-models=true "$path""""
+      var output = ""
+      val code = cmd ! ProcessLogger(s => {
+        output += s + "\n"
+      })
+      if (code != 0)
+        throw new Exception(s"Error (code $code) in Z3:\n$output")
+      else if (output.contains("unsat")) {
+        satisfiable = Some(false)
+        false
+      }
+      else {
+      // TODO: logging
+        satisfiable = Some(true)
+        true
+      }
+    }
+  }
 
-//     for (vd <- vds) {
-//       for (suffix <- "" +: "'" +: (1 until fresh).map("#" + _))
-//         pc(DeclareConst(sy(vd.id.name + suffix), typeToSort(vd.tpe)))
-//     }
+  private def treeToTerm(tree: Tree, typ: Tree): Option[Term] = {
+    tree match {
+      case BooleanLiteral(false) => Some(t("false"))
+      case BooleanLiteral(true) => Some(t("true"))
+      case NatLiteral(i) => Some(SNumeral(i))
+      case Primitive(op @ (Eq | Neq), t1 :: t2 :: Nil) =>
+        val e1 = treeToTerm(t1, BoolType) orElse treeToTerm(t1, NatType)
+        val e2 = treeToTerm(t2, BoolType) orElse treeToTerm(t2, NatType)
+        e1.flatMap(l => e2.map(r => op match {
+          case Eq => TermEquals(l, r)
+          case Neq => TermNot(TermEquals(l, r))
+          case _ => ??? // unreachable
+        })) orElse Some(declaredVariables(tree))
+      case Primitive(op, t1 :: t2 :: Nil) if op.isNatBinOp =>
+        val e1 = treeToTerm(t1, NatType).get
+        val e2 = treeToTerm(t2, NatType).get
+        Some(op match {
+          case Plus => Add(e1, e2)
+          case Minus => Sub(e1, e2)
+          case Mul => TermMul(e1, e2)
+          case Div => TermDiv(e1, e2)
+          case Leq => LessEquals(e1, e2)
+          case Geq => GreaterEquals(e1, e2)
+          case Lt => LessThan(e1, e2)
+          case Gt => GreaterThan(e1, e2)
+          case _ => throw new UnsupportedOperationException(s"Expected a NatBinOp, got $op")
+        })
+      case Primitive(op, t1 :: t2 :: Nil) if op.isBoolToBoolBinOp =>
+        val e1 = treeToTerm(t1, NatType).get
+        val e2 = treeToTerm(t2, NatType).get
+        Some(op match {
+          case And => TermAnd(e1, e2)
+          case Or => TermOr(e1, e2)
+          case _ => throw new UnsupportedOperationException(s"Expected a BoolBinOp, got $op")
+        })
+      case Primitive(op, t1 :: Nil) if op.isBoolToBoolUnOp =>
+        val term = treeToTerm(t1, BoolType).get
+        Some(op match {
+          case Not => TermNot(term)
+          case _ => throw new UnsupportedOperationException(s"Expected a BoolToBoolUnOp, got $op")
+        })
+      case _ =>
+        if (variableToType.get(tree).contains(typ))
+          Some(declaredVariables(tree))
+        else
+          None
+    }
+  }
 
-//     for (arg <- args) {
-//       pc(DeclareConst(sy(arg.id.name), typeToSort(arg.tpe)))
-//     }
+  private def declareVar(tree: Tree, tp: Tree): Term = {
+    if (!declaredVariables.contains(tree)) {
+      val id = stainlessfit.core.trees.Identifier.fresh("solverVar").toString
+      declaredVariables(tree) = t(id)
+      tp match {
+        case BoolType =>
+          writer.declareVar(id, BoolSort())
+        case NatType =>
+          writer.declareVar(id, IntSort())
+          writer.addAssertion(GreaterEquals(t(id), SNumeral(0)))
+        case _ => throw new UnsupportedOperationException("Only variables of Bool and Nat type are supported")
+      }
+    }
+    declaredVariables(tree)
+  }
 
-//     passert(treeToTerm(e))
+  private def t(s: String): Term = QualifiedIdentifier(SimpleIdentifier(SSymbol(s)))
+}
 
-//     pc(CheckSat())
+class SMTWriter(path: String) {
+  def declareVar(id: String, sort: Sort): Unit =
+    pc(DeclareConst(SSymbol(id), sort), writer)
 
-//     writer.close()
-//   }
+  def addAssertion(t: Term): Unit =
+    pc(Assert(t), writer)
 
-//   def exec(cmd: String): (Int, String) = {
-//     var output = ""
-//     val code = cmd ! ProcessLogger(s => { output += s + "\n"});
-//     (code, output)
-//   }
+  def close(): Unit = {
+    pc(CheckSat(), writer)
+    writer.close()
+  }
 
-//   def invokeZ3(file: File): Boolean = {
-//     val (code, output) = exec(s"""z3 dump-models=true "${file.getPath}"""")
-//     if (code != 0)
-//       throw new Exception(s"Error (code $code) in Z3:\n$output")
-//     else if (output.contains("unsat")) true
-//     else {
-//       reporter.error("Z3 returned a satisfying model:")
-//       reporter.error("===============================")
-//       reporter.error(output)
-//       reporter.error("===============================")
-//       false
-//     }
-//   }
-// }
+  private def pc(c: Command, w: Writer): Unit = RecursivePrinter.printCommand(c, w)
+
+  private val file = new File(path)
+  if (!file.getParentFile.exists()) file.getParentFile.mkdirs()
+  if (!file.exists()) file.createNewFile()
+  private val writer = new PrintWriter(file)
+}

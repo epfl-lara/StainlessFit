@@ -99,7 +99,7 @@ trait ProvenRules {
       val errorGoal = EqualityGoal(c.incrementLevel, BooleanLiteral(false), BooleanLiteral(true))
       Some((List(_ => errorGoal),
         {
-          case AreEqualJudgment(_, _, _, _, _) :: _ => (true, InferJudgment("InferError", c, e, tp))
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ => (true, InferJudgment("InferError", c, e, tp))
           case _ => emitErrorWithJudgment("InferError", g, None)
         }
       ))
@@ -238,7 +238,7 @@ trait ProvenRules {
       Some((
         if(op == Minus) List(_ => checkN1, _ => checkN2, _ => checkEq) else List(_ => checkN1, _ => checkN2),
         {
-          case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, InferJudgment("InferBinaryPrimitive", c, e, NatType))
           case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: _ if op != Minus =>
             (true, InferJudgment("InferBinaryPrimitive", c, e, op.returnedType))
@@ -363,7 +363,8 @@ trait ProvenRules {
           _ => emitErrorWithJudgment("InferFix", g, Some(s"The erasure of $t must be a value."))
         ))
       } else {
-        val (freshM, c0) = c.incrementLevel.getFresh("m")
+        val c0 = c.incrementLevel
+        val freshM = Identifier.fresh("m")
         val (freshN, c1) = c0.bindFresh(n1.name, NatType)
         val (freshY, c2) = c1.bindFresh(y.name,
           IntersectionType(
@@ -464,7 +465,7 @@ trait ProvenRules {
       val checkRef = EqualityGoal(c1.incrementLevel, b, BooleanLiteral(true))
       Some((
         List(_ => checkTy, _ => checkRef), {
-          case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckRefinement", c, t, tpe))
           case _ =>
             emitErrorWithJudgment("CheckRefinement", g, None)
@@ -597,7 +598,7 @@ trait ProvenRules {
   })
 
   val CheckPi = Rule("CheckPi", {
-    case g @ CheckGoal(c, t, tpe @ PiType(ty1, Bind(id,ty2))) =>
+    case g @ CheckGoal(c, t, tpe @ PiType(ty1, Bind(id, ty2))) =>
       TypeChecker.debugs(g, "CheckPi")
       val (freshId, c1) = c.bindFresh(id.name, ty1)
       val subgoal = CheckGoal(c1.incrementLevel, App(t, Var(freshId)), ty2.replace(id, Var(freshId)))
@@ -857,7 +858,7 @@ trait ProvenRules {
       Some((
         List(_ => subgoal, fEquality),
         {
-          case InferJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case InferJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckRecursive", c, t, tpe))
           case _ =>
             emitErrorWithJudgment("CheckRecursive", g, None)
@@ -1102,7 +1103,7 @@ trait ProvenRules {
       val subgoal = EqualityGoal(c1.incrementLevel, t1, t2)
       Some((List(_ => subgoal),
         {
-          case AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, ""))
           case _ =>
             emitErrorWithJudgment("UnfoldRefinementInContext", g, None)

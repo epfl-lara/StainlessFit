@@ -1,0 +1,15 @@
+val f =
+  fun of (xs [List]) = {
+    list_match xs {
+      case nil =>
+        val n [Nat] = 0;
+        n
+      case cons x ys =>
+        val zs [List] = cons 1 nil;
+        zs
+    }
+  };
+
+val res1 [Nat] = f nil;
+val res2 [List] = f (cons 1 nil);
+()
