@@ -79,9 +79,9 @@ object CoqOutput {
     case SubtypeJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("StJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
     // Equivalence judgements
-    case AreEqualJudgment(name, context, t, tp, _, None) => printJudgement("E "+ name, context, t, tp)
-    case AreEqualJudgment(_, context, t, tp, _, Some((name, None))) => printJudgement("E " + name, context, t, tp)
-    case AreEqualJudgment(_, context, t, tp, _, Some((name, Some(t_ind)))) => printJudgement("E (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case AreEqualJudgment(name, context, t, tp, _, None) => printJudgement("EJ "+ name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, Some((name, None))) => printJudgement("EJ " + name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, Some((name, Some(t_ind)))) => printJudgement("EJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
     // Unsupported in Coq yet :
     case SynthesisJudgment(name, context, tp, t) =>

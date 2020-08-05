@@ -466,7 +466,7 @@ trait ProvenRules {
       Some((
         List(_ => checkTy, _ => checkRef), {
           case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckRefinement", c, t, tpe))
+            (true, CheckJudgment("CheckRefinement", c, t, tpe, Some("J_refine", None)))
           case _ =>
             emitErrorWithJudgment("CheckRefinement", g, None)
         }
@@ -485,7 +485,7 @@ trait ProvenRules {
             val ty3 = dropRefinements(ty2)
             ty3 == ty || ty3 == BottomType
           } =>
-            (true, CheckJudgment("CheckReflexive", c, t, ty))
+            (true, CheckJudgment("CheckReflexive", c, t, ty, Some("J_drop", None)))
           case InferJudgment(_, _, _, tpe, _) :: _ =>
             emitErrorWithJudgment("CheckReflexive", g,
               Some(s"Expected type ${ty} for ${t}, found $tpe instead")
@@ -1076,7 +1076,7 @@ trait ProvenRules {
       TypeChecker.debugs(g, "Reflexivity")
       Some((List(),
         {
-          case _ => (true, AreEqualJudgment("Reflexivity", c, t1, t2, "By Reflexivity"))
+          case _ => (true, AreEqualJudgment("Reflexivity", c, t1, t2, "By Reflexivity", Some("E_refl", None)))
         }
       ))
     case g =>
