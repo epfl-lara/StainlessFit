@@ -1088,8 +1088,8 @@ trait ProvenRules {
       tp match {
         case RefinementType(ty, Bind(y, t2)) =>
           val t2p = t2.replace(y, Var(x))
-          c.copy(
-            termVariables = c.termVariables.updated(x, ty)
+          acc.copy(
+            termVariables = acc.termVariables.updated(x, ty)
           ).addEquality(t2p, BooleanLiteral(true))
         case _ => acc
       }

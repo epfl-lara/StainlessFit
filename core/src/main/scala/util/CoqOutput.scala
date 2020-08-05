@@ -50,11 +50,11 @@ object CoqOutput {
     
   def termcontextToCoq(context: Context): String =  {
     if (context.termVariables.isEmpty) {
-      "nil"
+      "Γ"
     } else {
        "(" +context.termVariables.foldRight("")({
         case ((id,tp), acc) => acc+ "(" + toCoqIndex(id).toString() +","+ treeToCoq(toNamelessRep(tp)(Map()))+")::"
-      })+ "nil)"
+      })+ "Γ)"
     }
   }
 
@@ -63,7 +63,6 @@ object CoqOutput {
 
 
   def judgementToCoq(j: Judgment)(implicit rc: RunContext): String = j match {
-
 
     // Infer and Check Judgements are considered as `Typing Judgements`
     case CheckJudgment(name, context, t, tp, None) => printJudgement("TJ " + name, context, t, tp)
@@ -109,10 +108,30 @@ object CoqOutput {
     }
   } 
 
-  def nodeTreeToCoq(t: NodeTree[Judgment], depth: Int)(implicit rc: RunContext): String = {
-    val childrenString = nodeTreeToCoq(t.children, depth + 1)
-    s"(N ${judgementToCoq(t.node)}" +
-      childrenString + ")" 
+  def nodeTreeToCoq(t: NodeTree[Judgment], depth: Int)(implicit rc: RunContext): String = t match {
+
+    // Special rules
+    case NodeTree(
+      InferJudgment("InferBinaryPrimitive", context, e @ Primitive(op, n1 :: n2 :: Nil), t, coqName), 
+      (d1 @ NodeTree(CheckJudgment(_, _, _, t1, _), _)) ::
+      (d2 @ NodeTree(CheckJudgment(_, _, _, t2, _), _)) :: _ ) => {
+        val opVar = Var(Identifier(op.coqIndex.toInt, ""))
+      nodeTreeToCoq(
+        NodeTree[Judgment](
+          InferJudgment("InferApp", context, e, t, Some("J_App", None)), 
+        Derivation.NodeTree[Judgment](
+          InferJudgment("InferApp", context, App(opVar, n1), PiType(t2, t), Some("J_App", None)), 
+            Derivation.NodeTree[Judgment](
+              InferJudgment("InferVar", context, opVar, PiType(t1, PiType(t2, t)), Some("J_Var", None)), Nil) ::
+              d1 :: Nil
+          ) :: d2 :: Nil), 
+          depth)
+      }
+
+    case _ => {
+      val childrenString = nodeTreeToCoq(t.children, depth + 1)
+      s"(N ${judgementToCoq(t.node)}" + childrenString + ")" 
+    }
   }
 
   
@@ -121,8 +140,32 @@ object CoqOutput {
     val fw = new FileWriter(coqfile)
     val status = if (success) "Success" else "Failed"
     val name = file.getName()
+    val basic_context = 
+    """
+(* Base context with primitives *)
+Definition Γ : context :=
+  (* NatToBoolBinOp *)
+  (0, (T_arrow T_nat (T_arrow T_nat T_bool))) (* == *)
+  ::(1, (T_arrow T_nat (T_arrow T_nat T_bool))) (* != *)
+  ::(2, (T_arrow T_nat (T_arrow T_nat T_bool))) (* <= *)
+  ::(3, (T_arrow T_nat (T_arrow T_nat T_bool))) (* >= *)
+  ::(4, (T_arrow T_nat (T_arrow T_nat T_bool))) (* < *)
+  ::(5, (T_arrow T_nat (T_arrow T_nat T_bool))) (* > *)
+  (* NatToNatBinOp *)
+  ::(6, (T_arrow T_nat (T_arrow T_nat T_nat))) (* + *)
+  ::(7, (T_arrow T_nat (T_arrow T_nat T_nat))) (* - *)
+  ::(8, (T_arrow T_nat (T_arrow T_nat T_nat))) (* * *)
+  ::(9, (T_arrow T_nat (T_arrow T_nat T_nat))) (* | *)
+  (* BoolToBoolBinOp *)
+  ::(10, (T_arrow T_bool (T_arrow T_bool T_bool))) (* && *)
+  ::(11, (T_arrow T_bool (T_arrow T_bool T_bool))) (* || *)
+  (* BoolToBoolUnOp *)
+  ::(12, (T_arrow T_bool T_bool)) (* ~ *)
+  ::nil.
+    """
+
     fw.write(s"(* Type Checking File $name: $status *)\n\n")
-    fw.write("Require Export SystemFR.Derivation.\n\n")
+    fw.write("Require Export SystemFR.Derivation.\n\n" + basic_context + "\n")
     fw.write("Definition ds : (list derivation) := ")
     fw.write(nodeTreeToCoq(trees, 0) + ".\n \n")
     fw.write("Lemma derivationValid: List.forallb is_valid ds = true.\n")
@@ -148,6 +191,7 @@ object CoqOutput {
 
   def toNamelessRep(t: Tree)(implicit nameless: Map[Identifier, Int]): Tree = t match {
 
+    case Var(Identifier(id, "")) => Var(Identifier(0, s"(fvar ${id} term_var)"))
     case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)})"))
     case Var(id) => Var(Identifier(0, s"(fvar ${toCoqIndex(id)} ${toCoqVarType(id.name)})"))
     case IfThenElse(cond, t1, t2) => IfThenElse(toNamelessRep(cond), toNamelessRep(t1), toNamelessRep(t2))
@@ -162,7 +206,7 @@ object CoqOutput {
     case Lambda(tp, bind) => Lambda(tp.map(toNamelessRep), toNamelessRep(bind))
     case Fix(tp, bind) => Fix(tp.map(toNamelessRep), toNamelessRep(bind)) 
     case LetIn(tp, v, bind) => LetIn(tp.map(toNamelessRep), toNamelessRep(v), toNamelessRep(bind)) 
-    //case MacroTypeDecl(tp, bind) => ???
+    //case MacroTypeDecl(tp, bind) =>  ???
     //case MacroTypeInst(v, args) => ???
     case NatMatch(t, t0, bind) => NatMatch(toNamelessRep(t), toNamelessRep(t0), toNamelessRep(bind))
     case EitherMatch(t, bind1, bind2) => EitherMatch(toNamelessRep(t), toNamelessRep(bind1), toNamelessRep(bind2))
@@ -217,6 +261,8 @@ object CoqOutput {
     case BooleanLiteral(b) => s"t${b.toString()}"
     case IfThenElse(cond, t1, t2) => s"(ite ${treeToCoq(cond)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case App(t1, t2) => s"(app ${treeToCoq(t1)} ${treeToCoq(t2)})"
+    case Fix(None, Bind(id, body)) => s"(notype_tfix ${treeToCoq(body)})"
+    case Fix(Some(ty), Bind(id, body)) => s"(tfix ${treeToCoq(ty)} ${treeToCoq(body)})"
     case Lambda(None, Bind(id, body)) => s"(notype_lambda ${treeToCoq(body)})"
     case Lambda(Some(ty), Bind(id, body)) => s"(lambda ${treeToCoq(ty)} ${treeToCoq(body)})"
     case Pair(t1, t2) => s"(pp ${treeToCoq(t1)} ${treeToCoq(t2)})"
@@ -228,6 +274,9 @@ object CoqOutput {
     case LeftTree(t) => s"(tleft ${treeToCoq(t)})"
     case RightTree(t) => s"(tright ${treeToCoq(t)})"
     case Primitive(op, arg1::Nil) => s"(app (fvar ${op.coqIndex} term_var) ${treeToCoq(arg1)})"
+    case Primitive(op, arg1::arg2::Nil) => s"(app (app (fvar ${op.coqIndex} term_var) ${treeToCoq(arg1)}) (${treeToCoq(arg2)}))"
+    //(app (app op arg1) arg2)
+    case ErasableApp(t1,t2) => s"(forall_inst ${treeToCoq(t1)} ${treeToCoq(t2)})"
 
     // Binder
     case Bind(id, body) => treeToCoq(body) // Not sure about this one

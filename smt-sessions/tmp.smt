@@ -1,0 +1,7 @@
+(declare-const |solverVar#563| Int)
+(assert (>= |solverVar#563| 0))
+(declare-const |solverVar#564| Int)
+(assert (>= |solverVar#564| 0))
+(assert (= |solverVar#563| |solverVar#564|))
+(assert (not (= (<= |solverVar#563| (+ |solverVar#564| 1)) true)))
+(check-sat)
