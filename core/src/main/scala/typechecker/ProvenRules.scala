@@ -407,7 +407,7 @@ trait ProvenRules {
 
             dropRefinements(ty) match {
               case IntersectionType(_, Bind(x, ty)) =>
-                (true, InferJudgment("InferForallInstantiation", c, e, ty.replace(x, t2)))
+                (true, InferJudgment("InferForallInstantiation", c, e, ty.replace(x, t2), Some("J_forall_inst", None)))
 
               case _ => emitErrorWithJudgment("InferForallInstantiation", g,
                 Some(s"Expected an intersection type for ${t1}, found ${ty} instead")

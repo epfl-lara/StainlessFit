@@ -104,7 +104,7 @@ trait SMTRules {
             case _: Derivation.CheckJudgment => true
             case _ => false
           }) =>
-            (true, AreEqualJudgment("SMTSolver", c, t1, t2, "Validated by SMT solver"))
+            (true, AreEqualJudgment("SMTSolver", c, t1, t2, "Validated by SMT solver", Some("E_SMT", None)))
           case _ => emitErrorWithJudgment("SMTSolver", g, None)
         }
         ))
