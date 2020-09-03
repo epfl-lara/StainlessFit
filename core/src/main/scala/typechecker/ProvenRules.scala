@@ -100,7 +100,7 @@ trait ProvenRules {
       Some((List(_ => errorGoal),
         {
           case AreEqualJudgment(_, _, _, _, _, _) :: _ => (true, InferJudgment("InferError", c, e, tp))
-          case _ => emitErrorWithJudgment("InferError", g, None)
+          case _ => emitErrorWithJudgment("InferError", g, Some("J_error", None))
         }
       ))
 
