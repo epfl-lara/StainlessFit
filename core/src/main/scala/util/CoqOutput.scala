@@ -12,6 +12,10 @@ import java.io.File
 import core.typechecker.EmptyGoal
 
 object CoqOutput {
+
+  var knownRules = Set[String]();
+  var unknownRules = Set[String]();
+  var unknownTerms = Set[Tree]();
   
   def shortString(s: String, maxWidth: Int = 900): String = {
     val r = s.replaceAll("\n", " ")
@@ -65,23 +69,23 @@ object CoqOutput {
   def judgementToCoq(j: Judgment)(implicit rc: RunContext): String = j match {
 
     // Infer and Check Judgements are considered as `Typing Judgements`
-    case CheckJudgment(name, context, t, tp, None) => printJudgement("TJ " + name, context, t, tp)
-    case CheckJudgment(_, context, t, tp, Some((name, None))) => printJudgement("TJ " + name, context, t, tp)
-    case CheckJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case CheckJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
+    case CheckJudgment(_, context, t, tp, Some((name, None))) => this.knownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
+    case CheckJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
-    case InferJudgment(name, context, t, tp, None) => printJudgement("TJ " + name, context, t, tp)
-    case InferJudgment(_, context, t, tp, Some((name, None))) => printJudgement("TJ " + name, context, t, tp)
-    case InferJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case InferJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
+    case InferJudgment(_, context, t, tp, Some((name, None))) => this.knownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
+    case InferJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
     // Subtyping judgments
-    case SubtypeJudgment(name, context, t, tp, None) => printJudgement("StJ "+ name, context, t, tp)
-    case SubtypeJudgment(_, context, t, tp, Some((name, None))) => printJudgement("StJ " + name, context, t, tp)
-    case SubtypeJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => printJudgement("StJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case SubtypeJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("StJ "+ name, context, t, tp)
+    case SubtypeJudgment(_, context, t, tp, Some((name, None))) => this.knownRules += j.name ;printJudgement("StJ " + name, context, t, tp)
+    case SubtypeJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("StJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
     // Equivalence judgements
-    case AreEqualJudgment(name, context, t, tp, _, None) => printJudgement("EJ "+ name, context, t, tp)
-    case AreEqualJudgment(_, context, t, tp, _, Some((name, None))) => printJudgement("EJ " + name, context, t, tp)
-    case AreEqualJudgment(_, context, t, tp, _, Some((name, Some(t_ind)))) => printJudgement("EJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case AreEqualJudgment(name, context, t, tp, _, None) => this.unknownRules += j.name ;printJudgement("EJ "+ name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, Some((name, None))) => this.knownRules += j.name ;printJudgement("EJ " + name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("EJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
 
     // Unsupported in Coq yet :
     case SynthesisJudgment(name, context, tp, t) =>
@@ -97,6 +101,8 @@ object CoqOutput {
 
     case FileJudgment(name, context, s) =>
       s"(${(context.level.toString)} - ${(name)}) ⊢ File ${(shortString(s))}"
+
+      case _ => this.unknownRules += j.name ;"UNKNOWN"
   }
 
   def nodeTreeToCoq(l: List[NodeTree[Judgment]], depth: Int)(implicit rc: RunContext): String = 
@@ -129,8 +135,7 @@ object CoqOutput {
       }
 
     case _ => {
-      val childrenString = nodeTreeToCoq(t.children, depth + 1)
-      s"(N ${judgementToCoq(t.node)}" + childrenString + ")" 
+      s"(N ${judgementToCoq(t.node)}" + nodeTreeToCoq(t.children, depth + 1) + ")" 
     }
   }
 
@@ -172,6 +177,14 @@ Definition Γ : context :=
     fw.write("Proof. unfold ds, List.forallb, is_valid. reflexivity. Qed.\n")
     fw.close()
     rc.reporter.info(s"Created Coq file with derivations in: $coqfile")
+    rc.reporter.info(s"Known rules: ${knownRules.toList.sorted.foldRight("")({
+      case (r, acc) => r + ", " + acc })}")
+    if (unknownTerms.nonEmpty)
+      rc.reporter.error(s"Unknown terms: ${shortString(unknownTerms.foldRight("")({
+        case (r, acc) => shortString(r.toString(), 30) + ", " + acc }), 100)}")
+    if (unknownRules.nonEmpty)
+      rc.reporter.error(s"Unknown rules: ${unknownRules.foldRight("")({
+        case (r, acc) => r + ", " + acc })}")
   }
 
   def toCoqIndex(id: Identifier): Int = {
@@ -243,8 +256,8 @@ Definition Γ : context :=
     case BooleanLiteral(_) => t
 
     case _ => {
-      println(t);
-      ???
+      this.unknownTerms += t ;
+      t
     }
 
   }
@@ -254,7 +267,7 @@ Definition Γ : context :=
 
     // terms 
     case Var(id) => id.name
-    case UnitLiteral => "()"
+    case UnitLiteral => "uu"
     case NatLiteral(n) if (n.intValue == 0) => "zero"
     case NatLiteral(n) => s"(succ ${treeToCoq(NatLiteral(n-1))})"
     case Succ(t0) => s"(succ ${treeToCoq(t0)})"
@@ -297,7 +310,7 @@ Definition Γ : context :=
     case EqualityType(t1, t2) => s"(T_equiv ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case ExistsType(t1, t2) => s"(T_exists ${treeToCoq(t1)} ${treeToCoq(t2)})"
 
-    case _ => s"NOCOQPRINT [${t.toString()}]"
+    case _ => this.unknownTerms+= t;  s"NOCOQPRINT [${shortString(t.toString(), 30)}]"
   }
 
 }

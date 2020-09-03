@@ -709,7 +709,7 @@ trait ProvenRules {
       Some((List(_ => subgoal1, _ => subgoal2),
         {
           case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckPair", c, e, ty))
+            (true, CheckJudgment("CheckPair", c, e, ty, Some("J_PP", None)))
           case _ =>
             emitErrorWithJudgment("CheckPair", g, None)
         }
@@ -769,7 +769,7 @@ trait ProvenRules {
         List(_ => gv, fgb),
         {
           case _ :: CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckLet", c, e, ty))
+            (true, CheckJudgment("CheckLet", c, e, ty, Some("J_Let", Some(ty))))
           case _ =>
             emitErrorWithJudgment("CheckLet", g, None)
         }
@@ -1104,7 +1104,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
-            (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, ""))
+            (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, "", Some("E_refine_unfold", None)))
           case _ =>
             emitErrorWithJudgment("UnfoldRefinementInContext", g, None)
         }
