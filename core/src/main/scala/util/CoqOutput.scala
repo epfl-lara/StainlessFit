@@ -141,7 +141,7 @@ object CoqOutput {
 
   
   def makeCoqFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean)(implicit rc: RunContext): Unit = {
-    val coqfile = new File(file.getAbsolutePath() + ".v")
+    val coqfile = new File(file.getAbsolutePath().replaceFirst("[.][^.]+$", "") + ".v")
     val fw = new FileWriter(coqfile)
     val status = if (success) "Success" else "Failed"
     val name = file.getName()
@@ -174,7 +174,7 @@ Definition Γ : context :=
     fw.write("Definition ds : (list derivation) := ")
     fw.write(nodeTreeToCoq(trees, 0) + ".\n \n")
     fw.write("Lemma derivationValid: List.forallb is_valid ds = true.\n")
-    fw.write("Proof. unfold ds, List.forallb, is_valid. reflexivity. Qed.\n")
+    fw.write("Proof. compute. reflexivity. Qed.\n")
     fw.close()
     rc.reporter.info(s"Created Coq file with derivations in: $coqfile")
     rc.reporter.info(s"Known rules: ${knownRules.toList.sorted.foldRight("")({
@@ -290,6 +290,9 @@ Definition Γ : context :=
     case Primitive(op, arg1::arg2::Nil) => s"(app (app (fvar ${op.coqIndex} term_var) ${treeToCoq(arg1)}) (${treeToCoq(arg2)}))"
     //(app (app op arg1) arg2)
     case ErasableApp(t1,t2) => s"(forall_inst ${treeToCoq(t1)} ${treeToCoq(t2)})"
+    case Error(_, None) => "notype_err"
+    case Error(_, Some(t)) => s"(err ${treeToCoq(t)})" 
+    case Abs(t) => s"(type_abs ${treeToCoq(t)})"
 
     // Binder
     case Bind(id, body) => treeToCoq(body) // Not sure about this one
@@ -305,7 +308,8 @@ Definition Γ : context :=
     case SigmaType(t1, t2) => s"(T_prod ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case RefinementType(t1, t2) => s"(T_refine ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case RefinementByType(t1, t2) => s"(T_type_refine ${treeToCoq(t1)} ${treeToCoq(t2)})"
-    case IntersectionType(t1, t2) => s"(T_intersection ${treeToCoq(t1)} ${treeToCoq(t2)})"
+    case IntersectionType(t1, t2) => s"(T_forall ${treeToCoq(t1)} ${treeToCoq(t2)})"
+    case PolyForallType(t) => s"(T_abs ${treeToCoq(t)})"
     case UnionType(t1, t2) => s"(T_union ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case EqualityType(t1, t2) => s"(T_equiv ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case ExistsType(t1, t2) => s"(T_exists ${treeToCoq(t1)} ${treeToCoq(t2)})"

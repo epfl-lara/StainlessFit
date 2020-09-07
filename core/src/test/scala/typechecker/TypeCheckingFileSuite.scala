@@ -8,6 +8,7 @@ import core.Core
 class TypeCheckingFileSuite extends AnyFunSuite {
 
   implicit val rc = core.util.RunContext.testContext
+  // test.coq = 1
 
   for (f <- files("examples/typechecker", _.endsWith("sf"))) {
     test(s"Type checking file $f") {
@@ -16,5 +17,9 @@ class TypeCheckingFileSuite extends AnyFunSuite {
         case Right((success, _)) => assert(success)
       }
     }
+    /*
+    test(s"Validating Coq derivation of $f") {
+      ???
+    }*/
   }
 }

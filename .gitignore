@@ -6,3 +6,7 @@ target
 .stainless-cache
 .vscode
 *.html
+*.v
+*.aux
+*.glob
+*.vo

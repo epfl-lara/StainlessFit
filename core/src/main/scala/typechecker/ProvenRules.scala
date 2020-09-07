@@ -99,8 +99,8 @@ trait ProvenRules {
       val errorGoal = EqualityGoal(c.incrementLevel, BooleanLiteral(false), BooleanLiteral(true))
       Some((List(_ => errorGoal),
         {
-          case AreEqualJudgment(_, _, _, _, _, _) :: _ => (true, InferJudgment("InferError", c, e, tp))
-          case _ => emitErrorWithJudgment("InferError", g, Some("J_error", None))
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ => (true, InferJudgment("InferError", c, e, tp, Some("J_error", None)))
+          case _ => emitErrorWithJudgment("InferError", g, None)
         }
       ))
 
@@ -871,7 +871,7 @@ trait ProvenRules {
   val CheckTop1 = Rule("CheckTop1", {
     case g @ CheckGoal(c, t, TopType) if t.isValue =>
       TypeChecker.debugs(g, "CheckTop1")
-      Some((List(), _ => (true, CheckJudgment("CheckTop1", c, t, TopType))))
+      Some((List(), _ => (true, CheckJudgment("CheckTop1", c, t, TopType, Some("J_Top_value", None)))))
     case g =>
       None
   })
@@ -883,7 +883,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckTop2", c, t, TopType))
+            (true, CheckJudgment("CheckTop2", c, t, TopType, Some("J_Top", None)))
           case _ =>
             emitErrorWithJudgment("CheckTop2", g, None)
         }

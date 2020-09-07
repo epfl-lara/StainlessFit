@@ -485,27 +485,37 @@ trait UnprovenRules {
     case _ => None
   })
 
-  /*
   val DestructPair = Rule("DestructPair", {
-    case g @ EqualityGoal(c, t1, t2) if c.termVariables.values.exists { case _: SigmaType => true case _ => false } =>
-      val (pairId, SigmaType(ty1, Bind(id, ty2))) = c.termVariables.find{ case (_, SigmaType(_, _: Bind)) => true case _ => false }.get
-      val left = Identifier.fresh(s"${pairId.toString}_left")
-      val right = Identifier.fresh(s"${pairId.toString}_right")
-      val newC = c.replace(pairId, Pair(Var(left), Var(right)))
-      val (termVars1,termVars2) = newC.termVariables.span(_._1 != pairId)
-      val lastC = c.copy(
-        termVariables = (
-          termVars1 + ((left, ty1)) + 
-          ((right, ty2.replace(id, left))) + 
-          termVars2))
+    case g @ EqualityGoal(c, t1, t2) => 
+      c.termVariables.find{ 
+        case (_, SigmaType(_, _: Bind)) => true 
+        case _ => false 
+      } match {
+        case Some((pairId, SigmaType(ty1, Bind(id, ty2)))) => {
+          // We have the following term context : ...::(paidId, SigmaType(ty1, ty2))::...
+          // We split it into : ... :: (left, ty1) :: (right, ty2) :: ...
+          // While replacing all references to pairId by Pair(Var(left), Var(right))
+          val left = Identifier.fresh(s"${pairId.toString}_left")
+          val right = Identifier.fresh(s"${pairId.toString}_right")
+          val newC = c.replace(pairId, Pair(Var(left), Var(right)))
+          val splitContext = newC.termVariables.span(_._1 != pairId)
+          val (termVars1,termVars2) = (splitContext._1 , splitContext._2.tail) // We need to drop the head `(pairId, SigmaType)`
+          val lastC = newC.copy(
+            termVariables = (
+              termVars1 + ((left, ty1)) + 
+              ((right, ty2.replace(id, left))) ++ 
+              termVars2))
 
-      Some(List(_ => EqualityGoal(lastC, t1.replace(pairId, Pair(Var(left), Var(right)))), t2.replace(pairId, Pair(Var(left), Var(right)))) {
-        case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
-          (true, AreEqualJudgment("DestructPair", c, t1, t2, ""))
-        case _ =>
-          emitErrorWithJudgment("DestructPair", g, None)
-      })
+          Some(List[List[Judgment] => Goal](_ => g.updateContext(lastC)), {
+            case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
+              (true, AreEqualJudgment("DestructPair", c, t1, t2, ""))
+            case _ =>
+              emitErrorWithJudgment("DestructPair", g, None)
+          })
+        }
+        case _ => None
+      }
     case _ => None
   })
-  */
+
 }
