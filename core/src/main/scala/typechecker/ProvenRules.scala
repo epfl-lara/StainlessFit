@@ -1083,34 +1083,35 @@ trait ProvenRules {
       None
   })
 
-  def unfoldRefinementInContext(c: Context): Context = {
-    c.termVariables.foldLeft(c) { case (acc, (x, tp)) =>
-      tp match {
-        case RefinementType(ty, Bind(y, t2)) =>
-          val t2p = t2.replace(y, Var(x))
-          acc.copy(
-            termVariables = acc.termVariables.updated(x, ty)
-          ).addEquality(t2p, BooleanLiteral(true))
-        case _ => acc
-      }
-    }
-  }
-
   val UnfoldRefinementInContext = Rule("UnfoldRefinementInContext", {
     case g @ EqualityGoal(c, t1, t2) if c.hasRefinement =>
-      TypeChecker.debugs(g, "UnfoldRefinementInContext")
-      val c1 = unfoldRefinementInContext(c)
-      val subgoal = EqualityGoal(c1.incrementLevel, t1, t2)
-      Some((List(_ => subgoal),
-        {
-          case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
-            (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, "", Some("E_refine_unfold", None)))
-          case _ =>
-            emitErrorWithJudgment("UnfoldRefinementInContext", g, None)
+      c.termVariables.find {
+        case (_, RefinementType(_,_)) => true
+        case _ => false
+      } match {
+        case Some((x, RefinementType(ty, Bind(y, tp)))) => {
+          TypeChecker.debugs(g, "UnfoldRefinementInContext")
+          val p = Identifier.fresh(s"${x.toString}_refnCarrier")
+          val splitContext = c.termVariables.span(_._1 != x)
+          val (termVars1,termVars2) = (splitContext._1 , splitContext._2.tail)
+          val newC = c.copy(termVariables = 
+            termVars1 + 
+            ((p, EqualityType(tp.replace(y, x), BooleanLiteral(true)))) + 
+            ((x, ty)) ++ termVars2
+          ).incrementLevel
+          Some((
+            List(_ => g.updateContext(newC))), 
+            {
+              case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
+                (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, "", Some("E_refine_unfold", None)))
+              case _ =>
+                emitErrorWithJudgment("UnfoldRefinementInContext", g, None)
+            }
+          )
         }
-      ))
-    case g =>
-      None
+        case _ => None
+      }
+    case _ => None
   })
 
   val EqualityInContext = Rule("EqualityInContext", {
