@@ -39,6 +39,7 @@ object CoqOutput {
       s"_ ⇐ ${typeOutput(tp)}"
     case EqualityGoal(c, t1, t2) =>
       termOutput(t1)+ " ≡ " + termOutput(t2)
+    case _ => ""
   }
 
   def typecontextToCoq(context: Context): String = {
@@ -52,40 +53,45 @@ object CoqOutput {
   }
 
     
-  def termcontextToCoq(context: Context): String =  {
-    if (context.termVariables.isEmpty) {
-      "Γ"
-    } else {
-       "(" +context.termVariables.foldRight("")({
-        case ((id,tp), acc) => acc+ "(" + toCoqIndex(id).toString() +","+ treeToCoq(toNamelessRep(tp)(Map()))+")::"
-      })+ "Γ)"
-    }
+  def termcontextToCoq(context: Context): String =  context.lastOp match {
+    case Same => "Same"
+    case Append(addedElements) => "(Append (" + 
+      addedElements.foldRight("nil") {
+        case ((id, t), acc) => s"(${toCoqIndex(id).toString()}, ${treeToCoq(toNamelessRep(t)(Map()))}) :: "+acc
+      } + "))"
+    case New(context) => "(New (" + 
+      context.termVariables.foldRight("nil") {
+        case ((id, t), acc) => s"(${toCoqIndex(id).toString()}, ${treeToCoq(toNamelessRep(t)(Map()))}) :: "+acc
+      } + "))"
   }
 
   def printJudgement(name: String, context: Context, t: Tree, tp: Tree): String =
     "("+ name + " "+ typecontextToCoq(context) +" "+ termcontextToCoq(context) +" " + treeToCoq(toNamelessRep(t)(Map())) + " " + treeToCoq(toNamelessRep(tp)(Map())) + ")"
+
+  def judgementName(coqName: Option[(String, Option[Tree])]): String = 
+    coqName match {
+      case None => ""
+      case Some((s, None)) => s
+      case Some((s, Some(t))) => s"(${s} ${treeToCoq(toNamelessRep(t)(Map()))})"
+    }
 
 
   def judgementToCoq(j: Judgment)(implicit rc: RunContext): String = j match {
 
     // Infer and Check Judgements are considered as `Typing Judgements`
     case CheckJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
-    case CheckJudgment(_, context, t, tp, Some((name, None))) => this.knownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
-    case CheckJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case CheckJudgment(_, context, t, tp, coqName) => this.knownRules   += j.name ;printJudgement("TJ " + judgementName(coqName), context, t, tp)
 
     case InferJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
-    case InferJudgment(_, context, t, tp, Some((name, None))) => this.knownRules += j.name ;printJudgement("TJ " + name, context, t, tp)
-    case InferJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("TJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case InferJudgment(_, context, t, tp, coqName) => this.knownRules   += j.name ;printJudgement("TJ " + judgementName(coqName), context, t, tp)
 
     // Subtyping judgments
-    case SubtypeJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("StJ "+ name, context, t, tp)
-    case SubtypeJudgment(_, context, t, tp, Some((name, None))) => this.knownRules += j.name ;printJudgement("StJ " + name, context, t, tp)
-    case SubtypeJudgment(_, context, t, tp, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("StJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case SubtypeJudgment(name, context, t, tp, None) => this.unknownRules += j.name ;printJudgement("StJ " + name, context, t, tp)
+    case SubtypeJudgment(_, context, t, tp, coqName) => this.knownRules   += j.name ;printJudgement("StJ " + judgementName(coqName), context, t, tp)
 
     // Equivalence judgements
-    case AreEqualJudgment(name, context, t, tp, _, None) => this.unknownRules += j.name ;printJudgement("EJ "+ name, context, t, tp)
-    case AreEqualJudgment(_, context, t, tp, _, Some((name, None))) => this.knownRules += j.name ;printJudgement("EJ " + name, context, t, tp)
-    case AreEqualJudgment(_, context, t, tp, _, Some((name, Some(t_ind)))) => this.knownRules += j.name ;printJudgement("EJ (" + name + " " + treeToCoq(toNamelessRep(t_ind)(Map())) + ")", context, t, tp)
+    case AreEqualJudgment(name, context, t, tp, _, None) => this.unknownRules += j.name ;printJudgement("EJ " + name, context, t, tp)
+    case AreEqualJudgment(_, context, t, tp, _, coqName) => this.knownRules   += j.name ;printJudgement("EJ " + judgementName(coqName), context, t, tp)
 
     // Unsupported in Coq yet :
     case SynthesisJudgment(name, context, tp, t) =>
@@ -171,9 +177,9 @@ Definition Γ : context :=
 
     fw.write(s"(* Type Checking File $name: $status *)\n\n")
     fw.write("Require Export SystemFR.Derivation.\n\n" + basic_context + "\n")
-    fw.write("Definition ds : (list derivation) := ")
-    fw.write(nodeTreeToCoq(trees, 0) + ".\n \n")
-    fw.write("Lemma derivationValid: List.forallb is_valid ds = true.\n")
+    fw.write("Definition ds : derivation := \n")
+    fw.write(nodeTreeToCoq(trees.head, 0) + ".\n \n")
+    fw.write("Lemma derivationValid: is_valid ds Γ = true.\n")
     fw.write("Proof. compute. reflexivity. Qed.\n")
     fw.close()
     rc.reporter.info(s"Created Coq file with derivations in: $coqfile")

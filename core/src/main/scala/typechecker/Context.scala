@@ -11,16 +11,25 @@ object Context {
   def empty(max: Int)(implicit rc: RunContext): Context = Context(SeqMap(), Seq(), 0)
 }
 
+sealed abstract class ContextModifier
+case object Same extends ContextModifier
+case class Append(addedElements: List[(Identifier, Tree)]) extends ContextModifier
+case class New(context: Context) extends ContextModifier
+/* To be extended */
+
+
 case class Context(
   val termVariables: SeqMap[Identifier, Tree],
   val typeVariables: Seq[Identifier],
-  val level: Int
+  val level: Int,
+  val lastOp: ContextModifier = Same
 )(implicit rc: RunContext) extends Positioned {
 
   def bind(i: Identifier, ty: Tree): Context = {
     if (termVariables.contains(i)) throw new Exception("Already bound " + i.toString)
     copy(
-      termVariables = termVariables.updated(i, ty)
+      termVariables = termVariables.updated(i, ty),
+      lastOp = Append(List((i, ty)))
     )
   }
 
@@ -32,11 +41,15 @@ case class Context(
     (freshId, bind(freshId, t))
   }
 
+  def setModifier(m: ContextModifier) : Context = copy(lastOp = m)
+
   def contains(id: Identifier): Boolean = termVariables.contains(id)
 
   def getTypeOf(id: Identifier): Option[Tree] = termVariables.get(id)
 
-  def addEquality(t1: Tree, t2: Tree): Context = bindFresh("eq", EqualityType(t1, t2))._2
+  def addEquality(t1: Tree, t2: Tree): Context = {
+    bindFresh("eq", EqualityType(t1, t2))._2
+  }
 
   def incrementLevel: Context = copy(level = level + 1)
 

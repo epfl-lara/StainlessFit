@@ -111,13 +111,13 @@ trait ProvenRules {
   val InferLet = Rule("InferLet", {
     case g @ InferGoal(c, e @ LetIn(None, v, Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLet")
-      val c0 = c.incrementLevel
+      val c0 = c.incrementLevel.setModifier(Same)
       val gv = InferGoal(c0, v)
       val fgb: List[Judgment] => Goal =
         {
           case InferJudgment(_, _, _, tyv, _) :: _ =>
-            val c1 = c0.bind(id, tyv).addEquality(Var(id), v)
-            InferGoal(c1, body)
+            val (x1, c1) = c0.bind(id, tyv).bindFresh("eq", EqualityType(Var(id), v))
+            InferGoal(c1.setModifier(Append(List((x1, EqualityType(Var(id), v)), (id, tyv)))), body)
           case _ =>
             ErrorGoal(c0, None)
         }
@@ -153,7 +153,7 @@ trait ProvenRules {
   val InferLambda = Rule("InferLambda", {
     case g @ InferGoal(c, e @ Lambda(Some(ty1), Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLambda")
-      val c1 = c.bind(id, ty1).incrementLevel
+      val c1 = c.bind(id, ty1).incrementLevel.setModifier(Append(List((id,ty1))))
       val gb = InferGoal(c1, body)
       Some((
         List(_ => gb),
@@ -197,7 +197,7 @@ trait ProvenRules {
       val c0 = c.incrementLevel
       val c1 = c0.addEquality(tc, BooleanLiteral(true))
       val c2 = c0.addEquality(tc, BooleanLiteral(false))
-      val checkCond = CheckGoal(c0, tc, BoolType)
+      val checkCond = CheckGoal(c0.setModifier(Same), tc, BoolType)
       val inferT1 = InferGoal(c1, t1)
       val inferT2 = InferGoal(c2, t2)
       Some((
@@ -424,7 +424,7 @@ trait ProvenRules {
   val InferApp = Rule("InferApp", {
     case g @ InferGoal(c, e @ App(t1, t2)) =>
       TypeChecker.debugs(g, "InferApp")
-      val c0 = c.incrementLevel
+      val c0 = c.incrementLevel.setModifier(Same)
       val g1 = InferGoal(c0, t1)
       val fg2: List[Judgment] => Goal = {
         case InferJudgment(_, _, _, ty, _) :: _ =>
@@ -460,9 +460,9 @@ trait ProvenRules {
   val CheckRefinement = Rule("CheckRefinement", {
     case g @ CheckGoal(c, t, tpe @ RefinementType(ty, Bind(id, b))) =>
       TypeChecker.debugs(g, "CheckRefinement")
-      val checkTy = CheckGoal(c.incrementLevel, t, ty)
-      val c1 = c.bind(id, ty).addEquality(Var(id), t)
-      val checkRef = EqualityGoal(c1.incrementLevel, b, BooleanLiteral(true))
+      val checkTy = CheckGoal(c.incrementLevel.setModifier(Same), t, ty)
+      val (p,c1) = c.bind(id, ty).bindFresh("p", EqualityType(Var(id), t))
+      val checkRef = EqualityGoal(c1.incrementLevel.setModifier(Append(List((p, EqualityType(Var(id), t)), (id,ty)))), b, BooleanLiteral(true))
       Some((
         List(_ => checkTy, _ => checkRef), {
           case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
@@ -478,7 +478,7 @@ trait ProvenRules {
   val CheckReflexive = Rule("CheckReflexive", {
     case g @ CheckGoal(c, t, ty) =>
       TypeChecker.debugs(g, "CheckReflexive")
-      val gInfer = InferGoal(c.incrementLevel, t)
+      val gInfer = InferGoal(c.incrementLevel.setModifier(Same), t)
       Some((List(_ => gInfer),
         {
           case InferJudgment(_, _, _, ty2, _) :: _ if {
@@ -584,7 +584,7 @@ trait ProvenRules {
     case g @ CheckGoal(c, e @ Lambda(Some(ty1), Bind(id1, body)), tpe @ PiType(ty2, Bind(id2, ty))) if (ty1.isEqual(ty2)) =>
       TypeChecker.debugs(g, "CheckLambda")
       val (freshId, c1) = c.bindFresh(id1.name, ty1)
-      val subgoal = CheckGoal(c1.incrementLevel, body.replace(id1, Var(freshId)), ty.replace(id2, Var(freshId)))
+      val subgoal = CheckGoal(c1.incrementLevel.setModifier(Append(List((freshId,ty1)))), body.replace(id1, Var(freshId)), ty.replace(id2, Var(freshId)))
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
@@ -617,7 +617,7 @@ trait ProvenRules {
   val CheckIf = Rule("CheckIf", {
     case g @ CheckGoal(c, e @ IfThenElse(tc, t1, t2), ty) =>
       TypeChecker.debugs(g, "CheckIf")
-      val c0 = c.incrementLevel
+      val c0 = c.incrementLevel.setModifier(Same)
       val c1 = c0.addEquality(tc, BooleanLiteral(true))
       val c2 = c0.addEquality(tc, BooleanLiteral(false))
       val checkCond = CheckGoal(c0, tc, BoolType)
@@ -1100,7 +1100,7 @@ trait ProvenRules {
             ((x, ty)) ++ termVars2
           ).incrementLevel
           Some((
-            List(_ => g.updateContext(newC))), 
+            List(_ => g.updateContext(newC.setModifier(New(newC))))), 
             {
               case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
                 (true, AreEqualJudgment("UnfoldRefinementInContext", c, t1, t2, "", Some("E_refine_unfold", None)))
