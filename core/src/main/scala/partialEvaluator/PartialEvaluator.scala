@@ -31,7 +31,7 @@ object PartialEvaluator {
   val __ignoreMeasure__ = true
   val __debugPrint__ = false
 
-  def smallStep(e: Tree, previousMeasure: Option[BigInt] = None, disableReferenceCounting: Boolean = true)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
+  def smallStep(e: Tree, previousMeasure: Option[BigInt] = None, disableReferenceCounting: Boolean = false)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
     def replaceNoFix(e: Tree): Option[Tree] = {
       e match {
         case IfThenElse(BooleanLiteral(true), t1, _) => 
@@ -203,7 +203,7 @@ object PartialEvaluator {
     println(s"wrote to $path")
   }
 
-  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None, disableReferenceCounting: Boolean = true)(implicit rc: RunContext): Tree = {
+  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None, disableReferenceCounting: Boolean = false)(implicit rc: RunContext): Tree = {
     if(__debugPrint__){
       println(s"=============================================${previousMeasure}")
       Printer.exprInfo(e)

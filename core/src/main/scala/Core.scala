@@ -79,14 +79,14 @@ object Core {
       case _: Throwable => false
     }
   }
-  def partEvalFile(f: File)(implicit rc: RunContext): Either[String, Tree] =
+  def partEvalFile(f: File, disableReferenceCounting: Boolean = false)(implicit rc: RunContext): Either[String, Tree] =
     parseFile(f) flatMap { src =>
 
       val pipeline = PartialEvaluator.pipeline()
 
       val (t, _) = pipeline.transform(src)
 
-      Right(PartialEvaluator.evaluate(t))
+      Right(PartialEvaluator.evaluate(t, disableReferenceCounting = disableReferenceCounting))
       //Can't fail ?
     }
 
