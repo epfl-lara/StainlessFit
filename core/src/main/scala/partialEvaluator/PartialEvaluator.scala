@@ -28,11 +28,10 @@ object PartialEvaluator {
   def subError(a: BigInt,b: BigInt) = Error(s"Subtraction between ${a} and ${b} will yield a negative value", None)
   def divError = Error(s"Attempt to divide by zero", None)
 
-  val __ignoreRefCounting__ = true
   val __ignoreMeasure__ = true
   val __debugPrint__ = false
 
-  def smallStep(e: Tree, previousMeasure: Option[BigInt] = None)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
+  def smallStep(e: Tree, previousMeasure: Option[BigInt] = None, disableReferenceCounting: Boolean = true)(implicit rc: RunContext): Option[(Tree, Option[BigInt])] = {
     def replaceNoFix(e: Tree): Option[Tree] = {
       e match {
         case IfThenElse(BooleanLiteral(true), t1, _) => 
@@ -70,7 +69,7 @@ object PartialEvaluator {
           //val varValue = _varValue.freshenIdentifiers()
 
           lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
-          if(__ignoreRefCounting__){
+          if(disableReferenceCounting){
             if (__debugPrint__) println(s"App(lambda) no ref count: $id")//: $varValue")
             Some(Tree.replaceBind(bind, varValue))
           }else if(simpleValue(varValue)){
@@ -204,7 +203,7 @@ object PartialEvaluator {
     println(s"wrote to $path")
   }
 
-  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None)(implicit rc: RunContext): Tree = {
+  def evaluate(e: Tree, previousMeasure: Option[BigInt] = None, pastEval: Option[Tree] = None, disableReferenceCounting: Boolean = true)(implicit rc: RunContext): Tree = {
     if(__debugPrint__){
       println(s"=============================================${previousMeasure}")
       Printer.exprInfo(e)
@@ -244,7 +243,7 @@ object PartialEvaluator {
         
         
         val currentMeasure = measure orElse previousMeasure
-        evaluate(value, currentMeasure, afterEvalOpt)
+        evaluate(value, currentMeasure, afterEvalOpt, disableReferenceCounting)
     }
   }
 }

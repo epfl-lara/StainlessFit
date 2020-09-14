@@ -83,12 +83,6 @@ object Core {
     parseFile(f) flatMap { src =>
 
       val pipeline = PartialEvaluator.pipeline()
-      /*
-        DebugPhase(new DefFunctionElimination(), "DefFunctionElimination") andThen
-        DebugPhase(new Namer(), "Namer") andThen
-        DebugPhase(new BuiltInIdentifiers(), "BuiltInIdentifiers") andThen
-        DebugPhase(new Erasure(), "Erasure")
-        */
 
       val (t, _) = pipeline.transform(src)
 
