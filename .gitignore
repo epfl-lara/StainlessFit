@@ -6,3 +6,4 @@ target
 .stainless-cache
 .vscode
 *.html
+smt-sessions

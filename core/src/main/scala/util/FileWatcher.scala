@@ -1,3 +1,5 @@
+/* Copyright 2019-2020 EPFL, Lausanne */
+
 /* Copyright 2009-2018 EPFL, Lausanne */
 
 package stainlessfit
