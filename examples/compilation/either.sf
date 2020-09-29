@@ -1,0 +1,18 @@
+fun test(boolean [Bool]) [returns (Bool + Nat)] = {
+
+  val bs [Bool + Nat] = if(true){
+    left true
+  } else {
+    right 3
+  };
+
+  val n = 3;
+
+if(boolean){
+    left true
+  } else {
+    right 3
+  }
+}
+
+right (left (test(false)))

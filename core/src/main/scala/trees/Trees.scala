@@ -664,10 +664,8 @@ object Tree {
       case UnitLiteral => body
       case NatLiteral(_) => body
       case BooleanLiteral(_) => body
-      case IfThenElse(cond, t1, t2) =>
-        IfThenElse(postMap(p, cond), postMap(p, t1), postMap(p, t2))
-      case App(t1, t2) =>
-        App(postMap(p, t1), postMap(p, t2))
+      case IfThenElse(cond, t1, t2) => IfThenElse(postMap(p, cond), postMap(p, t1), postMap(p, t2))
+      case App(t1, t2) => App(postMap(p, t1), postMap(p, t2))
       case Pair(t1, t2) => Pair(postMap(p, t1), postMap(p, t2))
       case Size(t) => Size(postMap(p, t))
       case First(t) => First(postMap(p, t))
@@ -919,15 +917,6 @@ case class Identifier(id: Int, name: String) extends Positioned {
       case ErasableApp(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
       case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
       case Error(_, t) => t.map(isFreeIn).getOrElse(false)
-      case DefFunction(args, optRet, optMeasure, body, rest) =>
-        args.foldLeft((false, false))({
-          case ((isFreeAcc, isBoundAcc), arg) =>
-            if (isFreeAcc) (isFreeAcc, isBoundAcc)
-            else (
-              isFreeAcc || (!isBoundAcc && arg.tpe.exists(isFreeIn)),
-              isBoundAcc || this == arg.id
-            )
-        })._1 || optRet.exists(isFreeIn) || optMeasure.exists(isFreeIn) || isFreeIn(body) || isFreeIn(rest)
       case ErasableLambda(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
 
       case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
@@ -1041,7 +1030,6 @@ case class BooleanLiteral(b: Boolean) extends Tree
 case class Bind(id: Identifier, body: Tree) extends Tree
 case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree
 case class Lambda(tp: Option[Tree], bind: Tree) extends Tree
-case class DefFunction(args: Seq[DefArgument], optRet: Option[Tree], optMeasure: Option[Tree], body: Tree, rest: Tree) extends Tree
 case class ErasableLambda(ty: Tree, bind: Tree) extends Tree
 case class App(t1: Tree, t2: Tree) extends Tree
 case class Pair(t1: Tree, t2: Tree) extends Tree

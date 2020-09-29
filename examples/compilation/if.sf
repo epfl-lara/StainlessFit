@@ -1,0 +1,16 @@
+fun fac(n [Nat]) [returns Nat] = {
+[decreases n]
+  if(n < 1){
+    1
+  } else {
+    n * fac(n -1)
+  }
+}
+
+val x = if(false || true){
+  5
+} else {
+  6
+};
+
+fac(x)

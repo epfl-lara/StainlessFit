@@ -68,6 +68,11 @@ object TreeBuilders {
     }
   }
 
+  object PlaceHolder {
+    def apply(): Tree = Node("PlaceHolder", Seq())
+    def unapply(t: Tree): Boolean = t == Node("PlaceHolder", Seq())
+  }
+
   object Abstractions {
     def apply(args: Seq[DefArgument], body: Tree): Tree = {
       args.foldRight(body) {
@@ -90,6 +95,33 @@ object TreeBuilders {
     }
   }
 
+  object DefFunction {
+    def apply(id: Identifier, args: Seq[DefArgument], optRet: Option[Tree], optMeasure: Option[Tree], body: Tree, rest: Tree) = {
+      Node("DefFunction", Seq(
+        Abstractions(args, Node("DefFunctionInner1", Seq(
+          optRet.getOrElse(PlaceHolder()),
+          optMeasure.getOrElse(PlaceHolder())
+        ))),
+
+        Bind(id, Node("DefFunctionInner2", Seq(body, rest)))
+      ))
+    }
+
+    def unapply(t: Tree): Option[(Identifier, Seq[DefArgument], Option[Tree], Option[Tree], Tree, Tree)] = t match {
+      case Node("DefFunction", Seq(
+          Abstractions(args, Node("DefFunctionInner1", Seq(ret, measure))),
+          Bind(id, Node("DefFunctionInner2", Seq(body, rest)))
+        )) =>
+        Some((id, args,
+          if (ret == PlaceHolder()) None else Some(ret),
+          if (measure == PlaceHolder()) None else Some(measure),
+          body,
+          rest
+        ))
+      case _ => None
+    }
+  }
+
   object ForallQuantifiers {
     def apply(args: Seq[DefArgument], retType: Tree): Tree = {
       args.foldRight(retType) {
@@ -98,7 +130,7 @@ object TreeBuilders {
             case TypeArgument(id)       => PolyForallType(Bind(id, accType))
             case ForallArgument(id, ty) => IntersectionType(ty, (Bind(id, accType)))
             case TypedArgument(id, ty)  => PiType(ty, Bind(id, accType))
-            case UntypedArgument(id)     =>
+            case UntypedArgument(id)    =>
               throw new Exception(s"Untyped arguments ($id) are not supported in the `ForallQuantifiers` construction")
           }
       }

@@ -12,9 +12,7 @@ import parser.FitParser
 
 class DefFunctionElimination(implicit val rc: RunContext) extends Phase[Unit] {
   def transform(t: Tree): (Tree, Unit) = (t.preMap(e => e match {
-    case DefFunction(args, optRet, optMeasure, Binds(ids :+ f, body), Bind(g, rest)) =>
-      assert(f == g)
-
+    case DefFunction(f, args, optRet, optMeasure, body, rest) =>
       if (f.isFreeIn(body) && optMeasure.isEmpty) {
         rc.reporter.fatalError(s"Recursive function $f needs a decreases clause.")
       }
@@ -24,14 +22,11 @@ class DefFunctionElimination(implicit val rc: RunContext) extends Phase[Unit] {
         case (None, None) =>
           val fun = Abstractions(args, body)
           Some(LetIn(None, fun, Bind(f, rest)))
-        case (None, Some(Binds(ids3, ty))) =>
-          assert(ids3 == ids)
+        case (None, Some(ty)) =>
           val fun = Abstractions(args, body)
           val funType = ForallQuantifiers(args, ty)
           Some(LetIn(Some(funType), fun, Bind(f, rest)))
-        case (Some(Binds(ids4, measure)), Some(Binds(ids5, ty))) =>
-          assert(ids4 == ids)
-          assert(ids5 == ids)
+        case (Some(measure), Some(ty)) =>
           val n = Identifier.fresh("n")
 
           val refinedArgs = mapFirst(args.reverse, { (arg: DefArgument) => arg match {

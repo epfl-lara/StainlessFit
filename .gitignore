@@ -5,5 +5,6 @@ project/metals.sbt
 target
 .stainless-cache
 .vscode
+LLVM_out
 *.html
 smt-sessions

@@ -550,27 +550,14 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val defFunction: Syntax[Tree] =
     (funK.skip ~ termIdentifier ~ many(argument) ~ opt(retTypeP) ~ equal.skip ~ lbraBlock.skip ~ opt(measureP) ~
     expr ~ rbraBlock2.skip ~ opt(expr)).map({
-      case f ~ args ~ optRet ~ optMeasure ~ e1 ~ e2 =>
+      case f ~ args ~ optRet ~ optMeasure ~ body ~ rest =>
         val ids = args.map(_.id)
-        val followingExpr = e2.getOrElse(Var(f))
-        DefFunction(
-          args,
-          optRet.map(ret => Binds(ids, ret)),
-          optMeasure.map(measure => Binds(ids, measure)),
-          Binds(ids, Bind(f, e1)),
-          Bind(f, followingExpr)
-        )
+        val followingExpr = rest.getOrElse(UnitLiteral)
+        DefFunction(f, args, optRet, optMeasure, body, followingExpr)
       case _ => sys.error("Unreachable")
     }, {
-      case DefFunction(args, optRet, optMeasure, Binds(_, e1), Bind(f, body)) =>
-        Seq(
-          f ~
-          args ~
-          optRet.map(Binds.remove) ~
-          optMeasure.map(Binds.remove) ~
-          e1 ~
-          Some(body)
-        )
+      case DefFunction(f, args, optRet, optMeasure, body, rest) =>
+        Seq(f ~ args ~ optRet ~ optMeasure ~ body ~ Some(rest))
       case _ => Seq()
     })
 

@@ -17,23 +17,23 @@ class Bench() {
     stopTime = System.nanoTime()
   }
 
-  var times: Map[String, Double] = Map()
-  var minTimes: Map[String, Double] = Map()
-  var maxTimes: Map[String, Double] = Map()
+  var times: Map[String, Long] = Map()
+  var minTimes: Map[String, Long] = Map()
+  var maxTimes: Map[String, Long] = Map()
   var counts: Map[String, Int] = Map()
 
   def time[R](s: String)(block: => R): R = {
     val t0 = System.nanoTime()
     val result = block    // call-by-name
     val t1 = System.nanoTime()
-    minTimes = minTimes.updated(s, Math.min(minTimes.getOrElse(s, Double.MaxValue), t1 - t0))
-    maxTimes = maxTimes.updated(s, Math.max(maxTimes.getOrElse(s, 0.0), t1 - t0))
-    times = times.updated(s, times.getOrElse(s,0.0) + t1 - t0)
+    minTimes = minTimes.updated(s, Math.min(minTimes.getOrElse(s, Long.MaxValue), t1 - t0))
+    maxTimes = maxTimes.updated(s, Math.max(maxTimes.getOrElse(s, 0L), t1 - t0))
+    times = times.updated(s, times.getOrElse(s, 0L) + t1 - t0)
     counts = counts.updated(s, counts.getOrElse(s, 0) + 1)
     result
   }
 
-  def ms(ns: Double): String = s"${(ns / 1000000).toInt}ms"
+  def ms(ns: Long): String   = s"${ns / 1000000}ms"
 
   def surround(s: String, n: Int, c: Char): String = {
     c.toString * ((n - s.length) / 2) +
@@ -86,9 +86,9 @@ class Bench() {
           // seconds(total / counts(name)),
           counts(name).toString
         )
-      }.toSeq.sortBy(l => -(l(1).asInstanceOf[Double]))(Ordering.Double.TotalOrdering)
-             .map(l => Row(l.updated(1, ms(l(1).asInstanceOf[Double]))
-                            .updated(2, ms(l(2).asInstanceOf[Double]))
+      }.toSeq.sortBy(l => -l(1).asInstanceOf[Long])
+             .map(l => Row(l.updated(1, ms(l(1).asInstanceOf[Long]))
+                            .updated(2, ms(l(2).asInstanceOf[Long]))
                             .map(_.toString)))
     )
     reporter.info(t.toString("TIMES"))

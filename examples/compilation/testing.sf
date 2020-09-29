@@ -1,0 +1,20 @@
+//[type List[X] = Forall(n: Nat, Rec(n)(List => (Unit + (X, List))))]
+
+//fun nil[X]  [returns List[X]] = {
+//  [fold as List[X]](left ())
+//}
+val random [Nat + Bool] = if(true){
+  left 2
+} else {
+  right false
+};
+
+val nextRandom [Bool + Nat] = match random {
+  case left a => left (a == 2)
+  case right b => right 6
+};
+
+match nextRandom {
+  case left a => 1
+  case right b => 1 + b
+}

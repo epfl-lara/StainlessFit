@@ -1,0 +1,11 @@
+fun makeAdder [returns Nat => (Nat => Nat)] = {
+  fun of (x [Nat]) = {
+    fun of (y [Nat]) = {
+      x + y
+    }
+  }
+}
+
+val increment = makeAdder(1);
+
+increment(41)

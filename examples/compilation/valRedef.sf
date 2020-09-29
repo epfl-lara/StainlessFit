@@ -1,0 +1,7 @@
+val x = 5;
+val y = 10;
+val z = x + y;
+
+val x = 0;
+
+0 + x

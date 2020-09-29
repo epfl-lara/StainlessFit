@@ -174,7 +174,7 @@ trait ProvenRules {
   })
 
   val InferErasableLambda = Rule("InferErasableLambda", {
-    case g @ InferGoal(c, e @ ErasableLambda(ty1, Bind(id, body))) if !id.isFreeIn(body.erase) =>
+    case g @ InferGoal(c, e @ ErasableLambda(ty1, Bind(id, body))) if !id.isFreeIn(body.erase()) =>
       TypeChecker.debugs(g, "InferErasableLambda")
 
       val c1 = c.bind(id, ty1).incrementLevel
@@ -354,7 +354,7 @@ trait ProvenRules {
     case g @ InferGoal(c, e @ Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))) =>
       TypeChecker.debugs(g, "InferFix")
 
-      val erased = t.erase
+      val erased = t.erase()
 
       if (n1.isFreeIn(erased)) {
         Some((List(),

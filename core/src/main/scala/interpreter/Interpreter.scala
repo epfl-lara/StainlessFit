@@ -154,13 +154,16 @@ object Interpreter {
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))
 
+      case Error(msg, _) => Error(msg, None)
+
       case _ =>
         rc.reporter.fatalError(s"Evaluation is stuck on: $e")
     }
   }
 
-  def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
-    if (e.isValue) e
-    else evaluate(smallStep(e))
+  def evaluate(e: Tree)(implicit rc: RunContext): Tree = e match {
+    case Error(_, _) => e
+    case tree if tree.isValue => tree
+    case _ => evaluate(smallStep(e))
   }
 }
