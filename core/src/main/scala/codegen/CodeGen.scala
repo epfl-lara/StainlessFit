@@ -635,7 +635,7 @@ class CodeGen(val rc: RunContext) {
       case other => rc.reporter.fatalError(s"There is no default value for type $other")
     }
 
-    def assignee(toAssign: Option[Local])(implicit lh: LocalHandler) = toAssign getOrElse lh.freshLocal
+    def assignee(toAssign: Option[Local])(implicit lh: LocalHandler) = toAssign getOrElse lh.freshLocal()
     def jumpTo(next: Option[Label]) = next.toList.map(label => Jump(label))
 
     def codegen(inputTree: Tree, block: Block, next: Option[Label], toAssign: Option[Local], resultType: Type)

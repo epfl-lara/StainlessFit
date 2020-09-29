@@ -47,7 +47,7 @@ class DefFunctionElimination(implicit val rc: RunContext) extends Phase[Unit] {
 
           val instBody = Applications(
             ErasableApp(Var(f), Primitive(Plus, List(measure, NatLiteral(1)))),
-            args.map(_.toAppArgument)
+            args.map(_.toAppArgument())
           )
           val instFun = Abstractions(args, instBody)
           Some(LetIn(None, fix, Bind(f,

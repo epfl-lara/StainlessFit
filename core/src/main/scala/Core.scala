@@ -45,10 +45,10 @@ object Core {
   }
 
   def parseFile(f: File)(implicit rc: RunContext): Either[String, Tree] = {
-    val s = scala.io.Source.fromFile(f).getLines.mkString("\n")
+    val s = scala.io.Source.fromFile(f).getLines().mkString("\n")
     val regex = """Include\("(.*)"\)""".r
     val completeString = regex.replaceAllIn(s, m =>
-      scala.io.Source.fromFile(new File(f.getAbsoluteFile().getParentFile().getCanonicalPath(), m.group(1))).getLines.mkString("\n") + "\n"
+      scala.io.Source.fromFile(new File(f.getAbsoluteFile().getParentFile().getCanonicalPath(), m.group(1))).getLines().mkString("\n") + "\n"
     )
     rc.bench.time("Scallion parsing") { parseString(completeString) }
   }
