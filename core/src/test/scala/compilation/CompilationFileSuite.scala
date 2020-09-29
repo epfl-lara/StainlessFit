@@ -1,12 +1,12 @@
 package stainlessfit
 
 import Utils._
-import org.scalatest.FunSuite
 import core.trees._
-
 import core.Core
 
-class CompilationFileSuite extends FunSuite {
+import org.scalatest.funsuite.AnyFunSuite
+
+class CompilationFileSuite extends AnyFunSuite {
 
   implicit val rc = core.util.RunContext.testContext
 
