@@ -13,7 +13,11 @@ ThisBuild / scalacOptions ++= Seq(
   "-encoding", "UTF-8",
   "-deprecation",
   "-unchecked",
-  "-feature"
+  "-feature",
+  "-Wconf:cat=other-match-analysis&src=Trees.scala:s," +
+    "cat=other-match-analysis&src=Printer.scala:s," +
+    "cat=other-match-analysis&src=Parser.scala:s," +
+    "msg=Exhaustivity analysis reached max recursion depth:s"
 )
 
 ThisBuild / maxErrors := 5

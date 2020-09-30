@@ -311,7 +311,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val geq = opParser(Geq)
 
   lazy val parTypeExpr: Syntax[Tree] = {
-    (lpar ~>~ rep1sep(typeExpr, comma) ~<~ rpar).map(Sigmas.apply, ty => Seq(Sigmas.unapply(ty).get))
+    (lpar ~>~ rep1sep(typeExpr, comma) ~<~ rpar).map(s => Sigmas(s.toList), ty => Seq(Sigmas.unapply(ty).get))
   }
 
   lazy val piType: Syntax[Tree] = {
@@ -553,7 +553,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
       case f ~ args ~ optRet ~ optMeasure ~ body ~ rest =>
         val ids = args.map(_.id)
         val followingExpr = rest.getOrElse(UnitLiteral)
-        DefFunction(f, args, optRet, optMeasure, body, followingExpr)
+        DefFunction(f, args.toList, optRet, optMeasure, body, followingExpr)
       case _ => sys.error("Unreachable")
     }, {
       case DefFunction(f, args, optRet, optMeasure, body, rest) =>
@@ -571,7 +571,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val lambda: Syntax[Tree] =
     (funOfK.skip ~ many(argument) ~ equal.skip ~ bracketExpr).map({
-      case args ~ e => Abstractions(args, e)
+      case args ~ e => Abstractions(args.toList, e)
     }, {
       case Abstractions(args, e) => Seq(args ~ e)
       case _ => Seq()
@@ -674,7 +674,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val parExpr: Syntax[Tree] =
-    (lpar ~>~ repsep(expr, comma) ~<~ rpar).map(Pairs(_),
+    (lpar ~>~ repsep(expr, comma) ~<~ rpar).map(s => Pairs(s.toList),
       e => Seq(Pairs.unapply(e).get)
     )
 
@@ -709,7 +709,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val application: Syntax[Tree] = {
     (simpleExpr ~ many(appArg)).map({
-      case f ~ args => Applications(f, args)
+      case f ~ args => Applications(f, args.toList)
     }, {
       case LNil()       => Seq(Var(Identifier(0, "nil")) ~ Seq())
       case LCons(x, xs) => Seq(Var(Identifier(0, "cons")) ~ Seq(AppArg(x), AppArg(xs)))
@@ -740,7 +740,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val macroTypeInst: Syntax[Tree] =
     (typeIdentifier ~ many(macroTermArg | macroTypeArg)).map({
       case id ~ Nil => Var(id)
-      case id ~ args => MacroTypeInst(Var(id), args)
+      case id ~ args => MacroTypeInst(Var(id), args.toList)
     }, {
       case Var(id) => Seq(id ~ Nil)
       case t if t == typechecker.SDepSugar.LList => Seq(Identifier(0, "List") ~ Nil)
@@ -896,7 +896,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
            (lsbra.skip ~ typeIdentifier ~ rsbra.skip)) ~
       equal.skip ~ typeExpr ~ rsbraNewLines.skip ~ expr).map({
       case id ~ ids ~ ty ~ rest =>
-        MacroTypeDecl(Binds(ids, ty), Bind(id, rest))
+        MacroTypeDecl(Binds(ids.toList, ty), Bind(id, rest))
       case _ =>
         sys.error("Unreachable")
     }, {

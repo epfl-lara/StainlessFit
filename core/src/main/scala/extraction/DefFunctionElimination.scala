@@ -29,7 +29,7 @@ class DefFunctionElimination(implicit val rc: RunContext) extends Phase[Unit] {
         case (Some(measure), Some(ty)) =>
           val n = Identifier.fresh("n")
 
-          val refinedArgs = mapFirst(args.reverse, { (arg: DefArgument) => arg match {
+          val refinedArgs = mapFirst2(args.reverse, { (arg: DefArgument) => arg match {
             case ForallArgument(id, ty) =>
               Some(ForallArgument(id, RefinementType(ty, Bind(id, Primitive(Leq, List(measure, Var(n)))))))
             case TypedArgument(id, ty) =>

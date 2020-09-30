@@ -64,7 +64,7 @@ object SDepSugar {
   val nList = Identifier.fresh("n")
   val alpha = Identifier.fresh("alpha")
   val unused = Identifier.fresh("h")
-  val LList = Node("List", Seq())
+  val LList = Node("List", Nil)
 
   val LNilType: Tree = SingletonType(LList, LNil())
 
@@ -73,10 +73,10 @@ object SDepSugar {
 
   object LConsType {
     def apply(tyHead: Tree, tyTail: Tree): Tree =
-      Node("ConsType", Seq(tyHead, tyTail))
+      Node("ConsType", List(tyHead, tyTail))
 
     def unapply(ty: Tree): Option[(Tree, Tree)] = ty match {
-      case Node("ConsType", Seq(tyHead, tyTail)) =>
+      case Node("ConsType", List(tyHead, tyTail)) =>
         Some((tyHead, tyTail))
       case _ =>
         None
@@ -86,10 +86,10 @@ object SDepSugar {
 
   object ListMatch {
     def apply(l: Tree, tNil: Tree, tCons: Tree): Tree =
-      Node("ListMatch", Seq(l, tNil, tCons))
+      Node("ListMatch", List(l, tNil, tCons))
 
     def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
-      case Node("ListMatch", Seq(l, tNil, tCons)) =>
+      case Node("ListMatch", List(l, tNil, tCons)) =>
         Some((l, tNil, tCons))
       case _ =>
         None
@@ -115,13 +115,13 @@ object SDepSugar {
   object ListMatchType {
     def apply(l: Tree, tyNil: Tree, tyCons: Tree)(implicit rc: RunContext): Tree = tyCons match {
       case Bind(idHead, Bind(idTail, _)) =>
-        Node("ListMatchType", Seq(l, tyNil, tyCons))
+        Node("ListMatchType", List(l, tyNil, tyCons))
       case _ =>
         rc.reporter.fatalError("Expecting two binds in the third argument of `ListMatchType`")
     }
 
     def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
-      case Node("ListMatchType", Seq(t, tyNil, tyCons)) => Some((t, tyNil, tyCons))
+      case Node("ListMatchType", List(t, tyNil, tyCons)) => Some((t, tyNil, tyCons))
       case _ => None
     }
   }
@@ -129,13 +129,13 @@ object SDepSugar {
   object NatMatchType {
     def apply(l: Tree, tyZero: Tree, tySucc: Tree)(implicit rc: RunContext): Tree = tySucc match {
       case Bind(id, _) =>
-        Node("NatMatchType", Seq(l, tyZero, tySucc))
+        Node("NatMatchType", List(l, tyZero, tySucc))
       case _ =>
         rc.reporter.fatalError("Expecting one bind in the third argument of `NatMatchType`")
     }
 
     def unapply(t: Tree): Option[(Tree, Tree, Tree)] = t match {
-      case Node("NatMatchType", Seq(t, tyZero, tySucc)) => Some((t, tyZero, tySucc))
+      case Node("NatMatchType", List(t, tyZero, tySucc)) => Some((t, tyZero, tySucc))
       case _ => None
     }
   }
@@ -144,19 +144,19 @@ object SDepSugar {
     val unusedPath = Identifier.fresh("p")
     val PathType = LList
 
-    def apply(ty: Tree)(implicit rc: RunContext): Tree = Node("Choose", Seq(ty))
+    def apply(ty: Tree)(implicit rc: RunContext): Tree = Node("Choose", List(ty))
 
     def unapply(t: Tree): Option[Tree] = t match {
-      case Node("Choose", Seq(ty)) => Some(ty)
+      case Node("Choose", List(ty)) => Some(ty)
       case _ => None
     }
   }
 
   object ChooseWithPath {
-    def apply(ty: Tree, t: Tree) = Node("Choose", Seq(ty, t))
+    def apply(ty: Tree, t: Tree) = Node("Choose", List(ty, t))
 
     def unapply(t: Tree): Option[(Tree, Tree)] = t match {
-      case Node("Choose", Seq(ty, t)) => Some((ty, t))
+      case Node("Choose", List(ty, t)) => Some((ty, t))
       case _ => None
     }
   }
@@ -165,9 +165,9 @@ object SDepSugar {
     val maxRecDepth = 123
 
     def apply(ty: Tree, t: Bind, td: Tree, depthFuel: Int): Tree =
-      Node("FixWithDefault", Seq(ty, t, td, NatLiteral(depthFuel)))
+      Node("FixWithDefault", List(ty, t, td, NatLiteral(depthFuel)))
     def unapply(t: Tree): Option[(Tree, Bind, Tree, Int)] = t match {
-      case Node("FixWithDefault", Seq(ty, t: Bind, td, NatLiteral(depthFuel))) =>
+      case Node("FixWithDefault", List(ty, t: Bind, td, NatLiteral(depthFuel))) =>
         Some((ty, t, td, depthFuel.toInt))
       case _ =>
         None
