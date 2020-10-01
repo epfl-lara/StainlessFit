@@ -39,13 +39,13 @@ class CodeGen(val rc: RunContext) {
       val initBlock = lh.newBlock("Entry")
       val end = lh.freshLabel("Print.and.exit")
 
-      val mainBody = filterErasable(body)
-      val returnType = typeOf(mainBody)(lh, globalHandler, Map.empty)
+      findErasable(body)
+      val returnType = typeOf(body)(lh, globalHandler, Map.empty)
       val result = lh.freshLocal("result")
 
       val prep = preAllocate(result, returnType)(lh)
 
-      val (entryBlock, phi) = codegen(mainBody, initBlock <:> prep, Some(end), Some(result), returnType)(lh, mainFun, globalHandler)
+      val (entryBlock, phi) = codegen(body, initBlock <:> prep, Some(end), Some(result), returnType)(lh, mainFun, globalHandler)
       mainFun.add(entryBlock)
 
       val endBlock = lh.newBlock(end)
@@ -62,7 +62,7 @@ class CodeGen(val rc: RunContext) {
         firstInstructions: List[Instruction] = Nil, isMain: Boolean = false, isTopLevel: Boolean = false): Function = {
 
       val initBlock = lh.newBlock("Entry") <:> firstInstructions
-      val filteredBody = filterErasable(body)
+      findErasable(body)
       val returnType = function.returnType
 
       val end = lh.freshLabel("End")
@@ -70,7 +70,7 @@ class CodeGen(val rc: RunContext) {
 
       val prep = preAllocate(result, function.returnType)(lh)
 
-      val (entryBlock, phi) = codegen(filteredBody, initBlock <:> prep, Some(end), Some(result), returnType)(lh, function, globalHandler)
+      val (entryBlock, phi) = codegen(body, initBlock <:> prep, Some(end), Some(result), returnType)(lh, function, globalHandler)
       function.add(entryBlock)
 
       val endBlock = lh.newBlock(end)
@@ -596,12 +596,7 @@ class CodeGen(val rc: RunContext) {
       }
     }
 
-    def filterErasable(t: Tree): Tree = {
-      Tree.traverse(t, _ => (), findErasable)
-      t
-    }
-
-    def findErasable(t:Tree): Unit = t match {
+    def findErasable(t: Tree): Unit = t.traversePre {
       case
         MacroTypeDecl(_, _) |
         MacroTypeInst(_, _) |
@@ -618,6 +613,7 @@ class CodeGen(val rc: RunContext) {
 
       case _ => ()
     }
+
     def defaultValue(tpe: Type): Value = tpe match {
       case BooleanType | IRUnitType => Value(IRBooleanLiteral(false))
       case IRNatType => Value(Nat(BigInt(0)))

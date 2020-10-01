@@ -17,5 +17,5 @@ class RunContext(val config: Config) {
 }
 
 object RunContext {
-  def testContext = new RunContext(Config.default)
+  val testContext = new RunContext(Config.default)
 }

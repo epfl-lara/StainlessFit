@@ -161,11 +161,8 @@ object Printer {
   }
 
   def asString(id: Identifier)(implicit rc: RunContext): String = {
-    val Identifier(n, name) = id
-    if (rc.config.printUniqueIds)
-      s"$name#$n"
-    else
-      name
+    if (rc.config.printUniqueIds) id.uniqueString
+    else id.toString
   }
 
   def itToString(t: Tree, it: Iterator[Seq[Token]])(implicit rc: RunContext): String = {

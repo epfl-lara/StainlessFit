@@ -53,5 +53,5 @@ class LocalHandler(val rc : RunContext) {
   def freshLabel(): Label = freshLabel("label")
   def dot(label: Label, s: String) = freshLabel(s"${label.label}.$s")
 
-  def translateId(id: Identifier): String = id.toString.replace("#", "_")
+  def translateId(id: Identifier): String = id.uniqueString.replace("#", "_")
 }
