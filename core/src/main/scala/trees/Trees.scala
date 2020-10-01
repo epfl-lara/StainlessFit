@@ -7,6 +7,62 @@ package trees
 import util.RunContext
 import parser.FitParser
 
+case class Var(id: Identifier) extends Tree {
+  setPos(id)
+}
+
+case class NatLiteral(n: BigInt) extends Tree {
+  require(n >= 0)
+}
+
+case class Succ(t: Tree) extends Tree
+case object UnitLiteral extends Tree
+case class BooleanLiteral(b: Boolean) extends Tree
+case class Bind(id: Identifier, body: Tree) extends Tree
+case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree
+case class Lambda(tp: Option[Tree], bind: Tree) extends Tree
+case class ErasableLambda(ty: Tree, bind: Tree) extends Tree
+case class App(t1: Tree, t2: Tree) extends Tree
+case class Pair(t1: Tree, t2: Tree) extends Tree
+case class Size(t: Tree) extends Tree
+case class First(t: Tree) extends Tree
+case class Second(t: Tree) extends Tree
+case class Fix(tp: Option[Tree], bind: Tree) extends Tree
+case class NatMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
+case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
+case class LeftTree(t: Tree) extends Tree
+case class RightTree(t: Tree) extends Tree
+case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree
+case class MacroTypeDecl(tp: Tree, body: Tree) extends Tree
+case class MacroTypeInst(v: Tree, args: List[(Boolean, Tree)]) extends Tree
+case class Error(s: String, t: Option[Tree]) extends Tree
+case class Primitive(op: Operator, args: List[Tree]) extends Tree
+case class ErasableApp(t1: Tree, t2: Tree) extends Tree
+case class Refl(t1: Tree, t2: Tree) extends Tree
+case class Fold(tp: Tree, t: Tree) extends Tree
+case class Unfold(t: Tree, bind: Tree) extends Tree
+case class UnfoldPositive(t: Tree, bind: Tree) extends Tree
+case class Abs(t: Tree) extends Tree
+case class TypeApp(t1: Tree, t2: Tree) extends Tree
+case object BottomType extends Tree
+case object TopType extends Tree
+case object UnitType extends Tree
+case object BoolType extends Tree
+case object NatType extends Tree
+case class SigmaType(t1: Tree, t2: Tree) extends Tree
+case class SumType(t1: Tree, t2: Tree) extends Tree
+case class PiType(t1: Tree, t2: Tree) extends Tree
+case class IntersectionType(t1: Tree, t2: Tree) extends Tree
+case class ExistsType(t1: Tree, t2: Tree) extends Tree
+case class RefinementType(t1: Tree, t2: Tree) extends Tree
+case class RefinementByType(t1: Tree, t2: Tree) extends Tree
+case class RecType(n: Tree, bind: Tree) extends Tree
+case class PolyForallType(t: Tree) extends Tree
+case class UnionType(t1: Tree, t2: Tree) extends Tree
+case class EqualityType(t1: Tree, t2: Tree) extends Tree
+case class Because(t1: Tree, t2: Tree) extends Tree
+case class Node(name: String, children: List[Tree]) extends Tree
+
 object Tree {
 
   def deconstruct(t: Tree): (List[Tree], List[Tree] => Tree) = {
@@ -229,59 +285,3 @@ sealed abstract class Tree extends Positioned {
 
   def erase()(implicit rc: RunContext): Tree = extraction.Erasure.erase(this)
 }
-
-case class Var(id: Identifier) extends Tree {
-  setPos(id)
-}
-
-case class NatLiteral(n: BigInt) extends Tree {
-  require(n >= 0)
-}
-
-case class Succ(t: Tree) extends Tree
-case object UnitLiteral extends Tree
-case class BooleanLiteral(b: Boolean) extends Tree
-case class Bind(id: Identifier, body: Tree) extends Tree
-case class IfThenElse(cond: Tree, t1: Tree, t2: Tree) extends Tree
-case class Lambda(tp: Option[Tree], bind: Tree) extends Tree
-case class ErasableLambda(ty: Tree, bind: Tree) extends Tree
-case class App(t1: Tree, t2: Tree) extends Tree
-case class Pair(t1: Tree, t2: Tree) extends Tree
-case class Size(t: Tree) extends Tree
-case class First(t: Tree) extends Tree
-case class Second(t: Tree) extends Tree
-case class Fix(tp: Option[Tree], bind: Tree) extends Tree
-case class NatMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
-case class EitherMatch(t: Tree, t1: Tree, t2: Tree) extends Tree
-case class LeftTree(t: Tree) extends Tree
-case class RightTree(t: Tree) extends Tree
-case class LetIn(tp: Option[Tree], v: Tree, body: Tree) extends Tree
-case class MacroTypeDecl(tp: Tree, body: Tree) extends Tree
-case class MacroTypeInst(v: Tree, args: List[(Boolean, Tree)]) extends Tree
-case class Error(s: String, t: Option[Tree]) extends Tree
-case class Primitive(op: Operator, args: List[Tree]) extends Tree
-case class ErasableApp(t1: Tree, t2: Tree) extends Tree
-case class Refl(t1: Tree, t2: Tree) extends Tree
-case class Fold(tp: Tree, t: Tree) extends Tree
-case class Unfold(t: Tree, bind: Tree) extends Tree
-case class UnfoldPositive(t: Tree, bind: Tree) extends Tree
-case class Abs(t: Tree) extends Tree
-case class TypeApp(t1: Tree, t2: Tree) extends Tree
-case object BottomType extends Tree
-case object TopType extends Tree
-case object UnitType extends Tree
-case object BoolType extends Tree
-case object NatType extends Tree
-case class SigmaType(t1: Tree, t2: Tree) extends Tree
-case class SumType(t1: Tree, t2: Tree) extends Tree
-case class PiType(t1: Tree, t2: Tree) extends Tree
-case class IntersectionType(t1: Tree, t2: Tree) extends Tree
-case class ExistsType(t1: Tree, t2: Tree) extends Tree
-case class RefinementType(t1: Tree, t2: Tree) extends Tree
-case class RefinementByType(t1: Tree, t2: Tree) extends Tree
-case class RecType(n: Tree, bind: Tree) extends Tree
-case class PolyForallType(t: Tree) extends Tree
-case class UnionType(t1: Tree, t2: Tree) extends Tree
-case class EqualityType(t1: Tree, t2: Tree) extends Tree
-case class Because(t1: Tree, t2: Tree) extends Tree
-case class Node(name: String, children: List[Tree]) extends Tree
