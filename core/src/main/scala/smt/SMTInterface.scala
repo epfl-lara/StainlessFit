@@ -2,6 +2,9 @@
 
 package stainlessfit
 package core
+package smt
+
+import core.util.RunContext
 
 import java.io.{File, PrintWriter, Writer}
 
@@ -112,7 +115,7 @@ class SMTInterface(path: String) {
 
   private def declareVar(tree: Tree, tp: Tree): Term = {
     if (!declaredVariables.contains(tree)) {
-      val id = stainlessfit.core.trees.Identifier.fresh("solverVar").toString
+      val id = stainlessfit.core.trees.Identifier.fresh("solverVar").asString(RunContext.printUniqueIds)
       declaredVariables(tree) = t(id)
       tp match {
         case BoolType =>

@@ -179,7 +179,7 @@ trait UnprovenRules {
         case _ => None
       }
 
-    val newt = Tree.preMap(expandSize, t)
+    val newt = t.preMap(expandSize)
     if (expanded)
       Some(newt)
     else
@@ -201,7 +201,7 @@ trait UnprovenRules {
         case _ => None
       }
 
-    val newt = Tree.preMap(eval, t)
+    val newt = t.preMap(eval)
     if (performedEval)
       Some(newt)
     else
@@ -490,12 +490,12 @@ trait UnprovenRules {
   val DestructPair = Rule("DestructPair", {
     case g @ EqualityGoal(c, t1, t2) if c.termVariables.values.exists { case _: SigmaType => true case _ => false } =>
       val (pairId, SigmaType(ty1, Bind(id, ty2))) = c.termVariables.find{ case (_, SigmaType(_, _: Bind)) => true case _ => false }.get
-      val left = Identifier.fresh(s"${pairId.toString}_left")
-      val right = Identifier.fresh(s"${pairId.toString}_right")
-      val newC = c.copy(termVariables = c.termVariables.removed(pairId).view.mapValues(Tree.preMap({
+      val left = Identifier.fresh(s"${pairId}_left")
+      val right = Identifier.fresh(s"${pairId}_right")
+      val newC = c.copy(termVariables = c.termVariables.removed(pairId).view.mapValues(_.preMap({
         case Var(id) if id == pairId => Some(Pair(Var(left), Var(right)))
         case _ => None
-      }, _)).toMap)
+      })).toMap)
                   .bind(left, ty1)
                   .bind(right, ty2.replace(id, ty1))
       Some(List(_ => g.updateContext(newC)), {

@@ -18,4 +18,6 @@ class RunContext(val config: Config) {
 
 object RunContext {
   def testContext = new RunContext(Config.default)
+
+  def printUniqueIds = new RunContext(Config.default.copy(printUniqueIds = true))
 }

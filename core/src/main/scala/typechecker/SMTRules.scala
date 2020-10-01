@@ -7,6 +7,7 @@ package typechecker
 import stainlessfit.core.trees._
 import stainlessfit.core.typechecker.Derivation.{AreEqualJudgment, emitErrorWithJudgment}
 import stainlessfit.core.util.RunContext
+import stainlessfit.core.smt._
 
 trait SMTRules {
 

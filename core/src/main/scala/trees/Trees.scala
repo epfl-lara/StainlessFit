@@ -9,23 +9,6 @@ import parser.FitParser
 
 object Tree {
 
-  def mapChildren(f: Tree => Tree, body: Tree): Tree = {
-    val (children, reconstruct) = deconstruct(body)
-    reconstruct(children.map(f))
-  }
-
-  def postMap(p: Tree => Tree => Tree, body: Tree): Tree = {
-    val resultTransformer = p(body)
-    resultTransformer(mapChildren(postMap(p, _), body))
-  }
-
-  def preMap(p: Tree => Option[Tree], body: Tree): Tree = {
-    p(body) match {
-      case Some(e) => preMap(p, e)
-      case None => mapChildren(preMap(p, _), body)
-    }
-  }
-
   def deconstruct(t: Tree): (List[Tree], List[Tree] => Tree) = {
     t match {
       case Var(_) => (Nil, _ => t)
@@ -92,13 +75,6 @@ object Tree {
     }
   }
 
-  def traverse(t: Tree, pre: Tree => Unit, post: Tree => Unit): Unit = {
-    pre(t)
-    val (children, reconstruct) = deconstruct(t)
-    for (child <- children) traverse(child, pre, post)
-    post(t)
-  }
-
   def isValue(e: Tree): Boolean = {
     e match {
       case UnitLiteral => true
@@ -117,6 +93,7 @@ object Tree {
     def recordSolution(x: Identifier, t: Tree): Unit
     def addTarget(x: Identifier): Unit
   }
+
   object Solver {
     implicit val defaultSolver: Solver = null
     def targets(x: Identifier)(implicit solver: Solver) =
@@ -183,96 +160,38 @@ object Tree {
   }
 }
 
-case class Identifier(id: Int, name: String) extends Positioned {
-  override def toString: String = name + "#" + id
-  // override def toString: String = name
-
-  def asString(implicit rc: RunContext): String = Printer.asString(this)
-
-  def isTypeIdentifier: Boolean = name.size > 0 && name(0).isUpper
-  def isTermIdentifier: Boolean = name.size > 0 && name(0).isLower
-
-  def freshen(): Identifier = Identifier.fresh(name)
-
-  def wrap: String = {
-    if (isTypeIdentifier) s"[$this]"
-    else s"($this)"
+sealed abstract class Tree extends Positioned {
+  def traverse(pre: Tree => Unit, post: Tree => Unit): Unit = {
+    pre(this)
+    val (children, reconstruct) = this.deconstruct
+    for (child <- children) child.traverse(pre, post)
+    post(this)
   }
 
-  def isFreeIn(e: Tree): Boolean = {
-    e match {
-      case Var(id2) => id2 == this
-      case IfThenElse(cond, t1, t2) =>
-        isFreeIn(t1) || isFreeIn(t2) ||
-        isFreeIn(cond)
-      case App(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
-      case Pair(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
-      case Size(t) => isFreeIn(t)
-      case First(t) => isFreeIn(t)
-      case Second(t) => isFreeIn(t)
-      case LeftTree(t) => isFreeIn(t)
-      case RightTree(t) => isFreeIn(t)
-      case Bind(y, e) if (this == y) => false
-      case Bind(_, t) => isFreeIn(t)
-      case Lambda(tp, bind) => isFreeIn(bind) || tp.exists(isFreeIn)
-      case Fix(tp, Bind(n, bind)) => isFreeIn(bind) || tp.exists(isFreeIn)
-      case LetIn(tp, v, bind) => isFreeIn(bind) || isFreeIn(v) || tp.exists(isFreeIn)
-      case MacroTypeDecl(tp, bind) => isFreeIn(bind) || isFreeIn(tp)
-      case MacroTypeInst(v, args) => isFreeIn(v) || args.exists(p => isFreeIn(p._2))
-      case NatMatch(t, t0, bind) =>
-        isFreeIn(t) || isFreeIn(t0) || isFreeIn(bind)
-      case EitherMatch(t, bind1, bind2) =>
-        isFreeIn(bind1) || isFreeIn(bind2) ||
-        isFreeIn(t)
-      case Primitive(op, args) =>
-        args.exists(isFreeIn(_))
-      case Fold(tp, t) => isFreeIn(t) || isFreeIn(tp)
-      case Unfold(t, bind) => isFreeIn(t) || isFreeIn(bind)
-      case UnfoldPositive(t, bind) => isFreeIn(t) || isFreeIn(bind)
-      case Abs(bind) => isFreeIn(bind)
-      case ErasableApp(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
-      case TypeApp(abs, tp) => isFreeIn(abs) && isFreeIn(tp)
-      case Error(_, t) => t.map(isFreeIn).getOrElse(false)
-      case ErasableLambda(ty, bind) => isFreeIn(ty) || isFreeIn(bind)
+  def traversePost(f: Tree => Unit): Unit = traverse(_ => (), f)
+  def traversePre(f: Tree => Unit): Unit = traverse(f, _ => ())
 
-      case SumType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
-      case PiType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case SigmaType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case IntersectionType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case ExistsType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case RefinementType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case RefinementByType(t1, bind) => isFreeIn(t1) || isFreeIn(bind)
-      case RecType(n, bind) => isFreeIn(n) || isFreeIn(bind)
-      case PolyForallType(bind) => isFreeIn(bind)
-      case Node(name, args) => args.exists(isFreeIn)
-      case EqualityType(t1, t2) => isFreeIn(t1) || isFreeIn(t2)
+  def mapChildren(f: Tree => Tree): Tree = {
+    val (children, reconstruct) = this.deconstruct
+    reconstruct(children.map(f))
+  }
 
-      case BottomType => false
-      case TopType => false
-      case UnitType => false
-      case BoolType => false
-      case NatType => false
-      case UnitLiteral => false
-      case NatLiteral(_) => false
-      case BooleanLiteral(_) => false
+  def postMap(p: Tree => Tree => Tree): Tree = {
+    val resultTransformer = p(this)
+    resultTransformer(this.mapChildren(_.postMap(p)))
+  }
+
+  def preMap(p: Tree => Option[Tree]): Tree = {
+    p(this) match {
+      case Some(e) => e.preMap(p)
+      case None => this.mapChildren(_.preMap(p))
     }
   }
-}
 
-object Identifier {
-  var id = 0
-
-  def fresh(): Int = {
-    id = id + 1
-    id
+  def exists(guard: Tree => Boolean, p: Tree => Boolean): Boolean = {
+    guard(this) && (p(this) || this.deconstruct._1.exists(_.exists(guard, p)))
   }
 
-  def fresh(name: String): Identifier = {
-    Identifier(fresh(), name)
-  }
-}
-
-sealed abstract class Tree extends Positioned {
   def asString(implicit rc: RunContext): String = Printer.asString(this)
 
   def isValue: Boolean = Tree.isValue(this)
@@ -280,10 +199,6 @@ sealed abstract class Tree extends Positioned {
   def isEqual(t: Tree)(implicit rc: RunContext): Boolean = Tree.areEqual(this, t)
 
   def deconstruct = Tree.deconstruct(this)
-
-  def traversePost(f: Tree => Unit): Unit = Tree.traverse(this, _ => (), f)
-  def traversePre(f: Tree => Unit): Unit = Tree.traverse(this, f, _ => ())
-  def traverse(pre: Tree => Unit, post: Tree => Unit): Unit = Tree.traverse(this, pre, post)
 
   def replace(p: Tree => Option[Either[String,Tree]], post: Tree => Unit): Either[String,Tree] = {
     val res = p(this).getOrElse {
@@ -311,10 +226,6 @@ sealed abstract class Tree extends Positioned {
   }).toOption.get
 
   def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
-
-  def preMap(p: Tree => Option[Tree])(implicit rc: RunContext): Tree = Tree.preMap(p, this)
-
-  def postMap(p: Tree => Tree => Tree): Tree = Tree.postMap(p, this)
 
   def erase()(implicit rc: RunContext): Tree = extraction.Erasure.erase(this)
 }
