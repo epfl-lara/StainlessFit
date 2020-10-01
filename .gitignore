@@ -9,3 +9,4 @@ target
 LLVM_out
 *.html
 smt-sessions
+.bsp

@@ -148,7 +148,8 @@ trait UnprovenRules {
       if (id.isFreeIn(t))
         findEquality(c.termVariables.keys.toList, c.termVariables, id).map(term =>
           // Freshen Binds which bind a variable, free in the term, equivalent to the variable, then expand this variable
-          Tree.replace(id, term, t.preMap(freshen(term, _))))
+          t.preMap(freshen(term, _)).replace(id, term)
+        )
       else None
     )
   }

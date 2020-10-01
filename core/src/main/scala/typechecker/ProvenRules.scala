@@ -809,7 +809,7 @@ trait ProvenRules {
         Primitive(Plus, List(n2, NatLiteral(1)))
       )
       val nTy = RecType(n2, Bind(a, ty))
-      val check = CheckGoal(c3.incrementLevel, t, Tree.replace(a, nTy, ty))
+      val check = CheckGoal(c3.incrementLevel, t, ty.replace(a, nTy))
       Some((
         List(_ => checkN, _ => checkBase, _ => check),
         {
@@ -827,7 +827,7 @@ trait ProvenRules {
     case g @ InferGoal(c, e @ Fold(tpe @ IntersectionType(NatType, Bind(n, RecType(Var(m), Bind(a, ty)))), t)) if n == m =>
       TypeChecker.debugs(g, "InferFoldGen")
       val nTy = IntersectionType(NatType, Bind(n, RecType(Var(n), Bind(a, ty))))
-      val check = CheckGoal(c.incrementLevel, t, Tree.replace(a, nTy, ty))
+      val check = CheckGoal(c.incrementLevel, t, ty.replace(a, nTy))
       Some((
         List(_ => check),
         {
@@ -923,7 +923,7 @@ trait ProvenRules {
         case InferJudgment(_, _, _, ty) :: _ =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
+              val nTy = ty.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)))
               val c2 = c.addEquality(
                 t1,
                 Fold(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), Var(x))
@@ -990,7 +990,7 @@ trait ProvenRules {
         case InferJudgment(_, _, _, ty) :: _ =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
+              val nTy = ty.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)))
               val c2 = c.addEquality(
                 t1,
                 Fold(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), Var(x))

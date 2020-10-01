@@ -8,10 +8,6 @@ import util.RunContext
 import parser.FitParser
 
 object Tree {
-  def replaceBind(bind: Tree, v: Tree)(implicit rc: RunContext): Tree = {
-    val Bind(id, body) = bind
-    replace(id, v, body)
-  }
 
   def mapChildren(f: Tree => Tree, body: Tree): Tree = {
     val (children, reconstruct) = deconstruct(body)
@@ -96,323 +92,11 @@ object Tree {
     }
   }
 
-  def replace(id: Identifier, v: Tree, body: Tree)(implicit rc: RunContext): Tree = {
-    body match {
-      case Var(id2) if id2 == id => v
-      case Var(_) => body
-      case UnitLiteral => body
-      case NatLiteral(_) => body
-      case BooleanLiteral(_) => body
-      case IfThenElse(cond, t1, t2) =>
-        IfThenElse(replace(id, v, cond), replace(id, v, t1), replace(id, v, t2))
-      case App(t1, t2) =>
-        App(replace(id, v, t1), replace(id, v, t2))
-      case Pair(t1, t2) => Pair(replace(id, v, t1), replace(id, v, t2))
-      case Size(t) => Size(replace(id, v, t))
-      case First(t) => First(replace(id, v, t))
-      case Second(t) => Second(replace(id, v, t))
-      case LeftTree(t) => LeftTree(replace(id, v, t))
-      case RightTree(t) => RightTree(replace(id, v, t))
-      case Because(t1, t2) => Because(replace(id, v, t1), replace(id, v, t2))
-      case Bind(id2, e) if (id == id2) => body
-      case Bind(id2, e) =>
-        if (id2.isFreeIn(v))
-          rc.reporter.fatalError(
-            s"""Replacing ${Printer.asString(id)} by ${Printer.asString(v)} in
-              |$body would capture variable ${Printer.asString(id2)}""".stripMargin
-          )
-        Bind(id2, replace(id, v, e))
-      case Lambda(None, bind) => Lambda(None, replace(id, v, bind))
-      case Lambda(Some(tp), bind) => Lambda(Some(replace(id, v, tp)), replace(id, v, bind))
-      case ErasableLambda(tp, bind) => ErasableLambda(replace(id, v, tp), replace(id, v, bind))
-      case Fix(None, bind) => Fix(None, replace(id, v, bind))
-      case Fix(Some(tp), bind) => Fix(Some(replace(id, v, tp)), replace(id, v, bind))
-      case LetIn(None, v1, bind) => LetIn(None, replace(id, v, v1), replace(id, v, bind))
-      case LetIn(Some(tp), v1, bind) => LetIn(Some(replace(id, v, tp)), replace(id, v, v1), replace(id, v, bind))
-      case MacroTypeDecl(tpe, bind) => MacroTypeDecl(replace(id, v, tpe), replace(id, v, bind))
-      case MacroTypeInst(v1, args) =>
-        MacroTypeInst(
-          replace(id, v, v1),
-          args.map(p => (p._1, replace(id, v, p._2)))
-        )
-      case NatMatch(t, t0, bind) => NatMatch(replace(id, v, t), replace(id, v, t0), replace(id, v, bind))
-      case EitherMatch(t, bind1, bind2) => EitherMatch(replace(id, v, t), replace(id, v, bind1), replace(id, v, bind2))
-      case Primitive(op, args) => Primitive(op, args.map(replace(id, v, _)))
-      case ErasableApp(t1, t2) => ErasableApp(replace(id, v, t1), replace(id, v, t2))
-      case Fold(tp, t) => Fold(replace(id, v, tp), replace(id, v, t))
-      case Unfold(t, bind) => Unfold(replace(id, v, t), replace(id, v, bind))
-      case UnfoldPositive(t, bind) => UnfoldPositive(replace(id, v, t), replace(id, v, bind))
-      case Abs(bind) => Abs(replace(id, v, bind))
-      case TypeApp(abs, t) => TypeApp(replace(id, v, abs), replace(id, v, t))
-      case Error(_, _) => body
-
-      case NatType => body
-      case BoolType => body
-      case UnitType => body
-      case SumType(t1, t2) => SumType(replace(id, v, t1), replace(id, v, t2))
-      case PiType(t1, bind) => PiType(replace(id, v, t1), replace(id, v, bind))
-      case SigmaType(t1, bind) => SigmaType(replace(id, v, t1), replace(id, v, bind))
-      case IntersectionType(t1, bind) => IntersectionType(replace(id, v, t1), replace(id, v, bind))
-      case ExistsType(t1, bind) => ExistsType(replace(id, v, t1), replace(id, v, bind))
-      case RefinementType(t1, bind) => RefinementType(replace(id, v, t1), replace(id, v, bind))
-      case RefinementByType(t1, bind) => RefinementByType(replace(id, v, t1), replace(id, v, bind))
-      case EqualityType(t1, t2) => EqualityType(replace(id, v, t1), replace(id, v, t2))
-      case RecType(n, bind) => RecType(replace(id, v, n), replace(id, v, bind))
-      case PolyForallType(bind) => PolyForallType(replace(id, v, bind))
-      case Node(name, children) => Node(name, children.map(replace(id, v, _)))
-
-      case BottomType => BottomType
-      case TopType => TopType
-    }
-  }
-
   def traverse(t: Tree, pre: Tree => Unit, post: Tree => Unit): Unit = {
     pre(t)
     val (children, reconstruct) = deconstruct(t)
     for (child <- children) traverse(child, pre, post)
     post(t)
-  }
-
-  def replace(p: Tree => Option[Either[String,Tree]], body: Tree, post: Tree => Unit): Either[String, Tree] = {
-    val res = p(body).getOrElse(body match {
-      case Var(_) => Right(body)
-      case UnitLiteral => Right(body)
-      case NatLiteral(_) => Right(body)
-      case BooleanLiteral(_) => Right(body)
-      case IfThenElse(cond, t1, t2) =>
-        for (
-          rcond <- replace(p,cond,post);
-          rt1 <- replace(p,t1,post);
-          rt2 <- replace(p,t2,post)
-        ) yield
-        IfThenElse(rcond, rt1, rt2)
-
-      case App(t1, t2) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rt2 <- replace(p,t2,post)
-        ) yield
-          App(rt1, rt2)
-
-      case Pair(t1, t2) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rt2 <- replace(p,t2,post)
-        ) yield
-          Pair(rt1, rt2)
-
-      case Size(t) => replace(p, t,post).map(Size(_))
-      case First(t) => replace(p, t,post).map(First(_))
-      case Second(t) => replace(p, t,post).map(Second(_))
-      case LeftTree(t) => replace(p, t,post).map(LeftTree(_))
-      case RightTree(t) => replace(p, t,post).map(RightTree(_))
-      case Because(t1, t2) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rt2 <- replace(p,t2,post)
-        ) yield
-          Because(rt1, rt2)
-
-      case Bind(id, t) => replace(p, t, post).map(Bind(id, _))
-      case Lambda(None, bind) => replace(p, bind, post).map(Lambda(None, _))
-      case Lambda(Some(tp), bind) =>
-        for (
-          rtp <- replace(p, tp, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          Lambda(Some(rtp), rbind)
-
-      case ErasableLambda(tp, bind) =>
-        for (
-          rtp <- replace(p, tp, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          ErasableLambda(rtp, rbind)
-
-      case Fix(None, bind) => replace(p, bind, post).map(Fix(None, _))
-      case Fix(Some(tp), bind) =>
-        for (
-          rtp <- replace(p, tp, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          Fix(Some(rtp), rbind)
-
-      case LetIn(None, v1, bind) =>
-        for (
-          rv1 <- replace(p, v1, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          LetIn(None, rv1, rbind)
-      case LetIn(Some(tp), v1, bind) =>
-        for (
-          rtp <- replace(p, tp, post);
-          rv1 <- replace(p, v1, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          LetIn(Some(rtp), rv1, rbind)
-      case MacroTypeDecl(tp, bind) =>
-        for (
-          rtp <- replace(p, tp, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          MacroTypeDecl(rtp, rbind)
-      case MacroTypeInst(v1, args) =>
-        for(
-          rv1 <- replace(p, v1, post);
-          eithers = args.map(arg => replace(p, arg._2, post));
-          rargs <- eithers.foldLeft(Right(Nil): Either[String, Seq[Tree]]) {
-            case (acc @ Left(_), _) => acc
-            case (_, Left(error)) => Left(error)
-            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
-          }
-        ) yield
-          MacroTypeInst(rv1, args.map(_._1).zip(rargs))
-
-      case NatMatch(t, t0, bind) =>
-        for (
-          rt <- replace(p, t, post);
-          rt0 <- replace(p, t0, post);
-          rbind <- replace(p, bind, post)
-        ) yield
-          NatMatch(rt, rt0, rbind)
-      case EitherMatch(t, bind1, bind2) =>
-        for (
-          rt <- replace(p, t, post);
-          rbind1 <- replace(p, bind1, post);
-          rbind2 <- replace(p, bind2, post)
-        ) yield
-          EitherMatch(rt, rbind1, rbind2)
-      case Primitive(op, args) =>
-        val eithers = args.map(arg => replace(p, arg, post));
-        for(
-          rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
-            case (acc @ Left(_), _) => acc
-            case (_, Left(error)) => Left(error)
-            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
-          }
-        ) yield
-          Primitive(op, rargs)
-      case Node(name, children) =>
-        val eithers = children.map(arg => replace(p, arg, post));
-        for(
-          rargs <- eithers.foldLeft(Right(Nil): Either[String, List[Tree]]) {
-            case (acc @ Left(_), _) => acc
-            case (_, Left(error)) => Left(error)
-            case (Right(acc), Right(rarg)) => Right(acc :+ rarg)
-          }
-        ) yield
-          Node(name, rargs)
-      case ErasableApp(t1, t2) =>
-        for (
-          rt1 <- replace(p,t1, post);
-          rt2 <- replace(p,t2, post)
-        ) yield
-          ErasableApp(rt1, rt2)
-
-      case Fold(tp, t) =>
-        for (
-          rtp <- replace(p, tp, post);
-          rt <- replace(p, t, post)
-        ) yield
-          Fold(rtp, rt)
-      case Unfold(t, bind) =>
-        for (
-          rt <- replace(p,t, post);
-          rbind <- replace(p,bind, post)
-        ) yield
-          Unfold(rt, rbind)
-      case UnfoldPositive(t, bind) =>
-        for (
-          rt <- replace(p,t, post);
-          rbind <- replace(p,bind, post)
-        ) yield
-          UnfoldPositive(rt, rbind)
-
-      case Abs(bind) => replace(p, bind, post).map(Abs(_))
-      case TypeApp(abs, t) =>
-        for (
-          rabs <- replace(p,abs, post);
-          rt <- replace(p,t, post)
-        ) yield
-          TypeApp(rabs, rt)
-
-      case Error(_, _) => Right(body)
-
-      case NatType => Right(body)
-      case BoolType => Right(body)
-      case UnitType => Right(body)
-      case SumType(t1, t2) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rt2 <- replace(p,t2,post)
-        ) yield
-          SumType(rt1, rt2)
-      case PiType(t1, bind) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          PiType(rt1, rbind)
-      case SigmaType(t1, bind) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          SigmaType(rt1, rbind)
-      case IntersectionType(t1, bind) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          IntersectionType(rt1, rbind)
-      case ExistsType(t1, bind) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          ExistsType(rt1, rbind)
-      case RefinementType(t1, bind) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          RefinementType(rt1, rbind)
-      case RefinementByType(t1, bind) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          RefinementByType(rt1, rbind)
-      case RecType(n, bind) =>
-        for (
-          rn <- replace(p,n,post);
-          rbind <- replace(p,bind,post)
-        ) yield
-          RecType(rn, rbind)
-      case PolyForallType(bind) =>
-        replace(p, bind, post).map(PolyForallType(_))
-
-      case EqualityType(t1, t2) =>
-        for (
-          rt1 <- replace(p,t1,post);
-          rt2 <- replace(p,t2,post)
-        ) yield
-          EqualityType(rt1, rt2)
-
-      case BottomType => Right(body)
-      case TopType => Right(body)
-
-      case _ => throw new java.lang.Exception(s"Function `replace` is not implemented on $body (${body.getClass}).")
-    })
-    post(body)
-    res
-  }
-
-  def isError(e: Tree): Boolean = {
-    e match {
-      case Error(_, _) => true
-      case _ => false
-    }
   }
 
   def isValue(e: Tree): Boolean = {
@@ -427,8 +111,6 @@ object Tree {
       case _ => false
     }
   }
-
-  def isBind(t: Tree): Boolean = t.isInstanceOf[Bind]
 
   trait Solver {
     def targets: Map[Identifier, Option[Tree]]
@@ -593,28 +275,46 @@ object Identifier {
 sealed abstract class Tree extends Positioned {
   def asString(implicit rc: RunContext): String = Printer.asString(this)
 
-  def isBind: Boolean = Tree.isBind(this)
-
-  def isError: Boolean = Tree.isError(this)
-
   def isValue: Boolean = Tree.isValue(this)
 
   def isEqual(t: Tree)(implicit rc: RunContext): Boolean = Tree.areEqual(this, t)
 
-  def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Tree = Tree.replace(id, t, this)
+  def deconstruct = Tree.deconstruct(this)
 
   def traversePost(f: Tree => Unit): Unit = Tree.traverse(this, _ => (), f)
   def traversePre(f: Tree => Unit): Unit = Tree.traverse(this, f, _ => ())
   def traverse(pre: Tree => Unit, post: Tree => Unit): Unit = Tree.traverse(this, pre, post)
 
-  def replace(p: Tree => Option[Either[String,Tree]], post: Tree => Unit)(implicit rc: RunContext): Either[String,Tree] = Tree.replace(p, this, post)
-  def replace(p: Tree => Option[Either[String,Tree]])(implicit rc: RunContext): Either[String,Tree] = replace(p, _ => ())
+  def replace(p: Tree => Option[Either[String,Tree]], post: Tree => Unit): Either[String,Tree] = {
+    val res = p(this).getOrElse {
+      val (children, reconstruct) = this.deconstruct
+      children.foldRight(Right(Nil): Either[String, List[Tree]]) { (child, acc) =>
+        acc.flatMap(newChildren => child.replace(p, post).map(newChild => newChild :: newChildren))
+      }.map(reconstruct)
+    }
+    for (t <- res) post(t)
+    res
+  }
+  def replace(p: Tree => Option[Either[String,Tree]]): Either[String,Tree] = replace(p, _ => ())
+
+  def replace(id: Identifier, t: Tree)(implicit rc: RunContext): Tree = replace((e: Tree) => e match {
+    case Var(id2) if id2 == id => Some(Right(t))
+    case Bind(id2, _) if id == id2 => Some(Right(e))
+    case Bind(id2, _) =>
+      if (id2.isFreeIn(t))
+        rc.reporter.fatalError(
+          s"""Replacing ${Printer.asString(id)} by ${Printer.asString(t)} in
+            |${Printer.asString(e)} would capture variable ${Printer.asString(id2)}""".stripMargin
+        )
+      else None
+    case _ => None
+  }).toOption.get
+
+  def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
   def preMap(p: Tree => Option[Tree])(implicit rc: RunContext): Tree = Tree.preMap(p, this)
 
   def postMap(p: Tree => Tree => Tree): Tree = Tree.postMap(p, this)
-
-  def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
   def erase()(implicit rc: RunContext): Tree = extraction.Erasure.erase(this)
 }
