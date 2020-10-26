@@ -60,8 +60,8 @@ object CoqOutput {
         case ((id, t), acc) => s"(${toCoqIndex(id).toString()}, ${treeToCoq(toNamelessRep(t)(Map()))}) :: "+acc
       } + "))"
     case New(context) => "(New (" + 
-      context.termVariables.foldRight("nil") {
-        case ((id, t), acc) => s"(${toCoqIndex(id).toString()}, ${treeToCoq(toNamelessRep(t)(Map()))}) :: "+acc
+      context.termVariables.foldLeft("nil") {
+        case (acc, (id, t)) => s"(${toCoqIndex(id).toString()}, ${treeToCoq(toNamelessRep(t)(Map()))}) :: "+acc
       } + "))"
   }
 
@@ -121,25 +121,6 @@ object CoqOutput {
   } 
 
   def nodeTreeToCoq(t: NodeTree[Judgment], depth: Int)(implicit rc: RunContext): String = t match {
-
-    // Special rules
-    case NodeTree(
-      InferJudgment("InferBinaryPrimitive", context, e @ Primitive(op, n1 :: n2 :: Nil), t, coqName), 
-      (d1 @ NodeTree(CheckJudgment(_, _, _, t1, _), _)) ::
-      (d2 @ NodeTree(CheckJudgment(_, _, _, t2, _), _)) :: _ ) => {
-        val opVar = Var(Identifier(op.coqIndex.toInt, ""))
-      nodeTreeToCoq(
-        NodeTree[Judgment](
-          InferJudgment("InferApp", context, e, t, Some("J_App", None)), 
-        Derivation.NodeTree[Judgment](
-          InferJudgment("InferApp", context, App(opVar, n1), PiType(t2, t), Some("J_App", None)), 
-            Derivation.NodeTree[Judgment](
-              InferJudgment("InferVar", context, opVar, PiType(t1, PiType(t2, t)), Some("J_Var", None)), Nil) ::
-              d1 :: Nil
-          ) :: d2 :: Nil), 
-          depth)
-      }
-
     case _ => {
       s"(N ${judgementToCoq(t.node)}" + nodeTreeToCoq(t.children, depth + 1) + ")" 
     }
@@ -151,40 +132,17 @@ object CoqOutput {
     val fw = new FileWriter(coqfile)
     val status = if (success) "Success" else "Failed"
     val name = file.getName()
-    val basic_context = 
-    """
-(* Base context with primitives *)
-Definition Γ : context :=
-  (* NatToBoolBinOp *)
-  (0, (T_arrow T_nat (T_arrow T_nat T_bool))) (* == *)
-  ::(1, (T_arrow T_nat (T_arrow T_nat T_bool))) (* != *)
-  ::(2, (T_arrow T_nat (T_arrow T_nat T_bool))) (* <= *)
-  ::(3, (T_arrow T_nat (T_arrow T_nat T_bool))) (* >= *)
-  ::(4, (T_arrow T_nat (T_arrow T_nat T_bool))) (* < *)
-  ::(5, (T_arrow T_nat (T_arrow T_nat T_bool))) (* > *)
-  (* NatToNatBinOp *)
-  ::(6, (T_arrow T_nat (T_arrow T_nat T_nat))) (* + *)
-  ::(7, (T_arrow T_nat (T_arrow T_nat T_nat))) (* - *)
-  ::(8, (T_arrow T_nat (T_arrow T_nat T_nat))) (* * *)
-  ::(9, (T_arrow T_nat (T_arrow T_nat T_nat))) (* | *)
-  (* BoolToBoolBinOp *)
-  ::(10, (T_arrow T_bool (T_arrow T_bool T_bool))) (* && *)
-  ::(11, (T_arrow T_bool (T_arrow T_bool T_bool))) (* || *)
-  (* BoolToBoolUnOp *)
-  ::(12, (T_arrow T_bool T_bool)) (* ~ *)
-  ::nil.
-    """
 
     fw.write(s"(* Type Checking File $name: $status *)\n\n")
-    fw.write("Require Export SystemFR.Derivation.\n\n" + basic_context + "\n")
+    fw.write("Require Export SystemFR.Derivation.\n")
     fw.write("Definition ds : derivation := \n")
     fw.write(nodeTreeToCoq(trees.head, 0) + ".\n \n")
-    fw.write("Lemma derivationValid: is_valid ds Γ = true.\n")
+    fw.write("Lemma derivationValid: is_valid ds nil = true.\n")
     fw.write("Proof. compute. reflexivity. Qed.\n")
     fw.close()
     rc.reporter.info(s"Created Coq file with derivations in: $coqfile")
-    rc.reporter.info(s"Known rules: ${knownRules.toList.sorted.foldRight("")({
-      case (r, acc) => r + ", " + acc })}")
+    /* rc.reporter.info(s"Known rules: ${knownRules.toList.sorted.foldRight("")({
+      case (r, acc) => r + ", " + acc })}") */
     if (unknownTerms.nonEmpty)
       rc.reporter.error(s"Unknown terms: ${shortString(unknownTerms.foldRight("")({
         case (r, acc) => shortString(r.toString(), 30) + ", " + acc }), 100)}")
@@ -210,7 +168,7 @@ Definition Γ : context :=
 
   def toNamelessRep(t: Tree)(implicit nameless: Map[Identifier, Int]): Tree = t match {
 
-    case Var(Identifier(id, "")) => Var(Identifier(0, s"(fvar ${id} term_var)"))
+    //case Var(Identifier(id, "")) => Var(Identifier(0, s"(fvar ${id} term_var)"))
     case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)})"))
     case Var(id) => Var(Identifier(0, s"(fvar ${toCoqIndex(id)} ${toCoqVarType(id.name)})"))
     case IfThenElse(cond, t1, t2) => IfThenElse(toNamelessRep(cond), toNamelessRep(t1), toNamelessRep(t2))
@@ -292,9 +250,8 @@ Definition Γ : context :=
     case EitherMatch(t, t1, t2) => s"(sum_match ${treeToCoq(t)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case LeftTree(t) => s"(tleft ${treeToCoq(t)})"
     case RightTree(t) => s"(tright ${treeToCoq(t)})"
-    case Primitive(op, arg1::Nil) => s"(app (fvar ${op.coqIndex} term_var) ${treeToCoq(arg1)})"
-    case Primitive(op, arg1::arg2::Nil) => s"(app (app (fvar ${op.coqIndex} term_var) ${treeToCoq(arg1)}) (${treeToCoq(arg2)}))"
-    //(app (app op arg1) arg2)
+    case Primitive(op, arg1::Nil) => s"(unary_primitive ${op.coqName} ${treeToCoq(arg1)})"
+    case Primitive(op, arg1::arg2::Nil) => s"(binary_primitive ${op.coqName} ${treeToCoq(arg1)} ${treeToCoq(arg2)})"
     case ErasableApp(t1,t2) => s"(forall_inst ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case Error(_, None) => "notype_err"
     case Error(_, Some(t)) => s"(err ${treeToCoq(t)})" 

@@ -51,7 +51,7 @@ case class Context(
     bindFresh("eq", EqualityType(t1, t2))._2
   }
 
-  def incrementLevel: Context = copy(level = level + 1)
+  def incrementLevel: Context = copy(level = level + 1, lastOp = Same)
 
   def containsVarOfType(tp: Tree): Boolean =
     termVariables.exists(_._2 == tp)

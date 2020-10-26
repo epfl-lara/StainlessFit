@@ -28,4 +28,5 @@ case class Config(
 
 object Config {
   def default = Config()
+  def coqValidation = Config(coq=true)
 }

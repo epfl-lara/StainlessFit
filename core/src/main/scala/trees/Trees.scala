@@ -15,7 +15,7 @@ sealed abstract class Operator {
   def operandsType: Tree = Operator.operandsType(this)
   def isBinOp: Boolean = Operator.isBinOp(this)
   def isUnOp: Boolean = Operator.isUnOp(this)
-  def coqIndex: String = Operator.coqIndex(this)
+  def coqName: String = Operator.coqName(this)
 }
 
 case object Not extends Operator {
@@ -151,20 +151,20 @@ object Operator {
     case _ => None
   }
 
-  def coqIndex(op:Operator): String = op match {
-    case And => "10"
-    case Div => "9"
-    case Eq => "0"
-    case Geq => "3"
-    case Gt => "5"
-    case Leq => "2"
-    case Lt => "4"
-    case Minus => "7"
-    case Mul => "8"
-    case Not => "12"
-    case Or => "11"
-    case Neq => "1"
-    case Plus => "6"
+  def coqName(op:Operator): String = op match {
+    case And => "And"
+    case Div => "Div"
+    case Eq => "Eq"
+    case Geq => "Geq"
+    case Gt => "Gt"
+    case Leq => "Leq"
+    case Lt => "Lt"
+    case Minus => "Minus"
+    case Mul => "Mul"
+    case Not => "Not"
+    case Or => "Or"
+    case Neq => "Neq"
+    case Plus => "Plus"
     case _ => "Unknown primitive"
   }
 
