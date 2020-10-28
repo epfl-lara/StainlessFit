@@ -68,13 +68,15 @@ object PartialEvaluator {
 
           //val varValue = _varValue.freshenIdentifiers()
 
-          lazy val (t, count) = Tree.replaceAndCount(id, varValue, body)
+          lazy val (t, count) = body.replaceAndCount(id, varValue)
           if(disableReferenceCounting){
             if (__debugPrint__) println(s"App(lambda) no ref count: $id")//: $varValue")
-            Some(Tree.replaceBind(bind, varValue))
+            //Some(Tree.replaceBind(bind, varValue))
+            Some(body.replace(id,varValue)) //TODO?: replace with t from replaceAndCount
           }else if(simpleValue(varValue)){
             if (__debugPrint__) println(s"App(lambda) simplevalue: $id")
-            Some(Tree.replaceBind(bind, varValue))
+            //Some(Tree.replaceBind(bind, varValue))
+            Some(body.replace(id,varValue))
           }else if(count <= 1){
             if (__debugPrint__) println(s"App(lambda) ref <= 1: $id")
             Some(t)
@@ -150,11 +152,12 @@ object PartialEvaluator {
     }
     def replaceFix(e: Tree, superTree: Option[(Tree, Int)]): Option[Tree] = {
       e match {
-        case Fix(_, Bind(id, bind: Bind)) => 
+        case Fix(_, Bind(_, Bind(id, body))) => 
           Option.when(superTree.isEmpty){
-            if (__debugPrint__) println(s"Fix: ${bind.id}")
+            if (__debugPrint__) println(s"Fix: ${id}")
             //App(Lambda(None, bind), e)
-            Tree.replaceBind(bind, e)
+            //Tree.replaceBind(bind, e)
+            body.replace(id, e) //TODO make sure this is correct
           }
           
         case _ => None 

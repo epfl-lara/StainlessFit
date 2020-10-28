@@ -319,6 +319,22 @@ case class Identifier(id: Int, name: String) extends Positioned {
     case _ => None
   }).toOption.get
 
+  def replaceAndCount(id: Identifier, t: Tree)(implicit rc: RunContext): (Tree, Int) = {
+    this match {
+      case Var(id2) if id2 == id => (t, 1)
+      case Bind(id2, e) if (id == id2) => (this, 0) //Does this count as a replacement ? it should never happen ....
+      case Bind(id2, e) if (id2.isFreeIn(t)) =>
+        rc.reporter.fatalError(
+          s"""Replacing ${Printer.asString(id)} by ${Printer.asString(t)} in
+          |$this would capture variable ${Printer.asString(id2)}""".stripMargin
+        )
+      case _ => 
+        val (children, reconstruct) = this.deconstruct
+        val (transformed, counts) = children.map(_.replaceAndCount(id, t)).unzip
+        (reconstruct(transformed), counts.fold(0)(_ + _))
+    }
+  }
+
   def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
   def erase()(implicit rc: RunContext): Tree = extraction.Erasure.erase(this)

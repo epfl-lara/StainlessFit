@@ -16,7 +16,8 @@ trait Measure {
 object TreeSize extends Measure {
 
   override def apply(t: Tree): BigInt = {
-    1 + t.subTrees().map(TreeSize(_)).fold(BigInt(0))(_ + _)
+    val (children, reconstruct) = t.deconstruct
+    1 + children.map(TreeSize(_)).fold(BigInt(0))(_ + _)
   }
 
 }

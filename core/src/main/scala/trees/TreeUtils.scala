@@ -32,10 +32,11 @@ object TreeUtils{
           def rfcs_(t: Tree, index: Int): Option[Tree] = replaceFirstConditionalOnSuperTree(p,t,superTreeFilter,newSuperTree(index))
           def rfcs(p: (Tree, Int)): Option[(Tree,Int)] = rfcs_(p._1, p._2).map((_, 0)) //Second argument will be unzipped and discarted
           
-          val subTrees = body.subTrees().zipWithIndex
+          val (children, reconstruct) = body.deconstruct
+          val subTrees = children.zipWithIndex
           val opOfListOfPairs = mapFirst2[(Tree, Int)](subTrees, rfcs)
           val (newSubTrees, _) = opOfListOfPairs.map(_.unzip).unzip //removes second argument from above
-          newSubTrees.map(body.newSubTrees(_))
+          newSubTrees.map(reconstruct)
       }
   }
 
