@@ -154,13 +154,13 @@ trait ProvenRules {
   val InferLambda = Rule("InferLambda", {
     case g @ InferGoal(c, e @ Lambda(Some(ty1), Bind(id, body))) =>
       TypeChecker.debugs(g, "InferLambda")
-      val c1 = c.bind(id, ty1).incrementLevel.setModifier(Append(List((id,ty1))))
-      val gb = InferGoal(c1, body)
+      val (freshId, c1) = c.bindFresh(id.name, ty1)
+      val gb = InferGoal(c1.incrementLevel.setModifier(Append(List((freshId,ty1)))), body.replace(id, Var(freshId)))
       Some((
         List(_ => gb),
         {
           case InferJudgment(_, _, _, tyb, _) :: _ =>
-            (true, InferJudgment("InferLambda", c, e, PiType(ty1, Bind(id, tyb)), Some("J_Lambda", None)))
+            (true, InferJudgment("InferLambda", c, e, PiType(ty1, Bind(id, tyb.replace(freshId, Var(id)))), Some("J_Lambda", None)))
           case _ =>
             // Returning Top is sound but a bit misleading
             // (true, InferJudgment(c, e, TopType))
@@ -235,9 +235,12 @@ trait ProvenRules {
       val opType = op.operandsType
       val checkN1 = CheckGoal(c.incrementLevel.setModifier(Same), n1, opType)
       val checkN2 = CheckGoal(c.incrementLevel.setModifier(Same), n2, opType)
-      val checkEq = EqualityGoal(c.incrementLevel.setModifier(Same), Primitive(Geq, List(n1, n2)), BooleanLiteral(true))
+      val checkMinus = EqualityGoal(c.incrementLevel.setModifier(Same), Primitive(Geq, List(n1, n2)), BooleanLiteral(true))
+      val checkDiv = EqualityGoal(c.incrementLevel.setModifier(Same), Primitive(Gt, List(n2, NatLiteral(0))), BooleanLiteral(true))
       Some((
-        if(op == Minus) List(_ => checkN1, _ => checkN2, _ => checkEq) else List(_ => checkN1, _ => checkN2),
+        if(op == Minus) List(_ => checkN1, _ => checkN2, _ => checkMinus) 
+        else if(op == Div) List(_ => checkN1, _ => checkN2, _ => checkDiv) 
+        else List(_ => checkN1, _ => checkN2),
         {
           case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, InferJudgment("InferBinaryPrimitive", c, e, NatType, Some("J_BinPrimitive", None)))
@@ -470,13 +473,11 @@ trait ProvenRules {
     case g @ CheckGoal(c, t, tpe @ RefinementType(ty, Bind(id, b))) =>
       TypeChecker.debugs(g, "CheckRefinement")
       val checkTy = CheckGoal(c.incrementLevel.setModifier(Same), t, ty)
-      val (cBool) = c.bind(id, ty).setModifier(Append(List((id,ty))))
-      val checkBool = CheckGoal(cBool, b, BoolType)
       val (p,c1) = c.bind(id, ty).bindFresh("p", EqualityType(Var(id), t))
       val checkRef = EqualityGoal(c1.incrementLevel.setModifier(Append(List((p, EqualityType(Var(id), t)), (id,ty)))), b, BooleanLiteral(true))
       Some((
-        List(_ => checkTy, _ => checkBool, _ => checkRef), {
-          case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
+        List(_ => checkTy, _ => checkRef), {
+          case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckRefinement", c, t, tpe, Some("J_refine", None)))
           case _ =>
             emitErrorWithJudgment("CheckRefinement", g, None)

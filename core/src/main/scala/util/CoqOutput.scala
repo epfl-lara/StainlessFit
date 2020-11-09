@@ -16,6 +16,8 @@ object CoqOutput {
   var knownRules = Set[String]();
   var unknownRules = Set[String]();
   var unknownTerms = Set[Tree]();
+  var variablesMap = Map[String, Int]();
+  var maxId = 0;
   
   def shortString(s: String, maxWidth: Int = 900): String = {
     val r = s.replaceAll("\n", " ")
@@ -126,8 +128,18 @@ object CoqOutput {
     }
   }
 
+  def resetOutput() {
+    knownRules = Set[String]();
+    unknownRules = Set[String]();
+    unknownTerms = Set[Tree]();
+    variablesMap = Map[String, Int]();
+    maxId = 0;
+  }
   
-  def makeCoqFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean)(implicit rc: RunContext): Unit = {
+  def makeCoqFile(file: File, trees: List[NodeTree[Judgment]], success: Boolean)(implicit rc: RunContext): Unit = {    
+
+    resetOutput()
+
     val coqfile = new File(file.getAbsolutePath().replaceFirst("[.][^.]+$", "") + ".v")
     val fw = new FileWriter(coqfile)
     val status = if (success) "Success" else "Failed"
@@ -140,7 +152,7 @@ object CoqOutput {
     fw.write("Lemma derivationValid: is_valid ds nil = true.\n")
     fw.write("Proof. compute. reflexivity. Qed.\n")
     fw.close()
-    rc.reporter.info(s"Created Coq file with derivations in: $coqfile")
+    //rc.reporter.info(s"Created Coq file with derivations in: $coqfile")
     /* rc.reporter.info(s"Known rules: ${knownRules.toList.sorted.foldRight("")({
       case (r, acc) => r + ", " + acc })}") */
     if (unknownTerms.nonEmpty)
@@ -152,7 +164,14 @@ object CoqOutput {
   }
 
   def toCoqIndex(id: Identifier): Int = {
-    id.name.foldLeft(0)({case (acc, c) => acc + c.toByte}) + id.id
+    variablesMap.get(id.toString()) match {
+      case Some(intId) => intId
+      case None => {
+        maxId = maxId + 1; 
+        variablesMap +=  id.toString() -> maxId
+        maxId
+    }
+  }
   }
   def toCoqVarType(name: String): String = {
     if (name(0).isUpper) {
