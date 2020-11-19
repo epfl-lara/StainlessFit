@@ -89,6 +89,7 @@ trait UnprovenRules {
       None
   })
 
+
   val NatEqualToEqual = Rule("NatEqualToEqual", {
     case g @ EqualityGoal(c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true)) =>
       TypeChecker.debugs(g, "NatEqualToEqual")
@@ -196,6 +197,12 @@ trait UnprovenRules {
         case Second(Pair(t1, t2)) =>
           performedEval = true
           Some(t2)
+        case EitherMatch(RightTree(t), _, Bind(id, tr)) =>
+          performedEval = true
+          Some(tr.replace(id, t))
+        case EitherMatch(LeftTree(t), Bind(id, tl), _) =>
+          performedEval = true
+          Some(tl.replace(id, t))
         case _ => None
       }
 

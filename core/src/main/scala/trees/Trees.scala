@@ -1095,6 +1095,7 @@ case class ExistsType(t1: Tree, t2: Tree) extends Tree
 case class RefinementType(t1: Tree, t2: Tree) extends Tree
 case class RefinementByType(t1: Tree, t2: Tree) extends Tree
 case class RecType(n: Tree, bind: Tree) extends Tree
+case class RecTypeExplicit(n: Tree, t0: Tree, bind: Tree) extends Tree
 case class PolyForallType(t: Tree) extends Tree
 case class UnionType(t1: Tree, t2: Tree) extends Tree
 case class EqualityType(t1: Tree, t2: Tree) extends Tree

@@ -3,7 +3,7 @@ enablePlugins(GitVersioning)
 git.useGitDescribe := true
 
 ThisBuild / organization := "ch.epfl.lara"
-ThisBuild / scalaVersion := "2.13.2"
+ThisBuild / scalaVersion := "2.13.3"
 
 ThisBuild / resolvers ++= Seq(
   Resolver.bintrayRepo("epfl-lara", "maven")
@@ -13,7 +13,11 @@ ThisBuild / scalacOptions ++= Seq(
   "-encoding", "UTF-8",
   "-deprecation",
   "-unchecked",
-  "-feature"
+  "-feature",
+  "-Wconf:cat=other-match-analysis&src=Trees.scala:s," +
+    "cat=other-match-analysis&src=Printer.scala:s," +
+    "cat=other-match-analysis&src=Parser.scala:s," +
+    "msg=Exhaustivity analysis reached max recursion depth:s"
 )
 
 ThisBuild / maxErrors := 5

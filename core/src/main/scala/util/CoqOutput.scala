@@ -128,7 +128,7 @@ object CoqOutput {
     }
   }
 
-  def resetOutput() {
+  def resetOutput() : Unit = {
     knownRules = Set[String]();
     unknownRules = Set[String]();
     unknownTerms = Set[Tree]();
@@ -181,8 +181,13 @@ object CoqOutput {
     }
   }
 
-  def levelUp(nameless: Map[Identifier, Int]): Map[Identifier, Int] = 
-    nameless.map({case (id, n) => id -> (n+1)}).toMap
+  def levelUp(nameless: Map[Identifier, Int], termVariables: Boolean, typeVariables: Boolean): Map[Identifier, Int] = 
+    nameless.map({case (id, n) => 
+      if ((id.name(0).isUpper && typeVariables) || (!id.name(0).isUpper && termVariables)) {
+          id -> (n+1)
+      } else {
+          id -> n
+      }}).toMap
 
 
   def toNamelessRep(t: Tree)(implicit nameless: Map[Identifier, Int]): Tree = t match {
@@ -190,6 +195,10 @@ object CoqOutput {
     //case Var(Identifier(id, "")) => Var(Identifier(0, s"(fvar ${id} term_var)"))
     case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)})"))
     case Var(id) => Var(Identifier(0, s"(fvar ${toCoqIndex(id)} ${toCoqVarType(id.name)})"))
+
+    // By default, a bind is for term_variables
+    case Bind(y, e) => Bind(y,toNamelessRep(e)(levelUp(nameless, true, false) + (y->0)))  
+
     case IfThenElse(cond, t1, t2) => IfThenElse(toNamelessRep(cond), toNamelessRep(t1), toNamelessRep(t2))
     case App(t1, t2) => App(toNamelessRep(t1), toNamelessRep(t2))
     case Pair(t1, t2) => Pair(toNamelessRep(t1), toNamelessRep(t2))
@@ -198,7 +207,6 @@ object CoqOutput {
     case Second(t) => Second(toNamelessRep(t))
     case LeftTree(t) => LeftTree(toNamelessRep(t))
     case RightTree(t) => RightTree(toNamelessRep(t))
-    case Bind(y, e) => Bind(y,toNamelessRep(e)(levelUp(nameless) + (y->0))) 
     case Lambda(tp, bind) => Lambda(tp.map(toNamelessRep), toNamelessRep(bind))
     case Fix(tp, bind) => Fix(tp.map(toNamelessRep), toNamelessRep(bind)) 
     case LetIn(tp, v, bind) => LetIn(tp.map(toNamelessRep), toNamelessRep(v), toNamelessRep(bind)) 
@@ -224,7 +232,7 @@ object CoqOutput {
     case ExistsType(t1, bind) => ExistsType(toNamelessRep(t1), toNamelessRep(bind))
     case RefinementType(t1, bind) => RefinementType(toNamelessRep(t1), toNamelessRep(bind))
     case RefinementByType(t1, bind) => RefinementByType(toNamelessRep(t1), toNamelessRep(bind))
-    case RecType(n, bind) => RecType(toNamelessRep(n), toNamelessRep(bind))
+    case RecType(n, Bind(y, ty)) => RecTypeExplicit(toNamelessRep(n), toNamelessRep(TypeOperators.basetype(y, ty)), toNamelessRep(ty)(levelUp(nameless, false, true) + (y -> 0)))
     case PolyForallType(bind) => PolyForallType(toNamelessRep(bind))
     //case Node(name, args) => ???
     case EqualityType(t1, t2) => EqualityType(toNamelessRep(t1), toNamelessRep(t2))
@@ -262,8 +270,8 @@ object CoqOutput {
     case Lambda(None, Bind(id, body)) => s"(notype_lambda ${treeToCoq(body)})"
     case Lambda(Some(ty), Bind(id, body)) => s"(lambda ${treeToCoq(ty)} ${treeToCoq(body)})"
     case Pair(t1, t2) => s"(pp ${treeToCoq(t1)} ${treeToCoq(t2)})"
-    case First(t0) => s"(succ ${treeToCoq(t0)})"
-    case Second(t0) => s"(succ ${treeToCoq(t0)})"
+    case First(t0) => s"(pi1 ${treeToCoq(t0)})"
+    case Second(t0) => s"(pi2 ${treeToCoq(t0)})"
     case LetIn(Some(tp), v, body) => s"(tlet ${treeToCoq(v)} ${treeToCoq(tp)} ${treeToCoq(body)})"
     case LetIn(None, v, body) => s"(notype_tlet ${treeToCoq(v)} ${treeToCoq(body)})"
     case EitherMatch(t, t1, t2) => s"(sum_match ${treeToCoq(t)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
@@ -275,6 +283,9 @@ object CoqOutput {
     case Error(_, None) => "notype_err"
     case Error(_, Some(t)) => s"(err ${treeToCoq(t)})" 
     case Abs(t) => s"(type_abs ${treeToCoq(t)})"
+    case Fold(tp, t) => s"(tfold ${treeToCoq(tp)} ${treeToCoq(t)})"
+    case Unfold(tp, t) => s"(tunfold ${treeToCoq(tp)} ${treeToCoq(t)})"
+    case UnfoldPositive(tp, t) => s"(tunfold_pos_in ${treeToCoq(tp)} ${treeToCoq(t)})"
 
     // Binder
     case Bind(id, body) => treeToCoq(body) // Not sure about this one
@@ -295,6 +306,7 @@ object CoqOutput {
     case UnionType(t1, t2) => s"(T_union ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case EqualityType(t1, t2) => s"(T_equiv ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case ExistsType(t1, t2) => s"(T_exists ${treeToCoq(t1)} ${treeToCoq(t2)})"
+    case RecTypeExplicit(n, t0, ts) => s"(T_rec ${treeToCoq(n)} ${treeToCoq(t0)} ${treeToCoq(ts)})" 
 
     case _ => this.unknownTerms+= t;  s"NOCOQPRINT [${shortString(t.toString(), 30)}]"
   }

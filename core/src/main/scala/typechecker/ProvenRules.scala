@@ -513,8 +513,8 @@ trait ProvenRules {
   val InferPair = Rule("InferPair", {
     case g @ InferGoal(c, e @ Pair(t1, t2)) =>
       TypeChecker.debugs(g, "InferPair")
-        val inferFirst = InferGoal(c.incrementLevel, t1)
-        val inferSecond = InferGoal(c.incrementLevel, t2)
+        val inferFirst = InferGoal(c.incrementLevel.setModifier(Same), t1)
+        val inferSecond = InferGoal(c.incrementLevel.setModifier(Same), t2)
       Some((List(_ => inferFirst, _ => inferSecond),
         {
           case InferJudgment(_, _, _, ty1, _) :: InferJudgment(_, _, _, ty2, _) :: _ =>
@@ -811,22 +811,26 @@ trait ProvenRules {
   val InferFold = Rule("InferFold", {
     case g @ InferGoal(c, e @ Fold(tpe @ RecType(n, Bind(a, ty)), t)) =>
       TypeChecker.debugs(g, "InferFold")
-      val checkN = CheckGoal(c.incrementLevel, n, NatType)
-      val c1 = c.addEquality(n, NatLiteral(0))
-      val checkBase = CheckGoal(c1.incrementLevel, t, TypeOperators.basetype(a, ty))
+      val checkN = CheckGoal(c.incrementLevel.setModifier(Same), n, NatType)
+      val (p, c1) = c.bindFresh("p", EqualityType(n, NatLiteral(0)))
+      val checkBase = CheckGoal(c1.incrementLevel.setModifier(Append(List((p, EqualityType(n, NatLiteral(0)))))), t, TypeOperators.basetype(a, ty))
       val (id, c2) = c.bindFresh("n", NatType)
       val n2 = Var(id)
-      val c3 = c2.addEquality(
+      val (p2, c3) = c2.bindFresh("p2",EqualityType(
         n,
         Primitive(Plus, List(n2, NatLiteral(1)))
-      )
+      ))
       val nTy = RecType(n2, Bind(a, ty))
-      val check = CheckGoal(c3.incrementLevel, t, Tree.replace(a, nTy, ty))
+      val check = CheckGoal(
+        c3.incrementLevel.setModifier(
+          Append(List(
+            (p2, EqualityType(n, Primitive(Plus, List(n2, NatLiteral(1))))),
+            (id, NatType)))), t, Tree.replace(a, nTy, ty))
       Some((
         List(_ => checkN, _ => checkBase, _ => check),
         {
           case CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, InferJudgment("InferFold", c, e, tpe))
+            (true, InferJudgment("InferFold", c, e, tpe, Some("J_Fold", None)))
           case _ =>
             emitErrorWithJudgment("InferFold", g, None)
         }
@@ -873,7 +877,7 @@ trait ProvenRules {
         List(_ => subgoal, fEquality),
         {
           case InferJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckRecursive", c, t, tpe))
+            (true, CheckJudgment("CheckRecursive", c, t, tpe, Some("J_Fold2", None)))
           case _ =>
             emitErrorWithJudgment("CheckRecursive", g, None)
         }
