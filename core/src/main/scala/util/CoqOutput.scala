@@ -48,8 +48,8 @@ object CoqOutput {
     if (context.typeVariables.isEmpty) {
       "nil"
     } else {
-      "(" + context.typeVariables.foldRight("nil")({
-        case (id, acc) => toCoqIndex(id).toString() +"::"+acc
+      "(" + context.typeVariables.foldLeft("nil")({
+        case (acc, id) => toCoqIndex(id).toString() +"::"+acc
       }) + ")"
     }
   }
@@ -193,8 +193,8 @@ object CoqOutput {
   def toNamelessRep(t: Tree)(implicit nameless: Map[Identifier, Int]): Tree = t match {
 
     //case Var(Identifier(id, "")) => Var(Identifier(0, s"(fvar ${id} term_var)"))
-    case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)})"))
-    case Var(id) => Var(Identifier(0, s"(fvar ${toCoqIndex(id)} ${toCoqVarType(id.name)})"))
+    case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)} (* ${id.toString()} *))"))
+    case Var(id) => Var(Identifier(0, s"(fvar ${toCoqIndex(id)} ${toCoqVarType(id.name)}  (* ${id.toString()} *) )"))
 
     // By default, a bind is for term_variables
     case Bind(y, e) => Bind(y,toNamelessRep(e)(levelUp(nameless, true, false) + (y->0)))  
@@ -218,7 +218,7 @@ object CoqOutput {
     case Fold(tp, t) => Fold(toNamelessRep(tp), toNamelessRep(t))
     case Unfold(t, bind) => Unfold(toNamelessRep(t), toNamelessRep(bind))
     //case UnfoldPositive(t, bind) => ???
-    case Abs(bind) => Abs(toNamelessRep(bind))
+    case Abs(Bind(y, ty)) => Abs(toNamelessRep(ty)(levelUp(nameless, false, true) + (y -> 0)))
     case ErasableApp(t1, t2) => ErasableApp(toNamelessRep(t1), toNamelessRep(t2))
     case TypeApp(abs, tp) => TypeApp(toNamelessRep(abs), toNamelessRep(tp))
     case Error(e, t) => Error(e, t.map(toNamelessRep))
@@ -233,7 +233,7 @@ object CoqOutput {
     case RefinementType(t1, bind) => RefinementType(toNamelessRep(t1), toNamelessRep(bind))
     case RefinementByType(t1, bind) => RefinementByType(toNamelessRep(t1), toNamelessRep(bind))
     case RecType(n, Bind(y, ty)) => RecTypeExplicit(toNamelessRep(n), toNamelessRep(TypeOperators.basetype(y, ty)), toNamelessRep(ty)(levelUp(nameless, false, true) + (y -> 0)))
-    case PolyForallType(bind) => PolyForallType(toNamelessRep(bind))
+    case PolyForallType(Bind(y, ty)) => PolyForallType(toNamelessRep(ty)(levelUp(nameless, false, true) + (y -> 0)))
     //case Node(name, args) => ???
     case EqualityType(t1, t2) => EqualityType(toNamelessRep(t1), toNamelessRep(t2))
 
@@ -286,6 +286,7 @@ object CoqOutput {
     case Fold(tp, t) => s"(tfold ${treeToCoq(tp)} ${treeToCoq(t)})"
     case Unfold(tp, t) => s"(tunfold ${treeToCoq(tp)} ${treeToCoq(t)})"
     case UnfoldPositive(tp, t) => s"(tunfold_pos_in ${treeToCoq(tp)} ${treeToCoq(t)})"
+    case TypeApp(t1, t2) => s"(type_inst ${treeToCoq(t1)} ${treeToCoq(t2)})"
 
     // Binder
     case Bind(id, body) => treeToCoq(body) // Not sure about this one

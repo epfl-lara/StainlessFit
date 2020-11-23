@@ -1039,7 +1039,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, tpe, _) :: _ =>
-            (true, InferJudgment("InferTypeAbs", c, e, PolyForallType(Bind(a, tpe))))
+            (true, InferJudgment("InferTypeAbs", c, e, PolyForallType(Bind(a, tpe)), Some("J_type_abs", None)))
           case _ =>
             emitErrorWithJudgment("InferTypeAbs", g, None)
         }
@@ -1056,7 +1056,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, PolyForallType(Bind(x, tpe)), _) :: _ =>
-            (true, InferJudgment("InferTypeApp", c, e, tpe.replace(x, ty)))
+            (true, InferJudgment("InferTypeApp", c, e, tpe.replace(x, ty), Some("J_type_app", None)))
           case InferJudgment(_, _, _, ty, _) :: _ =>
             emitErrorWithJudgment("InferTypeApp", g,
               Some(
@@ -1080,7 +1080,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckTypeAbs", c, t, tpe))
+            (true, CheckJudgment("CheckTypeAbs", c, t, tpe, Some("J_type_app", None)))
           case _ =>
             emitErrorWithJudgment("CheckTypeAbs", g, None)
         }
