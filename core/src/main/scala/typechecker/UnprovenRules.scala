@@ -40,7 +40,7 @@ trait UnprovenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, tpe, _) :: _ =>
-            (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType)))
+            (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType), Some("J_Left", None)))
           case _ =>
             emitErrorWithJudgment("InferLeft", g, None)
         }
@@ -56,7 +56,7 @@ trait UnprovenRules {
       Some((List(_ => subgoal),
         {
           case InferJudgment(_, _, _, tpe, _) :: _ =>
-            (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe)))
+            (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe), Some("J_Right", None)))
           case _ =>
             emitErrorWithJudgment("InferRight", g, None)
         }
@@ -525,6 +525,26 @@ trait UnprovenRules {
         case _ => None
       }
     case _ => None
+  })
+
+
+  val SubtypeForall = Rule("SubtypeForall", {
+    case g @ SubtypeGoal(c,
+      tya @ IntersectionType(tya1, Bind(ida, tya2)),
+      tyb @ IntersectionType(tyb1, Bind(idb, tyb2))) =>
+      TypeChecker.debugs(g, "SubtypeForall")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tyb1, tya1)
+      val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubtypeForall", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubtypeForall", g, None)
+      }))
+    case g =>
+      None
   })
 
 }

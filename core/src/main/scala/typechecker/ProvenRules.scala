@@ -495,12 +495,12 @@ trait ProvenRules {
         {
           case InferJudgment(_, _, _, ty2, _) :: _ if {
             val ty3 = dropRefinements(ty2)
-            ty3 == ty || ty3 == BottomType
+            ty.isEqual(ty3) || ty3 == BottomType
           } =>
             (true, CheckJudgment("CheckReflexive", c, t, ty, Some("J_drop", None)))
           case InferJudgment(_, _, _, tpe, _) :: _ =>
             emitErrorWithJudgment("CheckReflexive", g,
-              Some(s"Expected type ${ty} for ${t}, found $tpe instead")
+              Some(s"Expected type ${ty.asString} for ${t.asString}, found ${tpe.asString} instead")
             )
           case _ =>
             emitErrorWithJudgment("CheckReflexive", g, None)
@@ -508,6 +508,150 @@ trait ProvenRules {
       ))
     case g =>
       None
+  })
+
+  val CheckReflexiveSubtype = Rule("CheckReflexiveSubtype", {
+    case g @ CheckGoal(c, t, ty) =>
+      TypeChecker.debugs(g, "CheckReflexiveSubtype")
+      val c0 = c.incrementLevel
+      val gInfer = InferGoal(c0.setModifier(Same), t)
+      val gsub : List[Judgment] => Goal = {
+        case InferJudgment(_, _, _, ty2, _) :: _ => {
+          SubtypeGoal(c0, ty2, ty)
+        }
+        case _ =>
+         ErrorGoal(c, None)
+      }
+      Some((List(_ => gInfer, gsub),
+        {
+          case _:: SubtypeJudgment(_, _, _, _, _) :: _ =>
+            (true, CheckJudgment("CheckReflexiveSubtype", c, t, ty))
+          case _ =>
+            emitErrorWithJudgment("CheckReflexiveSubtype", g, None)
+        }
+      ))
+    case g =>
+      None
+  })
+
+  val SubtypePi = Rule("SubtypePi", {
+    case g @ SubtypeGoal(c,
+      tya @ PiType(tya1, Bind(ida, tya2)),
+      tyb @ PiType(tyb1, Bind(idb, tyb2))) =>
+      TypeChecker.debugs(g, "SubtypePi")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tyb1, tya1)
+      val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubtypePi", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubtypePi", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubtypeSigma = Rule("SubtypeSigma", {
+    case g @ SubtypeGoal(c,
+      tya @ SigmaType(tya1, Bind(ida, tya2)),
+      tyb @ SigmaType(tyb1, Bind(idb, tyb2))) =>
+      TypeChecker.debugs(g, "SubtypeSigma")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tya1, tyb1)
+      val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubtypeSigma", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubtypeSigma", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubtypeReflexive = Rule("SubtypeReflexive", {
+    case g @ SubtypeGoal(c, ty1, ty2) if Tree.areEqual(ty1, ty2) =>
+      TypeChecker.debugs(g, "SubtypeReflexive")
+      Some((List(), _ => (true, SubtypeJudgment("SubtypeReflexive", c, ty1, ty2))))
+    case g =>
+      None
+  })
+
+  val SubtypeTop = Rule("SubtypeTop", {
+    case g @ SubtypeGoal(c, ty, TopType) =>
+      TypeChecker.debugs(g, "SubtypeTop")
+      Some((List(), _ => (true, SubtypeJudgment("SubtypeTop", c, ty, TopType))))
+    case g =>
+      None
+  })
+
+  val SubtypeBottom = Rule("SubtypeBottom", {
+    case g @ SubtypeGoal(c, BottomType, ty) =>
+      TypeChecker.debugs(g, "SubtypeBottom")
+      Some((List(), _ => (true, SubtypeJudgment("SubtypeBottom", c, BottomType, ty))))
+    case g =>
+      None
+  })
+
+  val SubtypeRefinementRight = Rule("SubtypeRefinementRight", {
+    case g @ SubtypeGoal(c, tya,
+      tyb @ RefinementType(tyb1, Bind(idb, t2))) =>
+      TypeChecker.debugs(g, "SubtypeRefinementRight")
+
+      val (x, c0) = c.incrementLevel.bindFresh("x", tya)
+
+      val g1 = SubtypeGoal(c.incrementLevel, tya, tyb1)
+      val g2 = EqualityGoal(c0, t2.replace(idb, x), BooleanLiteral(true))
+
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _, _) :: AreEqualJudgment(_,_,_,_,_,_):: Nil =>
+          (true, SubtypeJudgment("SubtypeRefinementRight", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubtypeRefinementRight", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubtypeRefinementDrop = Rule("SubtypeRefinementDrop", {
+    case g @ SubtypeGoal(c,
+      tya @ RefinementType(tya1, _),
+      tyb) =>
+      TypeChecker.debugs(g, "SubtypeRefinementDrop")
+
+      val g1 = SubtypeGoal(c.incrementLevel, tya1, tyb)
+
+      Some((List(_ => g1), {
+        case SubtypeJudgment(_, _, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubtypeRefinementDrop", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubtypeRefinementDrop", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubtypeRecursive = Rule("SubtypeRecursive", {
+    case g @ SubtypeGoal(c, 
+    tya @ RecType(ta, binda),
+    tyb @ RecType(tb, bindb)) if (binda.isEqual(bindb)) =>
+      TypeChecker.debugs(g, "SubtypeRecursive")
+
+      val g1 = EqualityGoal(c.incrementLevel, ta, tb)
+      Some((
+        List(_ => g1),
+        {
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
+            (true, SubtypeJudgment("SubtypeRecursive", c, tya, tyb))
+          case _ =>
+            emitErrorWithJudgment("SubtypeRecursive", g, None)
+        }
+      ))
+
+    case _ => None
   })
 
   val InferPair = Rule("InferPair", {

@@ -21,12 +21,12 @@ class TypeChecker(implicit val rc: RunContext)
     CheckIf.t || CheckMatch.t || CheckEitherMatch.t || CheckLet.t ||
     CheckLeft.t || CheckRight.t || CheckSum.t ||
     CheckIntersection.t ||
-    CheckLambda.t || CheckPi.t ||
+    CheckLambda.t || // CheckPi.t ||
     CheckPair.t || CheckSigma.t ||
     CheckRefinement.t || CheckTypeAbs.t ||
     CheckRecursive.t ||
     CheckTop1.t || CheckTop2.t ||
-    CheckReflexive.t ||
+    CheckReflexiveSubtype.t ||
     InferMacroTypeDecl.t ||
     InferBool.t || InferNat.t || InferUnit.t || InferVar.t ||
     InferLeft.t || InferRight.t ||
@@ -39,7 +39,10 @@ class TypeChecker(implicit val rc: RunContext)
     InferBinaryPrimitive.t || InferUnaryPrimitive.t ||
     InferIf.t || InferMatch.t || InferEitherMatch.t ||
     InferFix.t ||
-    InferFold.t || InferUnfold.t || InferUnfoldPositive.t || InferFoldGen.t
+    InferFold.t || InferUnfold.t || InferUnfoldPositive.t || InferFoldGen.t ||
+    SubtypeSigma.t || SubtypePi.t || SubtypeTop.t || SubtypeBottom.t || SubtypeReflexive.t ||
+    SubtypeForall.t || SubtypeRecursive.t || 
+    SubtypeRefinementRight.t || SubtypeRefinementDrop.t
 
   val solveEquality: Tactic[Goal, (Boolean, NodeTree[Judgment])] =
     Reflexivity.t ||
