@@ -296,7 +296,7 @@ object CoqOutput {
     case NatType => "T_nat"
     case UnitType => "T_unit"
     case TopType => "T_top"
-    case BottomType => "T_bottom"
+    case BottomType => "T_bot"
     case SumType(t1, t2) => s"(T_sum ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case PiType(t1, t2) => s"(T_arrow ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case SigmaType(t1, t2) => s"(T_prod ${treeToCoq(t1)} ${treeToCoq(t2)})"

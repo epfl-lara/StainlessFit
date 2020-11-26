@@ -80,7 +80,7 @@ trait UnprovenRules {
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckSum", c, t, tpe))
+            (true, CheckJudgment("CheckSum", c, t, tpe, Some("J_SumType", None)))
           case _ =>
             emitErrorWithJudgment("CheckSum", g, None)
         }

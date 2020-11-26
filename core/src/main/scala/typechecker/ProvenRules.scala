@@ -525,7 +525,7 @@ trait ProvenRules {
       Some((List(_ => gInfer, gsub),
         {
           case _:: SubtypeJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckReflexiveSubtype", c, t, ty))
+            (true, CheckJudgment("CheckReflexiveSubtype", c, t, ty, Some("J_sub", None)))
           case _ =>
             emitErrorWithJudgment("CheckReflexiveSubtype", g, None)
         }
@@ -545,7 +545,7 @@ trait ProvenRules {
       val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
         case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
-          (true, SubtypeJudgment("SubtypePi", c, tya, tyb))
+          (true, SubtypeJudgment("SubtypePi", c, tya, tyb, Some("S_Pi", None)))
         case _ =>
           emitErrorWithJudgment("SubtypePi", g, None)
       }))
@@ -575,7 +575,7 @@ trait ProvenRules {
   val SubtypeReflexive = Rule("SubtypeReflexive", {
     case g @ SubtypeGoal(c, ty1, ty2) if Tree.areEqual(ty1, ty2) =>
       TypeChecker.debugs(g, "SubtypeReflexive")
-      Some((List(), _ => (true, SubtypeJudgment("SubtypeReflexive", c, ty1, ty2))))
+      Some((List(), _ => (true, SubtypeJudgment("SubtypeReflexive", c, ty1, ty2, Some("S_refl", None)))))
     case g =>
       None
   })
@@ -583,7 +583,7 @@ trait ProvenRules {
   val SubtypeTop = Rule("SubtypeTop", {
     case g @ SubtypeGoal(c, ty, TopType) =>
       TypeChecker.debugs(g, "SubtypeTop")
-      Some((List(), _ => (true, SubtypeJudgment("SubtypeTop", c, ty, TopType))))
+      Some((List(), _ => (true, SubtypeJudgment("SubtypeTop", c, ty, TopType, Some("S_top", None)))))
     case g =>
       None
   })
@@ -591,7 +591,7 @@ trait ProvenRules {
   val SubtypeBottom = Rule("SubtypeBottom", {
     case g @ SubtypeGoal(c, BottomType, ty) =>
       TypeChecker.debugs(g, "SubtypeBottom")
-      Some((List(), _ => (true, SubtypeJudgment("SubtypeBottom", c, BottomType, ty))))
+      Some((List(), _ => (true, SubtypeJudgment("SubtypeBottom", c, BottomType, ty, Some("S_bot", None)))))
     case g =>
       None
   })
@@ -626,7 +626,7 @@ trait ProvenRules {
 
       Some((List(_ => g1), {
         case SubtypeJudgment(_, _, _, _, _) :: Nil =>
-          (true, SubtypeJudgment("SubtypeRefinementDrop", c, tya, tyb))
+          (true, SubtypeJudgment("SubtypeRefinementDrop", c, tya, tyb, Some("S_refine_drop", None)))
         case _ =>
           emitErrorWithJudgment("SubtypeRefinementDrop", g, None)
       }))
@@ -1224,7 +1224,7 @@ trait ProvenRules {
       Some((List(_ => subgoal),
         {
           case CheckJudgment(_, _, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckTypeAbs", c, t, tpe, Some("J_type_app", None)))
+            (true, CheckJudgment("CheckTypeAbs", c, t, tpe, Some("J_type_abs", None)))
           case _ =>
             emitErrorWithJudgment("CheckTypeAbs", g, None)
         }

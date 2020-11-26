@@ -29,7 +29,10 @@ case class Context(
     if (termVariables.contains(i)) throw new Exception("Already bound " + i.toString)
     copy(
       termVariables = termVariables.updated(i, ty),
-      lastOp = Append(List((i, ty)))
+      lastOp = lastOp match {
+        case Append(addedElements) => Append((i,ty) +: addedElements)
+        case _ => Append(List((i, ty)))
+      }
     )
   }
 
