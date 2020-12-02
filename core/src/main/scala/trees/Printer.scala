@@ -1,6 +1,6 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 package core
 package trees
 
@@ -121,6 +121,10 @@ object Printer {
   def allowNewLine(t: Token): Boolean = t != SeparatorToken(";")
   def allowNewLine(ts: Seq[Token]): Boolean = ts.isEmpty || allowNewLine(ts(0))
 
+  def tokensToString(l: Iterator[Token])(implicit rc: RunContext): String = {
+    tokensToString(l.toSeq)
+  }
+
   def tokensToString(l: Seq[Token])(implicit rc: RunContext): String = {
 
     val res = new StringBuilder()
@@ -165,7 +169,7 @@ object Printer {
     else id.toString
   }
 
-  def itToString(t: Tree, it: Iterator[Seq[Token]])(implicit rc: RunContext): String = {
+  def itToString(t: Tree, it: Iterator[Iterator[Token]])(implicit rc: RunContext): String = {
     if (it.hasNext)
       tokensToString(it.next())
     else {

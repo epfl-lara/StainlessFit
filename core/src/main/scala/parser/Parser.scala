@@ -1,20 +1,19 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 package core
 package parser
 
-import scallion.input._
-import scallion.lexical._
-import scallion.syntactic._
+import scallion._
+import silex._
 
-import core.trees._
-import core.trees.TreeBuilders._
+import fit.core.trees._
+import fit.core.trees.TreeBuilders._
 
-import util.Utils._
-import util.RunContext
-import stainlessfit.core.extraction.BuiltInIdentifiers
-import typechecker.SDepSugar._
+import fit.core.util.Utils._
+import fit.core.util.RunContext
+import fit.core.extraction.BuiltInIdentifiers
+import fit.core.typechecker.SDepSugar._
 
 sealed abstract class Indentation
 object Indentation {
@@ -194,7 +193,9 @@ case object EqualityClass extends TokenClass
 case class KeywordClass(value: String) extends TokenClass
 case class TypeClass(value: String) extends TokenClass
 
-class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with ll1.Parsing with ll1.Debug with PrettyPrinting {
+class FitParser()(implicit rc: RunContext) extends Parsers {
+
+// extends Syntaxes with Operators with ll1.Parsing with ll1.Debug with PrettyPrinting {
 
   type Token = parser.Token
   type Kind = parser.TokenClass
@@ -913,7 +914,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     defFunction | macroTypeDeclaration
   }
 
-  val exprParser = LL1(expr)
+  val exprParser = Parser(expr)
 
-  def apply(it: Iterator[Token]): LL1.ParseResult[Tree] = exprParser(it)
+  def apply(it: Iterator[Token]): ParseResult[Tree] = exprParser(it)
 }

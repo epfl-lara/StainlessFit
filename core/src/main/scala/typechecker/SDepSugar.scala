@@ -1,11 +1,11 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 package core
 package typechecker
 
 import trees._
-import stainlessfit.core.util.RunContext
+import fit.core.util.RunContext
 
 object SDepSugar {
 

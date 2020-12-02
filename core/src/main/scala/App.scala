@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package stainlessfit
+package fit
 package core
 
 import java.io.File

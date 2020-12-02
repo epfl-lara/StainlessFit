@@ -1,13 +1,13 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 package core
 package typechecker
 
-import stainlessfit.core.trees._
-import stainlessfit.core.typechecker.Derivation.{AreEqualJudgment, emitErrorWithJudgment}
-import stainlessfit.core.util.RunContext
-import stainlessfit.core.smt._
+import fit.core.trees._
+import fit.core.typechecker.Derivation.{AreEqualJudgment, emitErrorWithJudgment}
+import fit.core.util.RunContext
+import fit.core.smt._
 
 trait SMTRules {
 

@@ -1,4 +1,4 @@
-package stainlessfit
+package fit
 
 import Utils._
 import core.trees._

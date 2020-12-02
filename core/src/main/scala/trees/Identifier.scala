@@ -1,4 +1,4 @@
-package stainlessfit
+package fit
 package core
 package trees
 

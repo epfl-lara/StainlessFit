@@ -1,6 +1,6 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 package core
 
 import core.trees._
@@ -29,14 +29,14 @@ object Core {
     val it = s.iterator
 
     rc.parser(FitLexer(it)) match {
-      case rc.parser.LL1.Parsed(value, _) =>
+      case rc.parser.Parsed(value, _) =>
         Right(value)
-      case rc.parser.LL1.UnexpectedEnd(rest) =>
+      case rc.parser.UnexpectedEnd(rest) =>
         Left(
           s"""|Error during parsing, unexpected end of input.
               |Expected token: ${rest.first.mkString("   ")}""".stripMargin
         )
-      case rc.parser.LL1.UnexpectedToken(t, rest) =>
+      case rc.parser.UnexpectedToken(t, rest) =>
         Left(
           s"""|Error during parsing, unexpected token at position ${t.pos}: $t
               |Expected token: ${rest.first.mkString("   ")}""".stripMargin

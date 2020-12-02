@@ -1,6 +1,6 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 package core
 
 import java.io.File

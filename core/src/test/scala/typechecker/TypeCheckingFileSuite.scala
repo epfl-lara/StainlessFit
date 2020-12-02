@@ -1,6 +1,6 @@
 /* Copyright 2019-2020 EPFL, Lausanne */
 
-package stainlessfit
+package fit
 
 import Utils._
 import org.scalatest.funsuite.AnyFunSuite
