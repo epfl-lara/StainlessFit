@@ -169,9 +169,9 @@ object Printer {
     else id.toString
   }
 
-  def itToString(t: Tree, it: Iterator[Iterator[Token]])(implicit rc: RunContext): String = {
-    if (it.hasNext)
-      tokensToString(it.next())
+  def optToString(t: Tree, opt: Option[Iterator[Token]])(implicit rc: RunContext): String = {
+    if (opt.nonEmpty)
+      tokensToString(opt.get)
     else {
       asStringDebug(t)
       // Should be unreachable code:
@@ -184,24 +184,24 @@ object Printer {
   def exprAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr)") {
     asStringMap.getOrElseUpdate(t, {
       val it = rc.exprPrinter(t)
-      itToString(t, it)
+      optToString(t, it)
     })
   }
 
   def typeAsString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (type)") {
     asStringMap.getOrElseUpdate(t, {
       val it = rc.typePrinter(t)
-      itToString(t, it)
+      optToString(t, it)
     })
   }
 
   def asString(t: Tree)(implicit rc: RunContext): String = rc.bench.time("PrettyPrinter (expr or type)") {
     asStringMap.getOrElseUpdate(t, {
-      val it = rc.exprPrinter(t)
-      if (it.isEmpty)
+      val opt = rc.exprPrinter(t)
+      if (opt.isEmpty)
         typeAsString(t)
       else
-        tokensToString(it.next())
+        tokensToString(opt.get)
     })
   }
 
