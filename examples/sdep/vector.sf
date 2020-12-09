@@ -1,0 +1,30 @@
+val listOfN = fixD(
+  listOfN_ [(Unit => Top) => Nat => List] =>
+    fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
+      nat_match n {
+        case zero => nil
+        case succ n => cons (makeElem ()) (listOfN_ makeElem n)
+      }
+    } },
+  fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
+    nil
+  } }
+);
+
+val makeNat = fun of (u [Unit]) = { choose[Nat] };
+
+val prependOne [Pi(n:Nat, {[List] listOfN makeNat n} => {[List] listOfN makeNat (succ n)})] =
+  fun of (n [Nat]) = { fun of (xs [{[List] listOfN makeNat n}]) = {
+    cons (makeNat ()) xs
+  } };
+
+// val listOf = fun of (makeElem [Unit => Top]) = {
+//   listOfN makeElem (choose[Nat])
+// };
+
+val ns [{[List] listOfN makeNat 0}] = nil;
+val ns [{[List] listOfN makeNat 1}] = prependOne 0 ns;
+val ns [{[List] listOfN makeNat 2}] = prependOne 1 ns;
+// val ns [{[List] listOfN makeNat 2}] = cons 1 (cons 2 nil);
+// val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil); // no rule to guess correct length
+()
