@@ -102,6 +102,9 @@ object Interpreter {
         val newFixD = FixWithDefault(ty, t, td, depthFuel - 1)
         evaluateWithContext(c, tBody.replace(id, newFixD))
 
+      case Fix(_, Bind(_, Bind(idT, tBody))) =>
+        evaluateWithContext(c, tBody.replace(idT, e))
+
       case _ => e
     }
   }

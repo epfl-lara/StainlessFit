@@ -24,6 +24,7 @@ class SDep(implicit val rc: RunContext)
     InferBool.t ||
     InferChoose.t ||
     InferFixWithDefault.t ||
+    InferFixDep.t ||
     InferLet1.t ||
     InferLet2.t ||
     InferNil.t ||
@@ -45,6 +46,7 @@ class SDep(implicit val rc: RunContext)
     NormPi.t ||
     NormSigma.t ||
     (SubNormalizeWiden.t orRecover SubNormalize.t) ||
+    SubSingletonCons.t ||
     SubSingletonReflexive.t ||
     SubReflexive.t ||
     SubExistsLeft.t ||
@@ -94,7 +96,7 @@ class SDepSolver(var targets: Map[Identifier, Option[Tree]])(implicit rc: RunCon
     SubReflexiveSolve.t || super.typeChecking
 
   def addTarget(x: Identifier): Unit = {
-    assert(!targets.contains(x))
+    assert(!targets.contains(x), s"Trying to target ${Printer.asString(x)} more than once")
     targets += x -> None
   }
 

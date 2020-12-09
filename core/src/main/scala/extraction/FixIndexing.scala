@@ -11,7 +11,7 @@ import parser.FitParser
 class FixIndexing(implicit val rc: RunContext) extends Phase[Unit] {
   def transform(t: Tree): (Tree, Unit) = {
     (t.replace((e: Tree) => e match {
-      case Fix(Some(Bind(n1, funType)), Bind(n2, Bind(f, body))) =>
+      case Fix(Some(Bind(n1, funType)), Bind(n2, Bind(f, body))) if rc.config.mode != Mode.SDep =>
         assert(n1 == n2)
         Some(Right(
           Fix(Some(Bind(n1, transform(funType)._1)), Bind(n2, Bind(f,

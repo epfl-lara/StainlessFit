@@ -76,6 +76,14 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
       val (Seq(nT, nTd), n3) = encode(path, n2, Seq(t, td))
       (FixWithDefault(nTy, Bind(id, nT), nTd, f), n3)
 
+    case Fix(optTy, Bind(idN, Bind(idT, t))) =>
+      val nOptTy = optTy.map { case Bind(idN, ty) =>
+        val (nTy, n1) = encodeAnnot(n, ty)
+        (Bind(idN, nTy), n1)
+      }
+      val (nT, n2) = encode(path, nOptTy.map(_._2).getOrElse(n), t)
+      (Fix(nOptTy.map(_._1), Bind(idN, Bind(idT, nT))), n2)
+
     case LCons(t1, t2) =>
       val (Seq(nt1, nt2), n2) = encode(path, n, Seq(t1, t2))
       (LCons(nt1, nt2), n2)

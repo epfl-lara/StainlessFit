@@ -662,7 +662,7 @@ trait SDepRules {
             recType(tyUnderlying, substs),
             replacePaths(t, substs))
 
-        case ExistsType(ty1, Bind(id, ty2)) if ty1 == LList && id.name == "p" =>
+        case ExistsType(ty1, Bind(id, ty2)) if ty1 == LList && (id.name == "p" || id.name == "q") =>
           // TODO: Implement a rigorous way to identify path existentials ^^^
           val trails = trailsOf(id, ty2)
 
@@ -766,6 +766,27 @@ trait SDepRules {
       Some((List(_ => g1), {
         case SubtypeJudgment(_, _, _, _) :: Nil => (true, SubtypeJudgment("SubSingletonReflexive", c, ty1, ty2))
         case _ => emitErrorWithJudgment("SubSingletonReflexive", g, None)
+      }))
+    case g =>
+      None
+  })
+
+  val SubSingletonCons = Rule("SubSingletonCons", {
+    case g @ SubtypeGoal(c,
+        ty1 @ SingletonType(ty1Underlying, LCons(t11, t12)),
+        ty2 @ SingletonType(ty2Underlying, LCons(t21, t22))) =>
+      TypeChecker.debugs(g, "SubSingletonCons")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, ty1Underlying, ty2Underlying)
+      val g2 = SubtypeGoal(c0, t11, t21)
+      val g3 = SubtypeGoal(c0, t12, t22)
+      Some((List(_ => g1, _ => g2, _ => g3), {
+        case SubtypeJudgment(_, _, _, _) ::
+             SubtypeJudgment(_, _, _, _) ::
+             SubtypeJudgment(_, _, _, _) ::
+             Nil => (true, SubtypeJudgment("SubSingletonCons", c, ty1, ty2))
+        case _ => emitErrorWithJudgment("SubSingletonCons", g, None)
       }))
     case g =>
       None
@@ -957,7 +978,10 @@ trait SDepRules {
         }
       }
 
-      solver.targets(id2) match {
+      val optSolution = solver.targets(id2)
+      solver.targets = solver.targets - id2
+
+      optSolution match {
         // TODO: Add this check (implement Tree.freeVars)
         // case Some(tSol) if !Tree.freeVars(tSol).forall(id => c0.termVariables.contains(id)) =>
         //   val msg = s"Solver found a candidate solution for $id2, " +
@@ -1014,8 +1038,9 @@ trait SDepRules {
           case CheckJudgment(_, _, _, _) ::
             InferJudgment(_, _, _, ty1) ::
             InferJudgment(_, _, _, ty2) :: _ =>
+              val ty = NatMatchType(t, ty1, Bind(id, ty2))
               (true, InferJudgment("InferNatMatch1", c, e,
-                NatMatchType(t, ty1, Bind(id, ty2))))
+                SingletonType(ty, e)))
 
           case _ => emitErrorWithJudgment("InferNatMatch1", g, None)
         }
@@ -1041,8 +1066,9 @@ trait SDepRules {
           case CheckJudgment(_, _, _, _) ::
             InferJudgment(_, _, _, ty1) ::
             InferJudgment(_, _, _, ty2) :: _ =>
+              val ty = ListMatchType(t, ty1, Bind(idHead, Bind(idTail, ty2)))
               (true, InferJudgment("InferListMatch", c, e,
-                ListMatchType(t, ty1, Bind(idHead, Bind(idTail, ty2)))))
+                SingletonType(ty, e)))
 
           case _ => emitErrorWithJudgment("InferListMatch", g, None)
         }
@@ -1096,6 +1122,22 @@ trait SDepRules {
         List(_ => g1, _ => g2),
         _ =>
           (true, InferJudgment("InferFixWithDefault", c, e, SingletonType(ty, e)))))
+
+    case _ => None
+  })
+
+  val InferFixDep = Rule("InferFixDep", {
+    case g @ InferGoal(c, e @ Fix(Some(Bind(idN, ty)), t @ Bind(_, Bind(idT, tBody)))) =>
+      TypeChecker.debugs(g, "InferFixDep")
+
+      val c0 = c.incrementLevel
+      val (c1, tBodyF) = c0.bindAndFreshen(idT, ty, tBody)
+      val g1 = CheckGoal(c1, tBodyF, ty)
+
+      Some((
+        List(_ => g1),
+        _ =>
+          (true, InferJudgment("InferFixDep", c, e, SingletonType(ty, e)))))
 
     case _ => None
   })
