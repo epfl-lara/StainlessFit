@@ -22,6 +22,7 @@ class BuiltInIdentifiers(implicit val rc: RunContext) extends Phase[Unit] {
       case App(App(Var(Identifier(0, "cons")), e1), e2) => Some(LCons(e1, e2))
       case TypeApp(Var(Identifier(0, "choose")), ty) => Some(Choose(ty))
       case Var(Identifier(0, "nil"))            => Some(LNil())
+      case App(Var(Identifier(0, "succ")), e)   => Some(Succ(e))
       case Var(Identifier(0, "List"))           => Some(LList)
       case _ => None
     }), ())
@@ -30,7 +31,7 @@ class BuiltInIdentifiers(implicit val rc: RunContext) extends Phase[Unit] {
 
 object BuiltInIdentifiers {
   val builtInIdentifiers = Seq(
-    "size", "left", "right", "first", "second", "nil", "cons", "choose"
+    "size", "left", "right", "first", "second", "nil", "cons", "choose", "succ"
   )
 
   val builtInTypeIdentifiers = Seq(

@@ -79,6 +79,7 @@ object Tree {
       case App(t1, t2) => (List(t1, t2), { case newT1 :: newT2 :: Nil => App(newT1, newT2) })
       case Pair(t1, t2) => (List(t1, t2), { case newT1 :: newT2 :: Nil => Pair(newT1, newT2) })
       case Size(t) => (List(t), { case newT :: Nil => Size(newT) })
+      case Succ(t) => (List(t), { case newT :: Nil => Succ(newT) })
       case First(t) => (List(t), { case newT :: Nil => First(newT) })
       case Second(t) => (List(t), { case newT :: Nil => Second(newT) })
       case LeftTree(t) => (List(t), { case newT :: Nil => LeftTree(newT) })
@@ -161,6 +162,7 @@ object Tree {
       case (IfThenElse(cond1, t11, t12), IfThenElse(cond2, t21, t22)) =>
         areEqual(cond1, cond2) && areEqual(t11, t21) && areEqual(t12, t22)
       case (App(t11, t12), App(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
+      case (Succ(t1), Succ(t2)) => areEqual(t1, t2)
       case (Pair(t11, t12), Pair(t21, t22)) => areEqual(t11, t21) && areEqual(t12, t22)
       case (First(t1), First(t2)) => areEqual(t1, t2)
       case (Second(t1), Second(t2)) => areEqual(t1, t2)

@@ -25,6 +25,8 @@ object Interpreter {
         case _ => e
       }
 
+      case Succ(t) => Succ(evaluateWithContext(c, t))
+
       case Pair(t1, t2) => Pair(evaluateWithContext(c, t1), evaluateWithContext(c, t2))
 
       case First(t) => evaluateWithContext(c, t) match {
@@ -52,6 +54,7 @@ object Interpreter {
       case NatMatch(t, t1, b2 @ Bind(id2, t2)) =>
         evaluateWithContext(c, t) match {
           case NatLiteral(`zero`) => evaluateWithContext(c, t1)
+          case Succ(n) => evaluateWithContext(c, t2.replace(id2, n))
           case NatLiteral(n) => evaluateWithContext(c, t2.replace(id2, NatLiteral(n - 1)))
           case nt => NatMatch(nt, t1, b2)
         }

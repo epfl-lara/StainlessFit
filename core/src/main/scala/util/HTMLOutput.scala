@@ -20,9 +20,10 @@ object HTMLOutput {
   def bold(s: String) = s"<b>$s</b>"
 
   def shortString(s: String, maxWidth: Int = 900): String = {
-    val r = s.replaceAll("\n", " ")
-    if (r.length > maxWidth) r.take(maxWidth - 3) + "..."
-    else r
+    // val r = s.replaceAll("\n", " ")
+    // if (r.length > maxWidth) r.take(maxWidth - 3) + "..."
+    // else r
+    s
   }
 
   def termOutput(t: Tree)(implicit rc: RunContext): String =
@@ -93,17 +94,23 @@ object HTMLOutput {
       s"(${headerColor(context.level.toString)} - ${headerColor(name)}) ⊢ File ${typeColor(shortString(s))}"
   }
 
+  def foldedByDefault(j: Judgment): Boolean = j match {
+    case _: NormalizationJudgment => true
+    case _ => false
+  }
+
   def nodeTreeToHTML(l: List[NodeTree[Judgment]], depth: Int)(implicit rc: RunContext): String = {
     val indentation = "  " * depth
-    indentation + "<ul>\n" +
+    indentation + s"<ul>\n" +
       l.map(t => nodeTreeToHTML(t, depth + 1)).mkString("\n") + "\n" +
     indentation + "</ul>"
   }
 
   def nodeTreeToHTML(t: NodeTree[Judgment], depth: Int)(implicit rc: RunContext): String = {
     val indentation = "  " * depth
+    val clazz = if (foldedByDefault(t.node)) """ class="folded"""" else ""
     val childrenString = nodeTreeToHTML(t.children, depth + 1)
-    indentation + s"<li> <span class='node' title='${Printer.asString(t.node.context)}'> ${judgementToHTML(t.node)} </span>\n" +
+    indentation + s"<li$clazz> <span class='node' title='${Printer.asString(t.node.context)}'> ${judgementToHTML(t.node)} </span>\n" +
       childrenString + "\n" +
     indentation + "</li>"
   }
@@ -175,9 +182,21 @@ object HTMLOutput {
                 |  background-color: #cc9587
                 |}
                 |
+                |.node {
+                |  overflow: hidden;
+                |  display: -webkit-box;
+                |  -webkit-line-clamp: 3;
+                |  -webkit-box-orient: vertical;
+                |}
                 |ul {
                 |  list-style-type: none;
                 |  padding-left: 10px;
+                |}
+                |li.folded > ul {
+                |  display: none;
+                |}
+                |li.folded > .node:before {
+                |  content: "(Folded) ";
                 |}
                 |</style>""".stripMargin)
     fw.write("</head>\n\n")
@@ -187,12 +206,7 @@ object HTMLOutput {
     fw.write("""|$(document).ready(function () {
                 |  $('.node').click(function(e) {
                 |    if (!getSelection().toString()) {
-                |      text = $(this).html()
-                |      if (text.startsWith("(Folded) "))
-                |        $(this).html(text.substring(9));
-                |      else
-                |        $(this).html("(Folded) " + text);
-                |      $(this).parent().find("ul").toggle();
+                |      $(this).parent().toggleClass("folded");
                 |    }
                 |  });
                 |});

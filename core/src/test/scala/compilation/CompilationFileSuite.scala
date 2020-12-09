@@ -18,7 +18,7 @@ class CompilationFileSuite extends AnyFunSuite {
       (eval, execute) match {
         case (Left(a), Left(b)) => assert(a == b)
         case (Right(evalRes), Right(compileRes)) =>
-          assert(Printer.exprAsString(evalRes) == compileRes)
+          assert(Printer.asString(evalRes) == compileRes)
         case (_, _) => assert(false)
       }
     }

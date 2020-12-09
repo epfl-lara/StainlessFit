@@ -712,6 +712,7 @@ class FitParser()(implicit rc: RunContext) extends Parsers {
     (simpleExpr ~ many(appArg)).map({
       case f ~ args => Applications(f, args.toList)
     }, {
+      case Succ(t)      => Seq(Var(Identifier(0, "succ"))~ Seq(AppArg(t)))
       case LNil()       => Seq(Var(Identifier(0, "nil")) ~ Seq())
       case LCons(x, xs) => Seq(Var(Identifier(0, "cons")) ~ Seq(AppArg(x), AppArg(xs)))
       case LeftTree(t)  => Seq(Var(Identifier(0, "left"))   ~ Seq(AppArg(t)))

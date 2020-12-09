@@ -22,6 +22,7 @@ object PartialErasure {
     case App(t1, t2) => App(erase(t1), erase(t2))
     case Pair(t1, t2) => Pair(erase(t1), erase(t2))
     case Size(t) => Size(erase(t))
+    case Succ(t) => Succ(erase(t))
     case First(t) => First(erase(t))
     case Second(t) => Second(erase(t))
     case LeftTree(t) => LeftTree(erase(t))
