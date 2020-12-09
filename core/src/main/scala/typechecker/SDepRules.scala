@@ -159,6 +159,22 @@ trait SDepRules {
       None
   })
 
+  val InferSucc = Rule("InferSucc", {
+    case g @ InferGoal(c, e @ Succ(t)) =>
+      TypeChecker.debugs(g, "InferSucc")
+      val g1 = InferGoal(c.incrementLevel, t)
+      Some((List(_ => g1),
+        {
+          case InferJudgment(_, _, _, ty) :: Nil =>
+            (true, InferJudgment("InferSucc", c, e, SingletonType(NatType, e)))
+          case _ =>
+            emitErrorWithJudgment("InferSucc", g, None)
+        }
+      ))
+    case g =>
+      None
+  })
+
   val InferPair1 = Rule("InferPair1", {
     case g @ InferGoal(c, e @ Pair(t1, t2)) =>
       TypeChecker.debugs(g, "InferPair1")
@@ -551,104 +567,144 @@ trait SDepRules {
   }
 
   def choosesToExists(ty: Tree): Tree = {
-    var pathToBinding = Map.empty[Tree, (Identifier, Tree)]
-    var potentialPathVars = Set.empty[Identifier]
-    def pathPrefixIdent(t: Tree): Option[Identifier] =
-      t match {
-        case LCons(_, tTail) => pathPrefixIdent(tTail)
-        case Var(id) => Some(id)
+    def replacePaths(tree0: Tree, subst: Map[Tree, Identifier]): Tree = {
+      def tryReplace(tree: Tree) =
+        subst.get(tree).map(id => Some(Right(Var(id)))).getOrElse(None)
+      // This is just to avoid unnecessary hash computations
+      tree0.replace {
+        case tree @ Var(_) => tryReplace(tree)
+        case tree @ LCons(_, _) => tryReplace(tree)
+        case tree @ ChooseWithPath(_, _) => tryReplace(tree)
+        case _ => None
+      }.toOption.get
+    }
+
+    def extractPath(tree: Tree, parts: List[BigInt] = List.empty): Option[(List[BigInt], Identifier)] =
+      tree match {
+        case Var(id) => Some((parts, id))
+        case LCons(NatLiteral(i), tTail) => extractPath(tTail, i :: parts)
         case _ => None
       }
-    object PathOf {
-      def unapply(t: Tree) = pathPrefixIdent(t)
-    }
-    def processPath(path: Tree, tOriginal: Tree, name: String, ty: Tree): Tree =
-      pathToBinding.get(path) match {
-        case Some((id, _)) =>
-          Var(id)
-        case None =>
-          pathPrefixIdent(path) match {
-            case Some(pathId) if potentialPathVars.contains(pathId) =>
-              val id = Identifier.fresh(name)
-              pathToBinding += path -> (id, ty)
-              // if (name == "q")
-              //   println(s"INTRODUCED fresh existential for App path:   ${asString(path)}  >  $id : ${asString(ty)}")
-              Var(id)
-            case _ =>
-              tOriginal
+
+    case class Trail(path: List[BigInt], optTy: Option[Tree])
+
+    def trailsOf(rootedIn: Identifier, tree: Tree): Seq[(Tree, Option[Tree])] = {
+      var trails = List.empty[Trail]
+
+      // Collect all paths rooted in `rootedIn`
+      tree.traversePre { t =>
+        val (maybePath, optTy) = t match {
+          case ChooseWithPath(ty, path) => (path, Some(ty))
+          case App(_, arg) => (arg, None)
+          case _ => (UnitLiteral, None) // extractPath will return None
+        }
+        extractPath(maybePath).foreach {
+          case (parts, id) if id == rootedIn => trails = Trail(parts, optTy) :: trails
+          case _ =>
+        }
+      }
+
+      trails = trails.distinct
+
+      // Sort trails lexicographically, ranking "free" occurences lower
+      def isSmallerTrail(tr1: Trail, tr2: Trail): Boolean =
+        (tr1.path, tr2.path) match {
+          case (i1 :: p1, i2 :: p2) =>
+            if (i1 < i2) true
+            else if (i1 > i2) false
+            else isSmallerTrail(Trail(p1, tr1.optTy), Trail(p2, tr2.optTy))
+          case (i1 :: p1, Nil) => false
+          case (Nil, _ :: _) => true
+          case _ => tr1.optTy.isEmpty || tr2.optTy.isDefined
+        }
+
+      trails = trails.sortWith(isSmallerTrail)
+
+      // Prune all trails whose paths are prefixed by some other trail's path
+      def samePrefix(p1: List[BigInt], p2: List[BigInt]): Boolean =
+        p1.zip(p2).forall(ii => ii._1 == ii._2)
+
+      def prunedTrails(trails: Seq[Trail]): Seq[(Tree, Option[Tree])] = {
+        var refTrail: Trail = Trail(List(BigInt(-1)), None)
+        trails
+          .filter {
+            case Trail(path, _) if samePrefix(refTrail.path, path) => false
+            case trail => refTrail = trail; true
+          }
+          .map { trail =>
+            (trail.path.foldLeft[Tree](Var(rootedIn)) {
+              case (acc, i) => LCons(NatLiteral(i), acc)
+            }, trail.optTy)
           }
       }
-    def recTerm(t: Tree): Tree =
-      t match {
-        case ChooseWithPath(ty, path) =>
-          processPath(path, t, "v", ty)
-        case App(f, path @ PathOf(_)) =>
-          App(recTerm(f), processPath(path, path, "q", Choose.PathType))
-        case Var(id) => t
-        case Pair(t1, t2) => Pair(recTerm(t1), recTerm(t2))
-        case First(t) => First(recTerm(t))
-        case Second(t) => Second(recTerm(t))
-        case App(f, t) => App(recTerm(f), recTerm(t))
-        case LetIn(optTy, value, Bind(id, body)) =>
-          LetIn(optTy, recTerm(value), Bind(id, recTerm(body)))
-        case NatMatch(t, t1, Bind(id2, t2)) =>
-          NatMatch(recTerm(t), recTerm(t1), Bind(id2, recTerm(t2)))
-        case EitherMatch(t, Bind(id1, t1), Bind(id2, t2)) =>
-          EitherMatch(recTerm(t), Bind(id1, recTerm(t1)), Bind(id2, recTerm(t2)))
-        case ListMatch(t, t1, Bind(idHead, Bind(idTail, t2))) =>
-          ListMatch(recTerm(t), recTerm(t1), Bind(idHead, Bind(idTail, recTerm(t2))))
-        case LeftTree(t) => LeftTree(recTerm(t))
-        case RightTree(t) => RightTree(recTerm(t))
-        // Don't dive into terms that might use chooses referring to a different `p`:
-        case FixWithDefault(_, _, _, _) => t
-        case _: NatLiteral | _: BooleanLiteral | _: UnitLiteral.type | _: Lambda => t
+
+      // Rebuild paths and replacement types.
+      trails match {
+        case Trail(Nil, None) :: _ => List.empty // No need to replace anything
+        case Trail(Nil, optTy) :: _ => List((Var(rootedIn), optTy))
+        case trails => prunedTrails(trails)
       }
-    def recType(ty: Tree): Tree =
+    }
+
+    def simpleExists(ty: Tree, substs: Map[Tree, Identifier]): Tree = {
+      val ExistsType(ty1, Bind(id, ty2)) = ty
+      if (id.isFreeIn(ty2))
+        ExistsType(recType(ty1, substs), Bind(id, recType(ty2, substs)))
+      else
+        // TODO: Check that `ty1` is inhabited?
+        recType(ty2, substs)
+    }
+
+    def recType(ty: Tree, substs: Map[Tree, Identifier]): Tree =
       ty match {
         case SingletonType(tyUnderlying, t) =>
-          SingletonType(recType(tyUnderlying), recTerm(t))
+          SingletonType(
+            recType(tyUnderlying, substs),
+            replacePaths(t, substs))
+
+        case ExistsType(ty1, Bind(id, ty2)) if ty1 == LList && id.name == "p" =>
+          // TODO: Implement a rigorous way to identify path existentials ^^^
+          val trails = trailsOf(id, ty2)
+
+          if (trails.nonEmpty) {
+            val trailsWithIds = trails.map {
+              case (tPath, optTy @ None) => (tPath, optTy, Identifier.fresh("q"))
+              case (tPath, optTy @ Some(_)) => (tPath, optTy, Identifier.fresh("v"))
+            }
+            val newSubsts = trailsWithIds.foldLeft(substs) {
+              case (substs, (tPath, None, id)) => substs + (tPath -> id)
+              case (substs, (tPath, Some(ty), id)) => substs + (ChooseWithPath(ty, tPath) -> id)
+            }
+
+            val ty2N = recType(ty2, substs ++ newSubsts)
+            assert(!id.isFreeIn(ty2N))
+
+            trailsWithIds.foldRight(ty2N) { case ((_, optTy, id), acc) =>
+              ExistsType(optTy.getOrElse(LList), Bind(id, acc))
+            }
+          } else {
+            simpleExists(ty, substs)
+          }
         case ExistsType(ty1, Bind(id, ty2)) =>
-          // TODO: Implement a rigorous way to identify path existentials
-          if (ty1 == LList && id.name == "p")
-            potentialPathVars += id
-          val ty2N = recType(ty2)
-          val (pathToBindingIn, pathToBindingOut) = pathToBinding.partition {
-            case (path, _) => pathPrefixIdent(path) == Some(id)
-          }
-          pathToBinding = pathToBindingOut
-          val ty2NN = pathToBindingIn.iterator.foldLeft(ty2N) {
-            case (tyAcc, (path, (id, ty))) =>
-              val tyAccN = tyAcc.preMap {
-                case t if t == path => Some(Var(id))
-                case _ => None
-              }
-              ExistsType(ty, Bind(id, tyAccN))
-          }
-          if (id.isFreeIn(ty2NN))
-            ExistsType(ty1, Bind(id, ty2NN))
-          else
-            ty2NN
+          simpleExists(ty, substs)
 
         case TopType | BoolType | NatType | `UnitType` | `LList` =>
           ty
         case PiType(ty1, Bind(id, ty2)) =>
-          PiType(recType(ty1), Bind(id, recType(ty2)))
+          PiType(recType(ty1, substs), Bind(id, recType(ty2, substs)))
         case ListMatchType(t, tyNil, Bind(id1, Bind(id2, tyCons))) =>
-          ListMatchType(recTerm(t), recType(tyNil), Bind(id1, Bind(id2, recType(tyCons))))
+          ListMatchType(replacePaths(t, substs), recType(tyNil, substs),
+            Bind(id1, Bind(id2, recType(tyCons, substs))))
         case NatMatchType(t, tyZero, Bind(id, tySucc)) =>
-          NatMatchType(recTerm(t), recType(tyZero), Bind(id, recType(tySucc)))
+          NatMatchType(replacePaths(t, substs), recType(tyZero, substs),
+            Bind(id, recType(tySucc, substs)))
         case LConsType(ty1, ty2) =>
-          LConsType(recType(ty1), recType(ty2))
+          LConsType(recType(ty1, substs), recType(ty2, substs))
         case SigmaType(ty1, Bind(id, ty2)) =>
-          SigmaType(recType(ty1), Bind(id, recType(ty2)))
+          SigmaType(recType(ty1, substs), Bind(id, recType(ty2, substs)))
       }
-    val tyN = recType(ty)
-    assert(pathToBinding.isEmpty, {
-      val bindingsStr = pathToBinding
-        .map { case (path, (id, ty)) => s"${asString(path)} -> $id : ${asString(ty)}" }
-      s"Expected no new bindings to remain, got: $bindingsStr in ${asString(ty)}"
-    })
-    tyN
+
+    recType(ty, Map.empty)
   }
 
   // NOTE: This only matches on NormalizedSubtypeGoal, which is not a SubtypeGoal,
@@ -891,15 +947,15 @@ trait SDepRules {
 
       val c0 = c.incrementLevel
       val solveResult = solver.solve(c0.bind(id2, ty21), tya, ty22)
-      // if (rc.config.html) {
-      //   solveResult match {
-      //     case Some((success, tree)) =>
-      //       val f = new java.io.File(s"./solve_${id2}")
-      //       rc.reporter.info(s"Solve result: $success  -> ${f.getAbsolutePath()}")
-      //       util.HTMLOutput.makeHTMLFile(f, List(tree), success)
-      //     case None =>
-      //   }
-      // }
+      if (rc.config.html) {
+        solveResult match {
+          case Some((success, tree)) =>
+            val f = new java.io.File(s"./solve_${id2.uniqueString}")
+            rc.reporter.info(s"Solve result: $success  -> ${f.getAbsolutePath()}")
+            util.HTMLOutput.makeHTMLFile(f, List(tree), success)
+          case None =>
+        }
+      }
 
       solver.targets(id2) match {
         // TODO: Add this check (implement Tree.freeVars)

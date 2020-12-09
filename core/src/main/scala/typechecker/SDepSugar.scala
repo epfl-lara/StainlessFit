@@ -61,6 +61,15 @@ object SDepSugar {
       }
   }
 
+  object LConses {
+    def unapply(t: Tree): Option[(Seq[Tree], Tree)] =
+      t match {
+        case LCons(tHead, LConses(tElems, tBase)) => Some((tHead +: tElems, tBase))
+        case LCons(tHead, tBase) => Some((Seq(tHead), tBase))
+        case _ => None
+      }
+  }
+
   val nList = Identifier.fresh("n")
   val alpha = Identifier.fresh("alpha")
   val unused = Identifier.fresh("h")

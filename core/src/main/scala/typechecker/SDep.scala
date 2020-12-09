@@ -30,6 +30,7 @@ class SDep(implicit val rc: RunContext)
     InferCons.t ||
     InferLambda1.t ||
     InferApp1.t ||
+    InferSucc.t ||
     InferPair1.t ||
     InferNatMatch1.t ||
     InferListMatch.t ||
@@ -104,7 +105,8 @@ class SDepSolver(var targets: Map[Identifier, Option[Tree]])(implicit rc: RunCon
   }
 
   def solve(c: Context, ty1: Tree, ty2: Tree) = {
-    val g = SubtypeGoal(c, ty1, ty2)
+    // val g = SubtypeGoal(c, ty1, ty2)
+    val g = NormalizedSubtypeGoal(c, ty1, ty2)
     tactic.apply(g, sg => None)
   }
 }
