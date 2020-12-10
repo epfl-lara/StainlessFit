@@ -5,10 +5,11 @@ package fit
 import Utils._
 import org.scalatest.funsuite.AnyFunSuite
 
-import core.Core
+import core._
 
 class SDepSuite extends AnyFunSuite {
-  implicit val rc = core.util.RunContext.testContext
+  implicit val rc = new util.RunContext(
+    Config.default.copy(mode = Mode.SDep))
 
   for (f <- files("examples/sdep", _.endsWith("sf"))) {
     test(s"Type checking file $f") {

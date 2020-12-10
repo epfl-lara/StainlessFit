@@ -848,7 +848,7 @@ trait SDepRules {
 
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, tyb1, tya1)
-      val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      val g2 = NormalizedSubtypeGoal(c0.bindAndDestruct(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
         case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubPi", c, tya, tyb))

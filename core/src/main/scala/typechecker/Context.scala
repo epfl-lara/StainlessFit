@@ -24,6 +24,12 @@ case class Context(
     )
   }
 
+  def bindAndDestruct(id: Identifier, ty: Tree): Context =
+    ty match {
+      case ExistsType(ty1, Bind(idE, ty2)) => bind(idE, ty1).bindAndDestruct(id, ty2)
+      case _ => bind(id, ty)
+    }
+
   def addTypeVariable(i: Identifier): Context = copy(typeVariables = typeVariables + i)
 
   def bindFresh(s: String, t: Tree): (Identifier, Context) = {
