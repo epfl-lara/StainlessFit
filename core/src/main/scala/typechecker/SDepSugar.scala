@@ -171,18 +171,16 @@ object SDepSugar {
   }
 
   object FixWithDefault {
-    val maxRecDepth = 123
-
-    def apply(ty: Tree, t: Bind, td: Tree, depthFuel: Int): Tree =
-      Node("FixWithDefault", List(ty, t, td, NatLiteral(depthFuel)))
-    def unapply(t: Tree): Option[(Tree, Bind, Tree, Int)] = t match {
-      case Node("FixWithDefault", List(ty, t: Bind, td, NatLiteral(depthFuel))) =>
-        Some((ty, t, td, depthFuel.toInt))
+    def apply(ty: Tree, t: Bind, td: Tree, tf: Tree): Tree =
+      Node("FixWithDefault", List(ty, t, td, tf))
+    def unapply(t: Tree): Option[(Tree, Bind, Tree, Tree)] = t match {
+      case Node("FixWithDefault", List(ty, t: Bind, td, tf)) =>
+        Some((ty, t, td, tf))
       case _ =>
         None
     }
 
-    def lower(t: Bind, td: Tree, depthFuel: Int)(implicit rc: RunContext): Tree = {
+    def lower(t: Bind, td: Tree, tf: Tree)(implicit rc: RunContext): Tree = {
       val Bind(fIn, tBody) = t
       val fOut = Identifier.fresh("fOut")
       val fIn2 = Identifier.fresh("fIn2")
@@ -196,7 +194,7 @@ object SDepSugar {
           Bind(newFuel,
             tBody.replace(fIn, App(Var(fIn2), Var(newFuel)))))))
       val fix = Fix(None, Bind(unused, Bind(fIn2, body)))
-      LetIn(None, fix, Bind(fOut, App(Var(fOut), NatLiteral(depthFuel))))
+      LetIn(None, fix, Bind(fOut, App(Var(fOut), tf)))
     }
   }
 }

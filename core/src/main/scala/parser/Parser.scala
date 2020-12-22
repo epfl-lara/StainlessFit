@@ -625,7 +625,7 @@ class FitParser()(implicit rc: RunContext) extends Parsers {
     (fixDK.skip ~ lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
       arrow.skip ~ expr ~ comma.skip ~ expr ~ rpar.skip).map({
       case x ~ tp ~ e ~ ed =>
-        FixWithDefault(tp, Bind(x, e), ed, FixWithDefault.maxRecDepth)
+        FixWithDefault(tp, Bind(x, e), ed, Choose(NatType))
       case _ =>
         sys.error("Unreachable")
     }, {

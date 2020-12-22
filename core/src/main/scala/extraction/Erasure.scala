@@ -46,7 +46,7 @@ object Erasure {
     case Abs(Bind(id, body)) => erase(body)
     case TypeApp(t1, _) => erase(t1)
     case Error(s, _) => Error(s, None)
-    case FixWithDefault(ty, t, td, f) => erase(FixWithDefault.lower(t, td, f))
+    case FixWithDefault(ty, t, td, tf) => erase(FixWithDefault.lower(t, td, tf))
     case ListMatch(t, tNil, tCons) => erase(ListMatch.lower(t, tNil, tCons))
     case _ => rc.reporter.fatalError(s"Erasure is not implemented on $t (${t.getClass}).")
   }

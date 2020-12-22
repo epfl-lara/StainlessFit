@@ -95,7 +95,7 @@ trait TreeToTokens {
         // === ScalaDep-specific treess
 
         case `LList` => N("LList")
-        case SingletonType(`LList`, LNil()) => N("LNil")
+        case SingletonType(`LList`, LNil()) => Bs { N("nil") }
         case LConsType(tp1, tp2) => N("LCons"); Er { T(tp1); S(","); T(tp2) }
 
         case NatMatchType(tp, tp1, Bind(id, tp2)) =>
@@ -131,10 +131,10 @@ trait TreeToTokens {
             K("case"); K("cons"); I(idHead); I(idTail); S("=>"); T(t2)
           }
 
-        case FixWithDefault(tp, Bind(id, t), td, fuel) =>
+        case FixWithDefault(tp, Bind(id, t), td, tf) =>
           K("fixD")
-          Ps { tokens += NumberToken(fuel) }
           Ps { I(id); Er { T(tp) }; S("=>"); T(t); S(","); S("...") }
+          Ps { T(tf) }
 
         // === General StainlessFit trees
 
