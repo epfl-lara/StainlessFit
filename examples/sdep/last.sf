@@ -1,16 +1,25 @@
-val last =
-  fixD(
-    last_ [List => Top] =>
-      fun of (xs [List]) = {
-        list_match xs {
-          case nil => 1
-          case cons x ys =>
-            list_match ys {
-              case nil => x
-              case cons y zs => last_ ys
-            }
-        }
-      },
-    fun of (xs [List]) = { 0 });
-val x [{[Nat] 0}] = last (cons 0 nil);
+// TODO: Reenable
+
+// val last =
+//   fixD(
+//     // last_ [List => Option[Top]] =>
+//     last_ [List => {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[Top]) nil } }] =>
+//       fun of (xs [List]) = {
+//         list_match xs {
+//           case nil => nil  // None
+//           case cons x ys =>
+//             list_match ys {
+//               case nil => cons x nil  // Some x
+//               case cons y zs => last_ ys
+//             }
+//         }
+//       },
+//     fun of (xs [List]) = { nil } // None
+//   );
+
+// // val x [{[Nat] 0}] = last (cons 0 nil);
+
 ()
+
+// None    ~  nil
+// Some v  ~  cons v nil

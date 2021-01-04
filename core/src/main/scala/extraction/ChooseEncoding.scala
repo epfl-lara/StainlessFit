@@ -141,5 +141,10 @@ class ChooseEncoding(implicit val rc: RunContext) extends Phase[Unit] {
     case Succ(t) =>
       val (nt, nn) = encode(path, n, t)
       (Succ(nt), nn)
+
+    case Ascribe(t, ty) =>
+      val (nt, n2) = encode(path, n, t)
+      val (nTy, nn) = encodeAnnot(n2, ty)
+      (Ascribe(nt, nTy), nn)
   }
 }

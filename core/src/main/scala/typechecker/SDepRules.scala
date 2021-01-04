@@ -17,9 +17,8 @@ import TypeOperators._
 import SDepSugar._
 import interpreter.Interpreter
 
-trait SDepRules {
+trait SDepRules { self: SDep =>
   // TODO: Add freshen whenever we bind
-  implicit val rc: RunContext
 
   def withExistsIfFree(id: Identifier, tpe: Tree, t: Tree): Tree =
     if (id.isFreeIn(t)) ExistsType(tpe, Bind(id, t)) else t
@@ -145,13 +144,24 @@ trait SDepRules {
     case _ => None
   })
 
-  val InferVar1 = Rule("InferVar1", {
+  val InferSolverVar = Rule("InferSolverVar", {
+    case g @ InferGoal(c, Var(id)) if isTarget(id) =>
+      TypeChecker.debugs(g, "InferSolverVar")
+      Some((List(), _ =>
+        (true, InferJudgment("InferSolverVar", c, Var(id), SingletonType(lookupTarget(id), Var(id))))
+      ))
+
+    case g =>
+      None
+  })
+
+  val InferNormalVar = Rule("InferNormalVar", {
     case g @ InferGoal(c, Var(id)) =>
-      TypeChecker.debugs(g, "InferVar1")
+      TypeChecker.debugs(g, "InferNormalVar")
       Some((List(), _ =>
         c.getTypeOf(id) match {
-          case None => emitErrorWithJudgment("InferVar1", g, Some(s"${asString(id)} is not in context"))
-          case Some(ty) => (true, InferJudgment("InferVar1", c, Var(id), SingletonType(ty, Var(id))))
+          case None => emitErrorWithJudgment("InferNormalVar", g, Some(s"${asString(id)} is not in context"))
+          case Some(ty) => (true, InferJudgment("InferNormalVar", c, Var(id), SingletonType(ty, Var(id))))
         }
       ))
 
@@ -234,6 +244,25 @@ trait SDepRules {
       None
   })
 
+  val InferAscribe = Rule("InferAscribe", {
+    case g @ InferGoal(c, e @ Ascribe(t, ty)) =>
+      TypeChecker.debugs(g, "InferAscribe")
+      val c0 = c.incrementLevel
+      val gc = CheckGoal(c0, t, ty)
+
+      Some((
+        List(_ => gc),
+        {
+          case CheckJudgment(_, _, _, _) :: _ =>
+            (true, InferJudgment("InferAscribe", c, e, ty))
+          case _ =>
+            emitErrorWithJudgment("InferAscribe", g, None)
+        }
+      ))
+
+    case _ => None
+  })
+
   val CheckInfer = Rule("CheckInfer", {
     case g @ CheckGoal(c, t, ty) =>
       TypeChecker.debugs(g, "CheckInfer")
@@ -295,7 +324,7 @@ trait SDepRules {
       TypeChecker.debugs(g, "NormSingleton")
       val c0 = c.incrementLevel
       Interpreter.shouldRetype = false // FIXME: Hack
-      val v = Interpreter.evaluateWithContext(c, t)
+      val v = Interpreter.evaluateWithContext(interpreterContext(c), t)
 
       // Re-type if we performed any delta reductions during evaluation:
       if (Interpreter.shouldRetype) {
@@ -383,7 +412,7 @@ trait SDepRules {
         ty @ NatMatchType(tScrut, tyZero, tySuccBind @ Bind(id, tySucc))) =>
       TypeChecker.debugs(g, "NormNatMatch")
       val c0 = c.incrementLevel
-      val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
+      val tScrutN = Interpreter.evaluateWithContext(interpreterContext(c), tScrut)
       Some(tScrutN match {
         case NatLiteral(n) if n == 0 =>
           val g1 = NormalizationGoal(c0, tyZero)
@@ -419,7 +448,7 @@ trait SDepRules {
         ty @ ListMatchType(tScrut, tyNil, tyConsBind @ Bind(idHead, Bind(idTail, tyCons)))) =>
       TypeChecker.debugs(g, "NormListMatch")
       val c0 = c.incrementLevel
-      val tScrutN = Interpreter.evaluateWithContext(c, tScrut)
+      val tScrutN = Interpreter.evaluateWithContext(interpreterContext(c), tScrut)
       Some(tScrutN match {
         case LNil() =>
           val g1 = NormalizationGoal(c0, tyNil)
@@ -747,8 +776,8 @@ trait SDepRules {
       None
   })
 
-  val SubReflexive = Rule("SubReflexive", {
-    case g @ SubtypeGoal(c, ty1, ty2) if Tree.areEqual(ty1, ty2) =>
+  def SubReflexive = Rule("SubReflexive", {
+    case g @ SubtypeGoal(c, ty1, ty2) if areEqualTrees(ty1, ty2) =>
       TypeChecker.debugs(g, "SubReflexive")
       Some((List(), _ => (true, SubtypeJudgment("SubReflexive", c, ty1, ty2))))
     case g =>
@@ -758,7 +787,7 @@ trait SDepRules {
   val SubSingletonReflexive = Rule("SubSingletonReflexive", {
     case g @ SubtypeGoal(c,
         ty1 @ SingletonType(ty1Underlying, t1),
-        ty2 @ SingletonType(ty2Underlying, t2)) if Tree.areEqual(t1, t2) =>
+        ty2 @ SingletonType(ty2Underlying, t2)) if areEqualTrees(t1, t2) =>
       TypeChecker.debugs(g, "SubSingletonReflexive")
 
       val c0 = c.incrementLevel
@@ -771,6 +800,7 @@ trait SDepRules {
       None
   })
 
+  // FIXME: SubtypeGoal on terms t11/t21 and t12/t22 doesn't make sense. Did this work before?
   val SubSingletonCons = Rule("SubSingletonCons", {
     case g @ SubtypeGoal(c,
         ty1 @ SingletonType(ty1Underlying, LCons(t11, t12)),
@@ -788,6 +818,32 @@ trait SDepRules {
              Nil => (true, SubtypeJudgment("SubSingletonCons", c, ty1, ty2))
         case _ => emitErrorWithJudgment("SubSingletonCons", g, None)
       }))
+    case g =>
+      None
+  })
+
+  // FIXME: Also check underlying types
+  val SubSingletonListMatch1 = Rule("SubSingletonListMatch1", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(tyaUnder, ListMatch(taScrut, taNil, Bind(idHeadA, Bind(idTailA, taTail)))),
+      tyb @ SingletonType(tybUnder, ListMatch(tbScrut, tbNil, Bind(idHeadB, Bind(idTailB, tbTail))))
+    ) if areEqualTrees(taScrut, tbScrut) =>
+      TypeChecker.debugs(g, "SubSingletonListMatch1")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0,
+        SingletonType(TopType, taNil),
+        SingletonType(TopType, tbNil))
+      val g2 = SubtypeGoal(c0.bind(idHeadA, TopType).bind(idTailA, LList),
+        SingletonType(TopType, taTail),
+        SingletonType(TopType, tbTail.replace(idHeadB, Var(idHeadA)).replace(idTailB, Var(idTailA))))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubSingletonListMatch1", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubSingletonListMatch1", g, None)
+      }))
+
     case g =>
       None
   })
@@ -921,6 +977,39 @@ trait SDepRules {
       None
   })
 
+  val SubSingletonListMatch2 = Rule("SubSingletonListMatch2", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(
+        ListMatchType(_, tyNil, Bind(idHead_, Bind(idTail_, tyCons))),
+        ListMatch(Var(idScrut), tNil, Bind(idHead, Bind(idTail, tCons)))),
+      tyb
+    ) if idHead_ == idHead && idTail_ == idTail =>
+      TypeChecker.debugs(g, "SubSingletonListMatch2")
+
+      val tyScrut = c.getTypeOf(idScrut).get
+
+      val c1 = c.incrementLevel
+        .replaceBinding(idScrut, SingletonType(tyScrut, LNil()))
+      val g1 = NormalizedSubtypeGoal(c1, SingletonType(tyNil, tNil), tyb)
+
+      val c2 = c.incrementLevel
+        .bind(idHead, TopType)
+        .bind(idTail, LList)
+        .replaceBinding(idScrut, SingletonType(tyScrut, LCons(Var(idHead), Var(idTail))))
+      val g2 = NormalizedSubtypeGoal(c2, SingletonType(tyCons, tCons), tyb)
+
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubSingletonListMatch2", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubSingletonListMatch2", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+
   object ExistsTypes {
     def unapply(ty: Tree): Some[(List[(Identifier, Tree)], Tree)] =
       Some(ty match {
@@ -960,26 +1049,25 @@ trait SDepRules {
     ) =>
       TypeChecker.debugs(g, "SubExistsRight")
 
-      val solver = this match {
-        case solver: SDepSolver => solver
-        case _ => new SDepSolver(Map.empty)
-      }
-      solver.addTarget(id2)
+      val optSolution = solve(c, id2, ty21, tya, ty22)
+
+      // val solver = this
+      // solver.addTarget(id2)
 
       val c0 = c.incrementLevel
-      val solveResult = solver.solve(c0.bind(id2, ty21), tya, ty22)
-      if (rc.config.html) {
-        solveResult match {
-          case Some((success, tree)) =>
-            val f = new java.io.File(s"./solve_${id2.uniqueString}")
-            rc.reporter.info(s"Solve result: $success  -> ${f.getAbsolutePath()}")
-            util.HTMLOutput.makeHTMLFile(f, List(tree), success)
-          case None =>
-        }
-      }
+      // val solveResult = solver.solve(c0.bind(id2, ty21), tya, ty22)
+      // if (rc.config.html) {
+      //   solveResult match {
+      //     case Some((success, tree)) =>
+      //       val f = new java.io.File(s"./solve_${id2.uniqueString}")
+      //       rc.reporter.info(s"Solve result: $success  -> ${f.getAbsolutePath()}")
+      //       util.HTMLOutput.makeHTMLFile(f, List(tree), success)
+      //     case None =>
+      //   }
+      // }
 
-      val optSolution = solver.targets(id2)
-      solver.targets = solver.targets - id2
+      // val optSolution = solver.targets(id2)
+      // solver.targets = solver.targets - id2
 
       optSolution match {
         // TODO: Add this check (implement Tree.freeVars)
@@ -1140,5 +1228,97 @@ trait SDepRules {
           (true, InferJudgment("InferFixDep", c, e, SingletonType(ty, e)))))
 
     case _ => None
+  })
+
+  // === Solver rules ===
+  // (Additional rules active in solving mode)
+  // FIXME: Check underlying types (irrelevant to soundness, since this is only used for search)
+
+  val SSubForcedNilMatch = Rule("SSubForcedNilMatch", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(_, LNil()),
+      tyb @ SingletonType(_, ListMatch(Var(x), LNil(), LCons(_, _)))
+    ) if isTarget(x) =>
+      TypeChecker.debugs(g, "SSubForcedNilMatch")
+
+      instantiateTarget(x, LNil())
+
+      Some((List(), {
+        case _ =>
+          (true, SubtypeJudgment("SSubForcedNilMatch", c, tya, tyb))
+      }))
+
+    case g =>
+      None
+  })
+
+  val SSubForcedConsMatch = Rule("SSubForcedConsMatch", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(_, LCons(_, _)),
+      tyb @ SingletonType(tybUnder, ListMatch(Var(x), LNil(), tb @ LCons(_, _)))
+    ) if isTarget(x) =>
+      TypeChecker.debugs(g, "SSubForcedConsMatch")
+
+      val xHead = x.freshen()
+      val xTail = x.freshen()
+      addTarget(xHead, TopType) // FIXME: Should be more precise based on x's type
+      addTarget(xTail, LList) // FIXME: Should be more precise based on x's type
+      instantiateTarget(x, LCons(Var(xHead), Var(xTail)))
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tya, SingletonType(tybUnder, tb))
+      Some((List(_ => g1), {
+        case SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SSubForcedConsMatch", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SSubForcedConsMatch", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+  val SSubMatchMatchLeft = Rule("SSubMatchMatchLeft", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(tyaUnder, ListMatch(taScrut, _, _)),
+      tyb @ SingletonType(tybUnder, ListMatch(Var(x), _, _))
+    ) if isTarget(x) =>
+      TypeChecker.debugs(g, "SSubMatchMatchLeft")
+
+      instantiateTarget(x, taScrut)
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tya, tyb)
+      Some((List(_ => g1), {
+        case SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SSubMatchMatchLeft", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SSubMatchMatchLeft", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+  val SSubMatchMatchRight = Rule("SSubMatchMatchRight", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(tyaUnder, ListMatch(Var(x), _, _)),
+      tyb @ SingletonType(tybUnder, ListMatch(tbScrut, _, _))
+    ) if isTarget(x) =>
+      TypeChecker.debugs(g, "SSubMatchMatchRight")
+
+      instantiateTarget(x, tbScrut)
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tya, tyb)
+      Some((List(_ => g1), {
+        case SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SSubMatchMatchRight", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SSubMatchMatchRight", g, None)
+      }))
+
+    case g =>
+      None
   })
 }

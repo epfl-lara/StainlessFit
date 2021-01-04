@@ -197,4 +197,13 @@ object SDepSugar {
       LetIn(None, fix, Bind(fOut, App(Var(fOut), tf)))
     }
   }
+
+  object Ascribe {
+    def apply(t: Tree, tp: Tree)(implicit rc: RunContext): Tree = Node("Ascribe", List(t, tp))
+
+    def unapply(t: Tree): Option[(Tree, Tree)] = t match {
+      case Node("Ascribe", List(t, tp)) => Some((t, tp))
+      case _ => None
+    }
+  }
 }

@@ -136,6 +136,11 @@ trait TreeToTokens {
           Ps { I(id); Er { T(tp) }; S("=>"); T(t); S(","); S("...") }
           Ps { T(tf) }
 
+        case Ascribe(t, tp) =>
+          Ps { T(t) }
+          S(":")
+          Er { T(tp) }
+
         // === General StainlessFit trees
 
         case Var(id) => I(id)

@@ -1,0 +1,19 @@
+// type Option_[c, e] = {[Top] list_match c { case nil => nil  case cons v unused => cons e nil } }
+// type Option[e] = Option_[choose[List], e]
+
+// foo: Option[List]
+fun foo (xs [List]) [returns {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[List]) nil } }] = {
+  (list_match xs {
+    case nil => cons (cons nil nil) nil
+    case cons x ys => nil
+  }) : [
+    // Option_[nonEmpty(xs), choose[List]]
+    {[Top]
+      list_match (list_match xs { case nil => cons nil nil  case cons v unused => nil }) {
+        case nil => nil
+        case cons v unused => cons (choose[List]) nil
+      }
+    }
+  ]
+}
+()

@@ -830,7 +830,14 @@ class FitParser()(implicit rc: RunContext) extends Parsers {
       case _ => Seq()
     })
 
-  lazy val notApplication: Syntax[Tree] = prefixes(not, application)({
+  lazy val ascription: Syntax[Tree] =
+    (application ~ many(colon.skip ~ lsbra.skip ~ typeExpr ~ rsbra.skip)).map({
+      case tApp ~ ascriptions => ascriptions.foldLeft(tApp) {
+        case (acc, tp) => Ascribe(acc, tp)
+      }
+    })
+
+  lazy val notApplication: Syntax[Tree] = prefixes(not, ascription)({
       case (_, e) => Primitive(Not, List(e))
       case _ => sys.error("Unreachable")
     }, {

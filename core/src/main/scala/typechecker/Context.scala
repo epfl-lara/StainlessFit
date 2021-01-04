@@ -89,4 +89,9 @@ case class Context(
     val c = this.bind(id, ty)
     (c, c.freshen(t))
   }
+
+  def replaceBinding(id: Identifier, ty: Tree)(implicit rc: RunContext): Context = {
+    assert(termVariables.contains(id))
+    copy(termVariables = termVariables.updated(id, ty))
+  }
 }

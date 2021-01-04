@@ -109,6 +109,9 @@ object Interpreter {
       case Fix(_, Bind(_, Bind(idT, tBody))) =>
         evaluateWithContext(c, tBody.replace(idT, e))
 
+      case Ascribe(t, tp) =>
+        Ascribe(evaluateWithContext(c, t), tp)
+
       case _ => e
     }
   }
