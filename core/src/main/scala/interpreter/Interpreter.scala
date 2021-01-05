@@ -20,10 +20,12 @@ object Interpreter {
       // case IfThenElse(BooleanLiteral(false), t1, t2) => t2
       // case IfThenElse(t, tt, tf) => IfThenElse(evaluateWithContext(c, t), tt, tf)
 
-      case Var(id) => c.termVariables(id) match {
-        case SingletonType(_, t) => shouldRetype = true; evaluateWithContext(c, t)
-        case _ => e
-      }
+      case Var(id) =>
+        assert(c.termVariables.contains(id), s"Missing variable ${id.uniqueString} from context")
+        c.termVariables(id) match {
+          case SingletonType(_, t) => shouldRetype = true; evaluateWithContext(c, t)
+          case _ => e
+        }
 
       case Succ(t) => Succ(evaluateWithContext(c, t))
 

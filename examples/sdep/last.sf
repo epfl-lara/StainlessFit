@@ -1,23 +1,39 @@
 // TODO: Reenable
 
-// val last =
-//   fixD(
-//     // last_ [List => Option[Top]] =>
-//     last_ [List => {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[Top]) nil } }] =>
-//       fun of (xs [List]) = {
-//         list_match xs {
-//           case nil => nil  // None
-//           case cons x ys =>
-//             list_match ys {
-//               case nil => cons x nil  // Some x
-//               case cons y zs => last_ ys
-//             }
-//         }
-//       },
-//     fun of (xs [List]) = { nil } // None
-//   );
+val last =
+  fixD(
+    // last_ [List => Option[Top]] =>
+    last_ [List => {[List] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[Top]) nil } }] =>
+      fun of (xs [List]) = {
+        (list_match xs {
+          case nil => nil  // None
+          case cons x ys =>
+            list_match ys {
+              case nil => cons x nil  // Some x
+              case cons y zs => last_ ys
+            }
+        }) : [
+          {[List]
+            list_match (
+              list_match xs {
+                case nil => nil  // None!
+                case cons foobar ys =>
+                  list_match ys {
+                    case nil => cons nil nil  // Some!
+                    case cons y zs => choose[List]  // Either
+                  }
+              }
+            ) {
+              case nil => nil
+              case cons v unused => cons (choose[Top]) nil
+            }
+          }
+        ]
+      },
+    fun of (xs [List]) = { nil } // None
+  );
 
-// // val x [{[Nat] 0}] = last (cons 0 nil);
+// val x [{[Nat] 0}] = last (cons 0 nil);
 
 ()
 

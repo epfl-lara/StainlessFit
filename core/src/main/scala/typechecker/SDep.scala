@@ -9,7 +9,7 @@ import util.RunContext
 import parser.FitParser
 
 import Derivation._
-import SDepSugar.{Ascribe, SingletonType}
+import SDepSugar._
 
 class SDep(implicit val rc: RunContext)
   extends ProvenRules
@@ -57,14 +57,16 @@ class SDep(implicit val rc: RunContext)
     SubSingletonReflexive.t ||
     SubReflexive.t ||
     SubExistsLeft.t ||
-    SubExistsRight.t ||
+    // SubExistsRight.t ||
     SubNatMatch.t ||
     SubListMatch.t ||
     SubSigma.t ||
     SubCons1.t ||
     SubCons2.t ||
     SubPi.t ||
-    SubSingletonLeft.t ||
+    orRecover(SSubListMatchGuessNil.t, SSubListMatchGuessCons.t) ||
+    // SubSingletonLeft.t ||
+    orRecover(SubSingletonLeft.t, SubExistsRight.t) ||
     SubTop.t
 
   // Like FailRule, but only on SubtypeGoals and doesn't report an error.
@@ -112,6 +114,11 @@ class SDep(implicit val rc: RunContext)
     targets += x -> xTy
   }
 
+  protected def removeTarget(x: Identifier): Unit = {
+    assert(targets.contains(x))
+    targets -= x
+  }
+
   protected def interpreterContext(c: Context): Context =
     targets.toSeq.foldLeft(c) { case (acc, (x, ty)) =>
       solutions.get(x) match {
@@ -137,12 +144,15 @@ class SDep(implicit val rc: RunContext)
         // Checkpoint state and restore if first tactic fails
         val oldTargets = targets
         val oldSolutions = solutions
-        tacA.apply(g, subgoalSolver) match {
+        val resultA = tacA.apply(g, subgoalSolver)
+        resultA match {
           case result @ Some((true, _)) => result
           case _ =>
-            assert(targets.keySet == oldTargets.keySet) // TODO: Remove me
+            // assert(targets.keySet == oldTargets.keySet) // TODO: Remove me
+            targets = oldTargets // FIXME
             solutions = oldSolutions
-            tacB.apply(g, subgoalSolver)
+            val resultB = tacB.apply(g, subgoalSolver)
+            if (resultB.isDefined) resultB else resultA
         }
     }
 
@@ -160,6 +170,15 @@ class SDep(implicit val rc: RunContext)
     val g = NormalizedSubtypeGoal(c, ty1, ty2)
     val solveResult = tactic.apply(g, sg => None)
 
+    // Even if we found some candidate, it doesn't validate the given subtyping query.
+    val solveAttemptFailed = solveResult match {
+      case None => true
+      case Some((false, _)) => true
+      case _ => false
+    }
+    if (solveAttemptFailed)
+      return None
+
     solverDepth -= 1
     solveCount += 1
 
@@ -174,12 +193,21 @@ class SDep(implicit val rc: RunContext)
     }
 
     // TODO: Check whether solution is expressible in context `c`
-    val optSolution = solutions.get(x)
+    val solution = solutions.getOrElse(x, {
+      // x was unconstrained, just pick some valid element
+      rc.reporter.info(s"$indent  (Picked default solution for ${x.uniqueString}!)")
+      xTy match {
+        case TopType => LNil()
+        case `LList` => LNil()
+        case _ => ???
+      }
+    })
+
     // TODO: Also garbage-collect other, indirectly added targets and solutions?
-    targets = targets - x
+    removeTarget(x)
     solutions = solutions - x
 
-    optSolution
+    Some(solution)
   }
 
   // Search primitives

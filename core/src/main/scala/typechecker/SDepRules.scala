@@ -352,7 +352,11 @@ trait SDepRules { self: SDep =>
         val g1 = NormalizationGoal(c0, tyUnderlying)
         Some((List(_ => g1), {
           case NormalizationJudgment(_, _, _, tyUnderlyingN) :: Nil =>
-            (true, NormalizationJudgment("NormSingleton", c, ty, SingletonType(tyUnderlyingN, v)))
+            val tyN = tyUnderlyingN match {
+              case SingletonType(_, tN) if Tree.areEqual(v, tN) => tyUnderlyingN
+              case _ => SingletonType(tyUnderlyingN, v)
+            }
+            (true, NormalizationJudgment("NormSingleton", c, ty, tyN))
           case _ =>
             emitErrorWithJudgment("NormSingleton", g, None)
         }))
@@ -1081,7 +1085,7 @@ trait SDepRules { self: SDep =>
         case Some(tSol) =>
           // rc.reporter.info(s"Solver found candidate solution for $id2: ${asString(tSol)}")
           // FIXME: Check that `tSol` is well-formed in `c0`
-          val g1 = SubtypeGoal(c0, tya, ty22.replace(id2, tSol))
+          val g1 = NormalizedSubtypeGoal(c0, tya, ty22.replace(id2, tSol))
           val g2 = InferGoal(c0, tSol)
           val fg3: List[Judgment] => Goal = {
             case _ :: InferJudgment(_, _, _, ty) :: Nil =>
@@ -1101,7 +1105,7 @@ trait SDepRules { self: SDep =>
           ))
 
         case None =>
-          val msg = s"Couldn't find a candidate solution for $id2!"
+          val msg = s"Couldn't find a candidate solution for ${id2.uniqueString}!"
           Some((List(), {
               case _ => emitErrorWithJudgment("SubExistsRight", g, Some(msg))
             }))
@@ -1234,6 +1238,56 @@ trait SDepRules { self: SDep =>
   // (Additional rules active in solving mode)
   // FIXME: Check underlying types (irrelevant to soundness, since this is only used for search)
 
+  val SSubListMatchGuessNil = Rule("SSubListMatchGuessNil", {
+    case g @ SubtypeGoal(c,
+      tya,
+      tyb @ SingletonType(_, ListMatch(Var(x), tNil, tCons))
+    ) if isTarget(x) =>
+      TypeChecker.debugs(g, "SSubListMatchGuessNil")
+
+      instantiateTarget(x, LNil())
+
+      val g1 = NormalizedSubtypeGoal(c.incrementLevel, tya, tyb)
+
+      Some((List(_ => g1), {
+        case _ =>
+          (true, SubtypeJudgment("SSubListMatchGuessNil", c, tya, tyb))
+      }))
+
+    case g =>
+      None
+  })
+
+  val SSubListMatchGuessCons = Rule("SSubListMatchGuessCons", {
+    case g @ SubtypeGoal(c,
+      tya,
+      tyb @ SingletonType(_, ListMatch(Var(x), tNil, tCons))
+    ) if isTarget(x) =>
+      TypeChecker.debugs(g, "SSubListMatchGuessCons")
+
+      val idHead = Identifier.fresh("hd")
+      val idTail = Identifier.fresh("tl")
+      addTarget(idHead, TopType) // FIXME: Should be more precise based on x's type
+      addTarget(idTail, LList) // FIXME: Should be more precise based on x's type
+      instantiateTarget(x, LCons(Var(idHead), Var(idTail)))
+
+      val g1 = NormalizedSubtypeGoal(c.incrementLevel, tya, tyb)
+
+      Some((List(_ => g1), {
+        case SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SSubListMatchGuessCons", c, tya, tyb))
+        case _ =>
+          // FIXME: Why do we run into issues if we remove the new targets on failure?
+          // removeTarget(idHead)
+          // removeTarget(idTail)
+          emitErrorWithJudgment("SSubListMatchGuessCons", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+/*
   val SSubForcedNilMatch = Rule("SSubForcedNilMatch", {
     case g @ SubtypeGoal(c,
       tya @ SingletonType(_, LNil()),
@@ -1321,4 +1375,5 @@ trait SDepRules { self: SDep =>
     case g =>
       None
   })
+*/
 }
