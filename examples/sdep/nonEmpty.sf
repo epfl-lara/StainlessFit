@@ -3,12 +3,12 @@
 val nonEmpty =
   fixD(
     // nonEmpty_ [List => Option[List]] =>
-    nonEmpty_ [List => {[List] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[List]) nil } }] =>
+    nonEmpty_ [List => {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[List]) nil } }] =>
       fun of (xs [List]) = {
         (list_match xs {
           case nil => cons nil nil
           case cons x ys => cons (cons nil nil) nil
-        })                                          : [{[List] list_match (cons nil nil) { case nil => nil  case cons v unused => cons (choose[List]) nil } }]
+        })                                          //: [{[Top] list_match (cons nil nil) { case nil => nil  case cons v unused => cons (choose[List]) nil } }]
       },
     fun of (xs [List]) = { nil }                   // None
   );

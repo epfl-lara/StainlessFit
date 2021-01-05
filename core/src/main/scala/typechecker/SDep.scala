@@ -176,8 +176,6 @@ class SDep(implicit val rc: RunContext)
       case Some((false, _)) => true
       case _ => false
     }
-    if (solveAttemptFailed)
-      return None
 
     solverDepth -= 1
     solveCount += 1
@@ -192,22 +190,27 @@ class SDep(implicit val rc: RunContext)
       }
     }
 
-    // TODO: Check whether solution is expressible in context `c`
-    val solution = solutions.getOrElse(x, {
-      // x was unconstrained, just pick some valid element
-      rc.reporter.info(s"$indent  (Picked default solution for ${x.uniqueString}!)")
-      xTy match {
-        case TopType => LNil()
-        case `LList` => LNil()
-        case _ => ???
-      }
-    })
-
+    val optSolution = solutions.get(x)
     // TODO: Also garbage-collect other, indirectly added targets and solutions?
     removeTarget(x)
     solutions = solutions - x
 
-    Some(solution)
+    if (solveAttemptFailed) {
+      None
+    } else {
+      // TODO: Check whether solution is expressible in context `c`
+      val solution = optSolution.getOrElse({
+        // x was unconstrained, just pick some valid element
+        rc.reporter.info(s"$indent  (Picked default solution for ${x.uniqueString}!)")
+        xTy match {
+          case TopType => LNil()
+          case `LList` => LNil()
+          case _ => ???
+        }
+      })
+
+      Some(solution)
+    }
   }
 
   // Search primitives
