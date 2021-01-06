@@ -1,0 +1,16 @@
+fun weirdList (n [Nat]) = {
+  fixD(
+    weirdList_ [List] => cons (choose[Nat]) weirdList_,
+    nil
+  )(n)
+}
+
+val xs [List] = weirdList (choose[Nat]);
+val xs [{[List] weirdList 0}] = nil;
+val xs [{[List] weirdList 1}] = cons 123 nil;
+val xs [{[List] weirdList (choose[Nat])}] = nil;
+
+// TODO: Have to improve a rule like SSubFixWithDefaultGuessSucc to also detect guessing opportunities deeper within the stuck term
+// val xs [{[List] weirdList (choose[Nat])}] = cons 0 nil;
+
+()

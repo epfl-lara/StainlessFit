@@ -8,6 +8,8 @@ import trees._
 import util.RunContext
 import parser.FitParser
 
+import Printer.asString
+
 import Derivation._
 import SDepSugar._
 
@@ -157,7 +159,15 @@ class SDep(implicit val rc: RunContext)
             targets = oldTargets // FIXME
             solutions = oldSolutions
             val resultB = tacB.apply(g, subgoalSolver)
-            if (resultB.isDefined) resultB else resultA
+            (resultA, resultB) match {
+              case (_, None) =>
+                resultA
+              case (Some((false, _)), Some((false, _))) =>
+                rc.reporter.warning("Both subderivations in branching rule failed, showing first attempt!")
+                resultA
+              case _ =>
+                resultB
+            }
         }
     }
 
@@ -166,7 +176,7 @@ class SDep(implicit val rc: RunContext)
 
     lazy val indent = " " * solverDepth
     if (rc.config.html) {
-      rc.reporter.info(s"$indent┍ Solving for ${x.uniqueString} ...")
+      rc.reporter.info(s"$indent┍ Solving for ${x.uniqueString} : ${asString(xTy)} ...")
     }
 
     solverDepth += 1
@@ -209,6 +219,7 @@ class SDep(implicit val rc: RunContext)
         rc.reporter.info(s"$indent  (Picked default solution for ${x.uniqueString}!)")
         xTy match {
           case TopType => LNil()
+          case NatType => NatLiteral(0)
           case `LList` => LNil()
           case _ => ???
         }
