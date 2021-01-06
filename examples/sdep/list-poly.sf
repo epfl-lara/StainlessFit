@@ -1,25 +1,32 @@
-// FIXME: Migrate to explicit fuel
-
-val listOfN = fixD(
-  listOfN_ [(Unit => Top) => Nat => List] =>
-    fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
-      nat_match n {
-        case zero => nil
-        case succ n => cons (makeElem ()) (listOfN_ makeElem n)
-      }
-    } },
-  fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
-    nil
-  } }
-);
-
-val listOf = fun of (makeElem [Unit => Top]) = {
-  listOfN makeElem (choose[Nat])
-};
+fun listOfN (fuel [Nat]) (makeElem [Unit => Top]) = {
+  fixD(
+    listOfN_ [Nat => List] =>
+      fun of (n [Nat]) = {
+        nat_match n {
+          case zero => nil
+          case succ n => cons (makeElem ()) (listOfN_ n)
+        }
+      },
+    fun of (n [Nat]) = {
+      nil
+    }
+  )(fuel)
+}
 
 val makeNat = fun of (u [Unit]) = { choose[Nat] };
-val ns [{[List] listOfN makeNat 0}] = nil;
-val ns [{[List] listOfN makeNat 1}] = cons 1 nil;
-val ns [{[List] listOfN makeNat 2}] = cons 1 (cons 2 nil);
-// val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil); // no rule to guess correct length
+
+val ns [{[List] listOfN 1 makeNat 0}] = nil;
+val ns [{[List] listOfN 2 makeNat 1}] = cons 1 nil;
+val ns [{[List] listOfN 3 makeNat 2}] = cons 1 (cons 2 nil);
+
+// TODO: Need to untangle underneath existentials while solving...
+// val ns [{[List] listOfN (choose[Nat]) makeNat 1}] = cons 1 nil;
+
+fun listOf (fuel [Nat]) (makeElem [Unit => Top]) = {
+  listOfN fuel makeElem (choose[Nat])
+}
+
+// TODO: No rule to guess correct length ...?
+// val ns [{[List] listOf 3 makeNat}] = cons 1 (cons 2 nil);
+
 ()

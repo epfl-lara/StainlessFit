@@ -86,7 +86,8 @@ case class Context(
   }
 
   def bindAndFreshen(id: Identifier, ty: Tree, t: Tree)(implicit rc: RunContext): (Context, Tree) = {
-    val c = this.bind(id, ty)
+    // TODO: If anything, we should do this for all bind-s, no?
+    val c = this.bindAndDestruct(id, ty)
     (c, c.freshen(t))
   }
 

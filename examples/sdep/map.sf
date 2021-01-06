@@ -1,4 +1,4 @@
-fun map (f [Top => Top]) [returns List => List] = {
+fun map (fuel [Nat]) (f [Top => Top]) [returns List => List] = {
   fixD(
     map_ [List => List] =>
       fun of (xs [List]) = {
@@ -7,10 +7,10 @@ fun map (f [Top => Top]) [returns List => List] = {
           case cons x ys => cons (f x) (map_ ys)
         }
       },
-    fun of (xs [List]) = { xs })
+    fun of (xs [List]) = { xs })(fuel)
 }
 
 val xs = cons 1 (cons 2 nil);
 val c = 0;
-val ys [{[List] cons c (cons c nil)}] = map (fun of (x [Top]) = { c }) xs;
+val ys [{[List] cons c (cons c nil)}] = map 3 (fun of (x [Top]) = { c }) xs;
 ()

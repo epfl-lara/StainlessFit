@@ -26,6 +26,10 @@ object Interpreter {
           case SingletonType(_, t) => shouldRetype = true; evaluateWithContext(c, t)
           case _ => e
         }
+        // c.termVariables.get(id) match {
+        //   case Some(SingletonType(_, t)) => shouldRetype = true; evaluateWithContext(c, t)
+        //   case _ => e
+        // }
 
       case Succ(t) => Succ(evaluateWithContext(c, t))
 

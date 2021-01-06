@@ -1,6 +1,10 @@
-// FIXME: Migrate to explicit fuel
+// FIXME: Issue with solver var not being added to context during some interpretation step
 
-val last =
+// Option encoding
+// None    ~  nil
+// Some v  ~  cons v nil
+
+fun last (fuel [Nat]) = {
   fixD(
     // last_ [List => Option[Top]] =>
     last_ [List => {[List] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[Top]) nil } }] =>
@@ -14,12 +18,12 @@ val last =
             }
         })
       },
+      // fun of (xs [List]) = { last_ xs }, // FIXME: (Also triggers above-mentioned issue)
     fun of (xs [List]) = { nil } // None
-  );
+  )(fuel)
+}
 
-val x [{[Nat] 0}] = last (cons 0 nil);
+// val x [List] = last 2 (cons 0 nil);
+// val x [{[List] cons 0 nil}] = last 2 (cons 0 nil);
 
 ()
-
-// None    ~  nil
-// Some v  ~  cons v nil

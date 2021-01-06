@@ -9,16 +9,18 @@ fun fst (pp [List]) [returns Top] = {
   }
 }
 
-val sizedLike = fixD(
-  sizedLike_ [List => List] =>
-    fun of (xs [List]) = {
-      list_match xs {
-        case nil => nil                                       // xs == nil
-        case cons x ys => cons (choose[Top]) (sizedLike_ ys)  // xs == cons x ys
-      }
-    },
-  fun of (xs [List]) = { xs }
-);
+fun sizedLike (fuel [Nat]) = {
+  fixD(
+    sizedLike_ [List => List] =>
+      fun of (xs [List]) = {
+        list_match xs {
+          case nil => nil                                       // xs == nil
+          case cons x ys => cons (choose[Top]) (sizedLike_ ys)  // xs == cons x ys
+        }
+      },
+    fun of (xs [List]) = { xs }
+  )(fuel)
+}
 
 /// This works
 // fun bla (bs [List]) = {
@@ -33,28 +35,35 @@ val sizedLike = fixD(
 // val listId [Pi(bs: List, {[List] sizedLike bs})] =
 //   fun of (bs [List]) = { bs };
 
-val unsafeZip = fixD(
-  unsafeZip_ [List => List => List] =>
-    fun of (bs [List]) (cs [List]) = {
-      list_match bs {
-        case nil => nil
-        case cons b bs0 =>
-          list_match cs {
-            case nil => nil
-            case cons c cs0 => cons (pair b c) (unsafeZip_ bs0 cs0)
-          }
-      }
-    },
-  fun of (bs [List]) (cs [List]) = { nil }
-);
-
-fun safeZip (bs [List]) (cs [{[List] sizedLike bs}]) [returns List] = {
-  unsafeZip bs cs
+fun unsafeZip (fuel [Nat]) = {
+  fixD(
+    unsafeZip_ [List => List => List] =>
+      fun of (bs [List]) (cs [List]) = {
+        list_match bs {
+          case nil => nil
+          case cons b bs0 =>
+            list_match cs {
+              case nil => nil
+              case cons c cs0 => cons (pair b c) (unsafeZip_ bs0 cs0)
+            }
+        }
+      },
+    fun of (bs [List]) (cs [List]) = { nil }
+  )(fuel)
 }
 
+fun safeZip (fuel [Nat]) (bs [List]) (cs [{[List] sizedLike fuel bs}]) [returns List] = {
+  unsafeZip fuel bs cs
+}
+
+val fuel = succ (succ (succ (choose[Nat])));
 val xs1 = cons 1 (cons 2 nil);
 val xs2 = cons 3 (cons 4 nil);
-val res [{[Nat] 1}] = fst (fst (safeZip xs1 xs2));
-val res [{[Nat] 3}] = fst (fst (safeZip xs2 xs1));
+val res [{[Nat] 1}] = fst (fst (safeZip fuel xs1 xs2));
+val res [{[Nat] 3}] = fst (fst (safeZip fuel xs2 xs1));
+
+fun example (fuel [Nat]) (xs [List]) (ys [{[List] sizedLike fuel xs}]) = {
+  safeZip fuel xs ys
+}
 
 ()
