@@ -1,16 +1,10 @@
-val nonEmpty =
-  fixD(
-    // nonEmpty_ [List => Option[List]] =>
-    nonEmpty_ [List => {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[List]) nil } }] =>
-      fun of (xs [List]) = {
-        (list_match xs {
-          case nil => cons nil nil
-          case cons x ys => cons (cons nil nil) nil
-        })                                          //: [{[Top] list_match (cons nil nil) { case nil => nil  case cons v unused => cons (choose[List]) nil } }]
-      },
-    fun of (xs [List]) = { nil }
-  );
+fun nonEmpty (xs [List]) [returns {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[List]) nil } }] = {
+  list_match xs {
+    case nil => cons nil nil
+    case cons x ys => cons (cons nil nil) nil
+  }
+}
 
-val x [{[Nat] 0}] = last (cons 0 nil);
+val x [{[List] cons (cons nil nil) nil}] = nonEmpty (cons 0 nil);
 
 ()
