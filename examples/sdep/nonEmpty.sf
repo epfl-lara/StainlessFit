@@ -1,5 +1,3 @@
-// TODO: Reenable
-
 val nonEmpty =
   fixD(
     // nonEmpty_ [List => Option[List]] =>
@@ -10,66 +8,9 @@ val nonEmpty =
           case cons x ys => cons (cons nil nil) nil
         })                                          //: [{[Top] list_match (cons nil nil) { case nil => nil  case cons v unused => cons (choose[List]) nil } }]
       },
-    fun of (xs [List]) = { nil }                   // None
+    fun of (xs [List]) = { nil }
   );
 
-// val x [{[Nat] 0}] = last (cons 0 nil);
+val x [{[Nat] 0}] = last (cons 0 nil);
 
 ()
-
-// None    ~  nil
-// Some v  ~  cons v nil
-
-// cons nil nil  :  List
-
-
-// {
-//   list_match xs {
-//     case nil => cons nil nil                   @ [ nil ]
-//     case cons x ys => cons (cons nil nil) nil  @ [ cons nil nil ]
-//   } @ [ (cons nil nil) ]
-// }
-
-
-// {
-//   list_match xs {
-//     case nil => cons nil nil    @ [ (cons nil nil) ] @ [ nil ]
-//     case cons x ys => last_ ys
-//   }
-// }
-
-// {
-//   list_match xs {
-//     case nil => cons (cons nil nil) nil
-//     case cons x ys => nil
-//   } @ [ list_match xs { case nil => cons nil nil  case cons v unused => nil } ]
-// }
-
-// <:
-// {[Top] list_match choose[List] { case nil => nil  case cons v unused => cons (choose[List]) nil } }
-
-
-
-// {
-//   list_match xs {
-//     case nil => cons (cons nil nil) nil
-//     case cons x ys => nil
-//   } @ [ list_match xs { case nil => cons nil nil  case cons v unused => nil } ]
-// }
-
-// <:
-
-// {[Top]
-//   list_match (list_match xs { case nil => cons nil nil  case cons v unused => nil }) {
-//     case nil => nil
-//     case cons v unused => cons (cons nil nil) nil
-//   }
-// }
-
-
-// xs=nil:
-// { cons (cons nil nil) nil }  <:  { cons (choose[List]) nil }
-
-// xs=cons x1 xs':
-// { nil }  <:  { nil }
-

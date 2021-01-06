@@ -804,6 +804,7 @@ trait SDepRules { self: SDep =>
       None
   })
 
+  // TODO: See if we can already remove this rule.
   // FIXME: SubtypeGoal on terms t11/t21 and t12/t22 doesn't make sense. Did this work before?
   val SubSingletonCons = Rule("SubSingletonCons", {
     case g @ SubtypeGoal(c,
@@ -826,6 +827,7 @@ trait SDepRules { self: SDep =>
       None
   })
 
+  // TODO: See if we can already remove this rule.
   // FIXME: Also check underlying types
   val SubSingletonListMatch1 = Rule("SubSingletonListMatch1", {
     case g @ SubtypeGoal(c,
@@ -1054,24 +1056,7 @@ trait SDepRules { self: SDep =>
       TypeChecker.debugs(g, "SubExistsRight")
 
       val optSolution = solve(c, id2, ty21, tya, ty22)
-
-      // val solver = this
-      // solver.addTarget(id2)
-
       val c0 = c.incrementLevel
-      // val solveResult = solver.solve(c0.bind(id2, ty21), tya, ty22)
-      // if (rc.config.html) {
-      //   solveResult match {
-      //     case Some((success, tree)) =>
-      //       val f = new java.io.File(s"./solve_${id2.uniqueString}")
-      //       rc.reporter.info(s"Solve result: $success  -> ${f.getAbsolutePath()}")
-      //       util.HTMLOutput.makeHTMLFile(f, List(tree), success)
-      //     case None =>
-      //   }
-      // }
-
-      // val optSolution = solver.targets(id2)
-      // solver.targets = solver.targets - id2
 
       optSolution match {
         // TODO: Add this check (implement Tree.freeVars)

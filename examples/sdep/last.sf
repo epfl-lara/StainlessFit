@@ -1,4 +1,4 @@
-// TODO: Reenable
+// FIXME: Migrate to explicit fuel
 
 val last =
   fixD(
@@ -17,7 +17,7 @@ val last =
     fun of (xs [List]) = { nil } // None
   );
 
-// val x [{[Nat] 0}] = last (cons 0 nil);
+val x [{[Nat] 0}] = last (cons 0 nil);
 
 ()
 

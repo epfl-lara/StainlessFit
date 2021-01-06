@@ -1,3 +1,5 @@
+// FIXME: Migrate to explicit fuel
+
 // "Booleans"
 val fls = 0;
 val tru = 1;

@@ -1,3 +1,6 @@
+// FIXME: Migrate to fixD
+// FIXME: Migrate to explicit fuel
+
 val listOfN = fix[a][(Unit => Top) => Nat => List](listOfN_ =>
   fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
     nat_match n {
