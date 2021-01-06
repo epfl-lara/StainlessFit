@@ -1,0 +1,48 @@
+fun plus (fuel [Nat]) = {
+  fixD(
+    plus_ [Nat => Nat => Nat] =>
+      fun of (m [Nat]) = {
+        fun of (n [Nat]) = {
+          nat_match m {
+            case zero => n
+            case succ m_ => succ (plus_ m_ n)
+          }
+        }
+      },
+    fun of (m [Nat]) = {
+      fun of (n [Nat]) = {
+        choose[Nat]
+      }
+    }
+  )(fuel)
+}
+
+// Just show it's a Nat
+val two [Nat] = plus 2 (succ 0) (succ 0);
+
+// Compute with enough fuel
+val two [{[Nat] succ (succ 0)}] = plus 2 (succ 0) (succ 0);
+
+// Compute with enough fuel on both the term and the type level
+val two [{[Nat] plus 1 0 (succ (succ 0))}] = plus 2 (succ 0) (succ 0);
+
+// Arbitarily pick fuel on type level.
+// Semantically, this collapses the type into Nat, so it will include arbitrary ints such as 123
+// TODO: Need to untangle underneath existentials while solving...
+// val two [{[Top] plus (choose[Nat]) 0 (succ (succ 0))}] = 123;
+
+// Pick fuel >=1 on type level, i.e., enough to compute
+val two [{[Nat] plus (succ (choose[Nat])) 0 (succ (succ 0))}] = plus 2 (succ 0) (succ 0);
+
+val f = succ (succ (choose[Nat]));
+val twoPlusN [Pi(n: Nat, {[Nat] plus f 0 (succ (succ n))} )] =
+  fun of (n [Nat]) = {
+    plus f (succ 0) (succ n)
+  };
+
+val nPlusTwo [Pi(n: Nat, {[Nat] succ (plus f n 0)} )] =
+  fun of (n [Nat]) = {
+    plus (succ f) (succ n) 0
+  };
+
+()
