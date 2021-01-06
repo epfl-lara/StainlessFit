@@ -98,15 +98,22 @@ object Interpreter {
       case LeftTree(e) => LeftTree(evaluateWithContext(c, e))
       case RightTree(e) => RightTree(evaluateWithContext(c, e))
 
-      case FixWithDefault(_, t, td, NatLiteral(depthFuel)) if depthFuel == 0 =>
-        evaluateWithContext(c, td)
-      case FixWithDefault(ty, t @ Bind(id, tBody), td, NatLiteral(depthFuel)) =>
-        assert(depthFuel > 0)
-        val newFixD = FixWithDefault(ty, t, td, NatLiteral(depthFuel - 1))
-        evaluateWithContext(c, tBody.replace(id, newFixD))
-      case FixWithDefault(ty, t @ Bind(id, tBody), td, Succ(ntf)) =>
-        val newFixD = FixWithDefault(ty, t, td, ntf)
-        evaluateWithContext(c, tBody.replace(id, newFixD))
+      case FixWithDefault(ty, t @ Bind(id, tBody), td, tf) =>
+        evaluateWithContext(c, tf) match {
+          case NatLiteral(depthFuel) =>
+            if (depthFuel == 0) {
+              evaluateWithContext(c, td)
+            } else {
+              assert(depthFuel > 0)
+              val newFixD = FixWithDefault(ty, t, td, NatLiteral(depthFuel - 1))
+              evaluateWithContext(c, tBody.replace(id, newFixD))
+            }
+          case Succ(ntf) =>
+            val newFixD = FixWithDefault(ty, t, td, ntf)
+            evaluateWithContext(c, tBody.replace(id, newFixD))
+          case ntf =>
+            FixWithDefault(ty, t, td, ntf)
+        }
 
       case Fix(_, Bind(_, Bind(idT, tBody))) =>
         evaluateWithContext(c, tBody.replace(idT, e))

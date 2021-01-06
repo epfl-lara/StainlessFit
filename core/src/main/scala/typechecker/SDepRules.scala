@@ -1202,16 +1202,17 @@ trait SDepRules { self: SDep =>
   })
 
   val InferFixWithDefault = Rule("InferFixWithDefault", {
-    case g @ InferGoal(c, e @ FixWithDefault(ty, t @ Bind(fIn, tBody), td, _)) =>
+    case g @ InferGoal(c, e @ FixWithDefault(ty, t @ Bind(fIn, tBody), td, tf)) =>
       TypeChecker.debugs(g, "InferFixWithDefault")
 
       val c0 = c.incrementLevel
       val (c1, tBodyF) = c0.bindAndFreshen(fIn, ty, tBody)
       val g1 = CheckGoal(c1, tBodyF, ty)
       val g2 = CheckGoal(c0, td, ty)
+      val g3 = CheckGoal(c0, tf, NatType)
 
       Some((
-        List(_ => g1, _ => g2),
+        List(_ => g1, _ => g2, _ => g3),
         _ =>
           (true, InferJudgment("InferFixWithDefault", c, e, SingletonType(ty, e)))))
 
@@ -1242,7 +1243,7 @@ trait SDepRules { self: SDep =>
     case g @ SubtypeGoal(c,
       tya,
       tyb @ SingletonType(_, ListMatch(Var(x), tNil, tCons))
-    ) if isTarget(x) =>
+    ) if isUninstTarget(x) =>
       TypeChecker.debugs(g, "SSubListMatchGuessNil")
 
       instantiateTarget(x, LNil())
@@ -1262,7 +1263,7 @@ trait SDepRules { self: SDep =>
     case g @ SubtypeGoal(c,
       tya,
       tyb @ SingletonType(_, ListMatch(Var(x), tNil, tCons))
-    ) if isTarget(x) =>
+    ) if isUninstTarget(x) =>
       TypeChecker.debugs(g, "SSubListMatchGuessCons")
 
       val idHead = Identifier.fresh("hd")
@@ -1281,6 +1282,56 @@ trait SDepRules { self: SDep =>
           // removeTarget(idHead)
           // removeTarget(idTail)
           emitErrorWithJudgment("SSubListMatchGuessCons", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+  object FixWithDefaultMaybeApplied {
+    def unapply(t: Tree): Option[Identifier] = t match {
+      case App(e1, _) => FixWithDefaultMaybeApplied.unapply(e1)
+      case FixWithDefault(_, _, _, Var(xFuel)) => Some(xFuel)
+      case _ => None
+    }
+  }
+
+  val SSubFixWithDefaultGuessZero = Rule("SSubFixWithDefaultGuessZero", {
+    case g @ SubtypeGoal(c,
+      tya,
+      tyb @ SingletonType(_, FixWithDefaultMaybeApplied(xFuel))
+    ) if isUninstTarget(xFuel) =>
+      TypeChecker.debugs(g, "SSubFixWithDefaultGuessZero")
+
+      instantiateTarget(xFuel, NatLiteral(0))
+
+      val g1 = NormalizedSubtypeGoal(c.incrementLevel, tya, tyb)
+
+      Some((List(_ => g1), {
+        case _ =>
+          (true, SubtypeJudgment("SSubFixWithDefaultGuessZero", c, tya, tyb))
+      }))
+
+    case g =>
+      None
+  })
+
+  val SSubFixWithDefaultGuessSucc = Rule("SSubFixWithDefaultGuessSucc", {
+    case g @ SubtypeGoal(c,
+      tya,
+      tyb @ SingletonType(_, FixWithDefaultMaybeApplied(xFuel))
+    ) if isUninstTarget(xFuel) =>
+      TypeChecker.debugs(g, "SSubFixWithDefaultGuessSucc")
+
+      val idFuelPred = Identifier.fresh("f'")
+      addTarget(idFuelPred, NatType) // FIXME: Should be more precise based on xFuel's type?
+      instantiateTarget(xFuel, Succ(Var(idFuelPred)))
+
+      val g1 = NormalizedSubtypeGoal(c.incrementLevel, tya, tyb)
+
+      Some((List(_ => g1), {
+        case _ =>
+          (true, SubtypeJudgment("SSubFixWithDefaultGuessSucc", c, tya, tyb))
       }))
 
     case g =>

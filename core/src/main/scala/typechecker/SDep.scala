@@ -64,9 +64,11 @@ class SDep(implicit val rc: RunContext)
     SubCons1.t ||
     SubCons2.t ||
     SubPi.t ||
+    orRecover(SSubFixWithDefaultGuessSucc.t, SSubFixWithDefaultGuessZero.t) ||
     orRecover(SSubListMatchGuessNil.t, SSubListMatchGuessCons.t) ||
     // SubSingletonLeft.t ||
-    orRecover(SubSingletonLeft.t, SubExistsRight.t) ||
+    // orRecover(SubSingletonLeft.t, SubExistsRight.t) ||
+    orRecover(SubExistsRight.t, SubSingletonLeft.t) ||
     SubTop.t
 
   // Like FailRule, but only on SubtypeGoals and doesn't report an error.
@@ -105,6 +107,9 @@ class SDep(implicit val rc: RunContext)
 
   protected def isTarget(x: Identifier): Boolean =
     targets.contains(x)
+
+  protected def isUninstTarget(x: Identifier): Boolean =
+    targets.contains(x) && !solutions.contains(x)
 
   protected def lookupTarget(x: Identifier): Tree =
     targets(x)

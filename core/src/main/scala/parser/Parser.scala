@@ -623,14 +623,14 @@ class FitParser()(implicit rc: RunContext) extends Parsers {
   // `fixD(x [T] => t, td)`
   lazy val fixpointWithDefault: Syntax[Tree] =
     (fixDK.skip ~ lpar.skip ~ termIdentifier ~ lsbra.skip ~ typeExpr ~ rsbra.skip ~
-      arrow.skip ~ expr ~ comma.skip ~ expr ~ rpar.skip).map({
-      case x ~ tp ~ e ~ ed =>
-        FixWithDefault(tp, Bind(x, e), ed, Choose(NatType))
+      arrow.skip ~ expr ~ comma.skip ~ expr ~ rpar.skip ~ lpar.skip ~ expr ~ rpar.skip).map({
+      case x ~ tp ~ e ~ ed ~ ef =>
+        FixWithDefault(tp, Bind(x, e), ed, ef)
       case _ =>
         sys.error("Unreachable")
     }, {
-      case FixWithDefault(tp, Bind(x, e), ed, _) =>
-        Seq(x ~ tp ~ e ~ ed)
+      case FixWithDefault(tp, Bind(x, e), ed, ef) =>
+        Seq(x ~ tp ~ e ~ ed ~ ef)
       case _ => Seq()
     })
 
