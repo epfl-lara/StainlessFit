@@ -1,90 +1,97 @@
-// FIXME: Migrate to explicit fuel
+val theFuel = 3;
 
 // "Booleans"
 val fls = 0;
 val tru = 1;
+val dontknow = 2;
 
 fun assertTru (n [{[Nat] tru}]) [returns Unit] = { () }
 fun assertFls (n [{[Nat] fls}]) [returns Unit] = { () }
 
 // Equality on Nats (returns 1 when equal)
-val natEq = fixD(
-  natEq_ [Nat => Nat => Nat] =>
+fun natEq (fuel [Nat]) = {
+  fixD(
+    natEq_ [Nat => Nat => Nat] =>
+      fun of (m [Nat]) = { fun of (n [Nat]) = {
+        nat_match m {
+          case zero =>
+            nat_match n {
+              case zero => 1
+              case succ nn => 0
+            }
+          case succ mm =>
+            nat_match n {
+              case zero => 0
+              case succ nn => natEq_ mm nn
+            }
+        }
+      } },
     fun of (m [Nat]) = { fun of (n [Nat]) = {
-      nat_match m {
-        case zero =>
-          nat_match n {
-            case zero => 1
-            case succ nn => 0
-          }
-        case succ mm =>
-          nat_match n {
-            case zero => 0
-            case succ nn => natEq_ mm nn
-          }
-      }
-    } },
-  fun of (m [Nat]) = { fun of (n [Nat]) = {
-    2
-  } }
-);
+      dontknow
+    } }
+  )(fuel)
+}
 
 // Examples
-val res = assertTru (natEq 0 0);
-val res = assertTru (natEq 1 1);
-val res = assertTru (natEq 2 2);
-val res = assertFls (natEq 0 1);
-val res = assertFls (natEq 1 0);
-val res = assertFls (natEq 1 2);
+val res = assertTru (natEq theFuel 0 0);
+val res = assertTru (natEq theFuel 1 1);
+val res = assertTru (natEq theFuel 2 2);
+val res = assertFls (natEq theFuel 0 1);
+val res = assertFls (natEq theFuel 1 0);
+val res = assertFls (natEq theFuel 1 2);
 
 // Generic lists
-val listOfN = fixD(
-  listOfN_ [(Unit => Top) => Nat => List] =>
+fun listOfN (fuel [Nat]) = {
+  fixD(
+    listOfN_ [(Unit => Top) => Nat => List] =>
+      fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
+        nat_match n {
+          case zero => nil
+          case succ n => cons (makeElem ()) (listOfN_ makeElem n)
+        }
+      } },
     fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
-      nat_match n {
-        case zero => nil
-        case succ n => cons (makeElem ()) (listOfN_ makeElem n)
-      }
-    } },
-  fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
-    nil
-  } }
-);
-
-val listOf = fun of (makeElem [Unit => Top]) = {
-  listOfN makeElem (choose[Nat])
-};
+      nil
+    } }
+  )(fuel)
+}
 
 val makeNat = fun of (u [Unit]) = { choose[Nat] };
 
 // HLists
-val concat = fixD(
-  concat_ [List => List => List] =>
-    fun of (xs [List]) = { fun of (ys [List]) = {
-      list_match xs {
-        case nil => ys
-        case cons x xs => cons x (concat_ xs ys)
-      }
-    } },
-  fun of (xs [List]) = { fun of (ys [List]) = { nil } });
+fun concat (fuel [Nat]) = {
+  fixD(
+    concat_ [List => List => List] =>
+      fun of (xs [List]) = { fun of (ys [List]) = {
+        list_match xs {
+          case nil => ys
+          case cons x xs => cons x (concat_ xs ys)
+        }
+      } },
+    fun of (xs [List]) = { fun of (ys [List]) = { nil } }
+  )(fuel)
+}
 
-val nth = fixD(
-  nth_ [Nat => List => Top => Top] =>
-    fun of (n [Nat]) = { fun of (xs [List]) = { fun of (default [Top]) = {
-      nat_match n {
-        case zero =>
-          list_match xs {
-            case nil => default
-            case cons x ys => x
-          }
-        case succ m =>
-          list_match xs {
-            case nil => default
-            case cons x ys => nth_ m ys default
-          }
-      }
-    } } },
-  fun of (n [Nat]) = { fun of (xs [List]) = { fun of (default [Top]) = { default } } });
+fun nth (fuel [Nat]) = {
+  fixD(
+    nth_ [Nat => List => Top => Top] =>
+      fun of (n [Nat]) = { fun of (xs [List]) = { fun of (default [Top]) = {
+        nat_match n {
+          case zero =>
+            list_match xs {
+              case nil => default
+              case cons x ys => x
+            }
+          case succ m =>
+            list_match xs {
+              case nil => default
+              case cons x ys => nth_ m ys default
+            }
+        }
+      } } },
+    fun of (n [Nat]) = { fun of (xs [List]) = { fun of (default [Top]) = { default } } }
+  )(fuel)
+}
 
 // val contains = fixD(
 //   contains_ [Pi(n:Nat, {[List] listOfN makeNat n} => Nat => Nat)] =>
@@ -105,11 +112,47 @@ val nth = fixD(
 //     } } },
 //   fun of (n [Nat]) = { fun of (xs [{[List] listOfN makeNat n}]) = { fun of (z [Nat]) = { fls } } });
 
-// Examples
-val bs [{[Cons[{ [Nat] 1 }, { [Cons[{ [Nat] 2 }, { [List] nil }]] cons 2 (nil) }]] cons 1 (cons 2 nil)}] = concat (cons 1 nil) (cons 2 nil);
 
-val res [{[Nat] 1}] = nth 0 bs 0;
-val res [{[Nat] 2}] = nth 1 bs 0;
-val res [{[Nat] 0}] = nth 2 bs 0;
+fun contains (fuel [Nat]) (key [Nat]) = {
+  fixD(
+    contains_ [Pi(n:Nat, {[List] listOfN n makeNat n} => Nat)] =>
+      fun of (n [Nat]) = { fun of (xs [{[List] listOfN n makeNat n}]) = {
+        nat_match n {
+          case zero => fls  // n == zero
+          case succ nn =>   // n == succ nn
+            // list_match xs {
+            //   case nil => ()
+            //   case cons head tail => if (natEq fuel head key) tru else contains_ nn tail
+            //     // nat_match (natEq fuel head key) {
+            //     //   case zero => contains_ nn tail
+            //     //   case succ bb => tru  // should match further to distinguish 1 (tru) from 2 (dontknow)
+            //     // }
+            // }
+            val head [Nat] = list_match xs {
+              case nil => ()
+              case cons x ys => x
+            };
+            val tail [List] = list_match xs {
+              case nil => ()
+              case cons x ys => ys
+            };
+            nat_match (natEq fuel head key) {
+              case zero => contains_ nn tail
+              case succ bb => tru  // should match further to distinguish 1 (tru) from 2 (dontknow)
+            }
+        }
+      } },
+      fun of (n [Nat]) = { fun of (xs [{[List] listOfN n makeNat n}]) = {
+        dontknow
+      } }
+  )(fuel)
+}
+
+// Examples
+val bs [{[Cons[{ [Nat] 1 }, { [Cons[{ [Nat] 2 }, { [List] nil }]] cons 2 (nil) }]] cons 1 (cons 2 nil)}] = concat theFuel (cons 1 nil) (cons 2 nil);
+
+val res [{[Nat] 1}] = nth theFuel 0 bs 0;
+val res [{[Nat] 2}] = nth theFuel 1 bs 0;
+val res [{[Nat] 0}] = nth theFuel 2 bs 0;
 
 ()

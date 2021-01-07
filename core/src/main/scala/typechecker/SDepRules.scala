@@ -1105,10 +1105,10 @@ trait SDepRules { self: SDep =>
       val c0 = c.incrementLevel
       val inferScrutinee = CheckGoal(c0, t, NatType)
 
-      val inferT1 = InferGoal(c0, t1)
+      val inferT1 = InferGoal(c0.addEquality(t, NatLiteral(0)), t1)
 
       val (c1, t2F) = c0.bindAndFreshen(id, NatType, t2)
-      val inferT2 = InferGoal(c1, t2F)
+      val inferT2 = InferGoal(c1.addEquality(t, Succ(Var(id))), t2F)
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
@@ -1132,11 +1132,11 @@ trait SDepRules { self: SDep =>
       val c0 = c.incrementLevel
       val inferScrutinee = CheckGoal(c0, t, LList)
 
-      val inferT1 = InferGoal(c0, t1)
+      val inferT1 = InferGoal(c0.addEquality(t, LNil()), t1)
 
       val c1 = c0.bind(idHead, TopType)
       val (c2, t2F) = c1.bindAndFreshen(idTail, LList, t2)
-      val inferT2 = InferGoal(c2, t2F)
+      val inferT2 = InferGoal(c2.addEquality(t, LCons(Var(idHead), Var(idTail))), t2F)
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {

@@ -1,0 +1,11 @@
+fun isNil (xs [{[List] nil}]) = { () }
+fun isCons (xs [{[List] cons (choose[Top]) (choose[List])}]) = { () }
+
+fun is (xs [List]) = {
+  list_match xs {
+    case nil => isNil xs  // xs == nil
+    case cons x ys => isCons xs  // xs == cons x ys
+  }
+}
+
+()

@@ -10,7 +10,22 @@ val xs [{[List] weirdList 0}] = nil;
 val xs [{[List] weirdList 1}] = cons 123 nil;
 val xs [{[List] weirdList (choose[Nat])}] = nil;
 
-// TODO: Have to improve a rule like SSubFixWithDefaultGuessSucc to also detect guessing opportunities deeper within the stuck term
+// TODO: Have to improve rules like SSubFixWithDefaultGuess{Zero,Succ} to also detect guessing opportunities deeper within the stuck term
 // val xs [{[List] weirdList (choose[Nat])}] = cons 0 nil;
+
+// fun id (fuel [Nat]) (xs [{[List] weirdList fuel}]) [returns {[List] weirdList fuel}] = {
+//   nat_match fuel {
+//     case zero =>
+//       list_match xs {
+//         case nil => nil
+//         case cons x ys => impossible
+//       }
+//     case succ fuel' =>
+//       list_match xs {
+//         case nil => impossible
+//         case cons x ys => cons x (id fuel' ys)
+//       }
+//   }
+// }
 
 ()

@@ -1,66 +1,66 @@
 // FIXME: Migrate to fixD
 // FIXME: Migrate to explicit fuel
 
-val listOfN = fix[a][(Unit => Top) => Nat => List](listOfN_ =>
-  fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
-    nat_match n {
-      case zero => nil
-      case succ n => cons (makeElem ()) (listOfN_ makeElem n)
-    }
-  } }
-);
-
-val makeNat = fun of (u [Unit]) = { choose[Nat] };
-val makeUnit = fun of (u [Unit]) = { choose[Unit] };
-
-val plus = fix[a][Nat => Nat => Nat](plus_ =>
-  fun of (m [Nat]) = { fun of (n [Nat]) = {
-    nat_match m {
-      case zero => n
-      case succ m_ => succ (plus_ m_ n)
-    }
-  } }
-);
-
-fun prependOneNat (n [Nat]) (xs [{[List] listOfN makeNat n}]) (x [Nat]) [returns {[List] listOfN makeNat (succ n)}] = {
-  cons x xs
-}
-
-fun prependOne (n [Nat]) (makeElem [Unit => Top]) (xs [{[List] listOfN makeElem n}]) (x [{[Top] makeElem ()}])
-  [returns {[List] listOfN makeElem (succ n)}] =
-{
-  cons x xs
-}
-
-// val concat = fix[a][Pi(m: Nat, Pi(n: Nat, {[List] listOfN makeNat m} => {[List] listOfN makeNat n} => {[List] listOfN makeNat (plus m n)} => {[List] listOfN makeNat (plus m n)} ))](concat_ =>
-//   fun of (m [Nat]) = { fun of (n [Nat]) = { fun of (xs [{[List] listOfN makeNat m}]) = { fun of (ys [{[List] listOfN makeNat n}]) = {
-//     fun of (default [{[List] listOfN makeNat (plus m n)}]) = {
-//       list_match xs {
-//         case nil => ys
-//         case cons x xs_ =>
-//           nat_match m {
-//             case zero => default
-//             case succ m_ => cons x (concat_ m_ n xs_ ys)
-//           }
-//       }
+// val listOfN = fix[a][(Unit => Top) => Nat => List](listOfN_ =>
+//   fun of (makeElem [Unit => Top]) = { fun of (n [Nat]) = {
+//     nat_match n {
+//       case zero => nil
+//       case succ n => cons (makeElem ()) (listOfN_ makeElem n)
 //     }
-//   } } } }
+//   } }
 // );
 
-val k [{[Nat] succ (succ (succ 0))}] = plus (succ (succ 0)) (succ 0);
+// val makeNat = fun of (u [Unit]) = { choose[Nat] };
+// val makeUnit = fun of (u [Unit]) = { choose[Unit] };
 
-val ns [{[List] listOfN makeNat 0}] = nil;
-val ns [{[List] listOfN makeNat 2}] = cons 1 (cons 2 nil);
-val ns [{[List] listOfN makeNat 3}] = prependOneNat 2 ns 0;
+// val plus = fix[a][Nat => Nat => Nat](plus_ =>
+//   fun of (m [Nat]) = { fun of (n [Nat]) = {
+//     nat_match m {
+//       case zero => n
+//       case succ m_ => succ (plus_ m_ n)
+//     }
+//   } }
+// );
 
-val ms [{[List] listOfN makeNat 0}] = nil;
-val ms [{[List] listOfN makeNat 2}] = cons 1 (cons 2 nil);
-val ms [{[List] listOfN makeNat 3}] = prependOne 2 makeNat ms 0;
+// fun prependOneNat (n [Nat]) (xs [{[List] listOfN makeNat n}]) (x [Nat]) [returns {[List] listOfN makeNat (succ n)}] = {
+//   cons x xs
+// }
 
-// val listOf = fun of (makeElem [Unit => Top]) = {
-//   listOfN makeElem (choose[Nat])
-// };
+// fun prependOne (n [Nat]) (makeElem [Unit => Top]) (xs [{[List] listOfN makeElem n}]) (x [{[Top] makeElem ()}])
+//   [returns {[List] listOfN makeElem (succ n)}] =
+// {
+//   cons x xs
+// }
 
-// val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil); // no rule to guess correct length
+// // val concat = fix[a][Pi(m: Nat, Pi(n: Nat, {[List] listOfN makeNat m} => {[List] listOfN makeNat n} => {[List] listOfN makeNat (plus m n)} => {[List] listOfN makeNat (plus m n)} ))](concat_ =>
+// //   fun of (m [Nat]) = { fun of (n [Nat]) = { fun of (xs [{[List] listOfN makeNat m}]) = { fun of (ys [{[List] listOfN makeNat n}]) = {
+// //     fun of (default [{[List] listOfN makeNat (plus m n)}]) = {
+// //       list_match xs {
+// //         case nil => ys
+// //         case cons x xs_ =>
+// //           nat_match m {
+// //             case zero => default
+// //             case succ m_ => cons x (concat_ m_ n xs_ ys)
+// //           }
+// //       }
+// //     }
+// //   } } } }
+// // );
+
+// val k [{[Nat] succ (succ (succ 0))}] = plus (succ (succ 0)) (succ 0);
+
+// val ns [{[List] listOfN makeNat 0}] = nil;
+// val ns [{[List] listOfN makeNat 2}] = cons 1 (cons 2 nil);
+// val ns [{[List] listOfN makeNat 3}] = prependOneNat 2 ns 0;
+
+// val ms [{[List] listOfN makeNat 0}] = nil;
+// val ms [{[List] listOfN makeNat 2}] = cons 1 (cons 2 nil);
+// val ms [{[List] listOfN makeNat 3}] = prependOne 2 makeNat ms 0;
+
+// // val listOf = fun of (makeElem [Unit => Top]) = {
+// //   listOfN makeElem (choose[Nat])
+// // };
+
+// // val ns [{[List] listOf makeNat}] = cons 1 (cons 2 nil); // no rule to guess correct length
 
 ()

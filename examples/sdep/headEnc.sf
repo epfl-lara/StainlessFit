@@ -1,0 +1,6 @@
+fun headEnc (n [Nat]) (xs [{[List] cons n nil}]) [returns {[Top] n}] = {
+  list_match xs {
+    case nil => ()
+    case cons x ys => x
+  }
+}

@@ -1,0 +1,11 @@
+fun isZero (n [{[Nat] 0}]) = { () }
+fun isSucc (n [{[Nat] succ (choose[Nat])}]) = { () }
+
+fun is (n [Nat]) = {
+  nat_match n {
+    case zero => isZero n
+    case succ nn => isSucc n
+  }
+}
+
+()
