@@ -13,19 +13,35 @@ val xs [{[List] weirdList (choose[Nat])}] = nil;
 // TODO: Have to improve rules like SSubFixWithDefaultGuess{Zero,Succ} to also detect guessing opportunities deeper within the stuck term
 // val xs [{[List] weirdList (choose[Nat])}] = cons 0 nil;
 
-// fun id (fuel [Nat]) (xs [{[List] weirdList fuel}]) [returns {[List] weirdList fuel}] = {
-//   nat_match fuel {
-//     case zero =>
-//       list_match xs {
-//         case nil => nil
-//         case cons x ys => impossible
+// fun id (fuel [Nat]) = {
+//   fixD(id_ [Pi(n:Nat, {[List] weirdList n} => {[List] weirdList n})] =>
+//     fun of (n [Nat]) (xs [{[List] weirdList n}]) = {
+//       nat_match n {
+//         case zero =>
+//           list_match xs {
+//             case nil => nil
+//             case cons x ys => ()
+//           }
+//         case succ nn =>
+//           val head = list_match xs {
+//             case nil => ()
+//             case cons x ys => x
+//           };
+//           val tail = list_match xs {
+//             case nil => ()
+//             case cons x ys => ys
+//           };
+//           cons head (id_ nn tail)
+//           // list_match xs {
+//           //   case nil => ()
+//           //   case cons x ys => cons x (id_ nn ys)
+//           // }
 //       }
-//     case succ fuel' =>
-//       list_match xs {
-//         case nil => impossible
-//         case cons x ys => cons x (id fuel' ys)
-//       }
-//   }
+//     },
+//     fun of (n [Nat]) (xs [{[List] weirdList n}]) = {
+//       xs
+//     }
+//   )(fuel)
 // }
 
 ()

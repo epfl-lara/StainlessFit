@@ -272,4 +272,14 @@ sealed abstract class Tree extends Positioned {
   def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
   def erase()(implicit rc: RunContext): Tree = extraction.Erasure.erase(this)
+
+  def freeVars: Set[Identifier] = {
+    var fvs: Set[Identifier] = Set.empty
+    this.traversePost {
+      case Var(id) => fvs += id
+      case Bind(id, _) => fvs -= id
+      case _ =>
+    }
+    fvs
+  }
 }

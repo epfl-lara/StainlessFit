@@ -171,6 +171,16 @@ class SDep(implicit val rc: RunContext)
         }
     }
 
+  private def defaultValueOf(ty: Tree): Tree = {
+    ty match {
+      case TopType => LNil()
+      case UnitType => UnitLiteral
+      case NatType => NatLiteral(0)
+      case `LList` => LNil()
+      case _ => ???
+    }
+  }
+
   protected def solve(c: Context, x: Identifier, xTy: Tree, ty1: Tree, ty2: Tree): Option[Tree] = {
     addTarget(x, xTy)
 
@@ -213,19 +223,20 @@ class SDep(implicit val rc: RunContext)
     if (solveAttemptFailed) {
       None
     } else {
-      // TODO: Check whether solution is expressible in context `c`
-      val solution = optSolution.getOrElse({
+      // TODO: Attempt to avoid variables that are not in the original context
+      val solution = optSolution.getOrElse {
         // x was unconstrained, just pick some valid element
         rc.reporter.info(s"$indent  (Picked default solution for ${x.uniqueString}!)")
-        xTy match {
-          case TopType => LNil()
-          case NatType => NatLiteral(0)
-          case `LList` => LNil()
-          case _ => ???
-        }
-      })
+        defaultValueOf(xTy)
+      }
 
-      Some(solution)
+      if (!solution.freeVars.forall(id => c.termVariables.contains(id))) {
+        rc.reporter.error(s"Solver found a candidate solution for $x, " +
+          s"but it's not expressible in the outside context: ${asString(solution)}")
+        None
+      } else {
+        Some(solution)
+      }
     }
   }
 

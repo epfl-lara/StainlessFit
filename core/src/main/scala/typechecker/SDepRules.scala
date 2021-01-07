@@ -1059,13 +1059,13 @@ trait SDepRules { self: SDep =>
       val c0 = c.incrementLevel
 
       optSolution match {
-        // TODO: Add this check (implement Tree.freeVars)
-        // case Some(tSol) if !Tree.freeVars(tSol).forall(id => c0.termVariables.contains(id)) =>
-        //   val msg = s"Solver found a candidate solution for $id2, " +
-        //     s"but it's not expressible in the outside context: ${asString(tSol)}"
-        //   Some((List(), {
-        //       case _ => emitErrorWithJudgment("SubExistsRight", g, Some(msg))
-        //     }))
+        case Some(tSol) if !tSol.freeVars.forall(id => c0.termVariables.contains(id)) =>
+          val msg = s"Solver found a candidate solution for $id2, " +
+            s"but it's not expressible in the outside context: ${asString(tSol)}"
+          rc.reporter.error(msg)
+          Some((List(), {
+              case _ => emitErrorWithJudgment("SubExistsRight", g, Some(msg))
+            }))
 
         case Some(tSol) =>
           // rc.reporter.info(s"Solver found candidate solution for $id2: ${asString(tSol)}")
@@ -1257,15 +1257,22 @@ trait SDepRules { self: SDep =>
       addTarget(idTail, LList) // FIXME: Should be more precise based on x's type
       instantiateTarget(x, LCons(Var(idHead), Var(idTail)))
 
+      // FIXME: Why do we run into issues if we remove the new targets on failure?
+      def doCleanup() = {
+        removeTarget(idHead)
+        removeTarget(idTail)
+        instantiateTarget(idHead, UnitLiteral)
+        instantiateTarget(idTail, LNil())
+      }
+
       val g1 = NormalizedSubtypeGoal(c.incrementLevel, tya, tyb)
 
       Some((List(_ => g1), {
         case SubtypeJudgment(_, _, _, _) :: Nil =>
+          doCleanup()
           (true, SubtypeJudgment("SSubListMatchGuessCons", c, tya, tyb))
         case _ =>
-          // FIXME: Why do we run into issues if we remove the new targets on failure?
-          // removeTarget(idHead)
-          // removeTarget(idTail)
+          doCleanup()
           emitErrorWithJudgment("SSubListMatchGuessCons", g, None)
       }))
 

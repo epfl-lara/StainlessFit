@@ -22,8 +22,9 @@ object Interpreter {
 
       case Var(id) =>
         assert(c.termVariables.contains(id), s"Missing variable ${id.uniqueString} from context")
-        c.termVariables(id) match {
-          case SingletonType(_, t) => shouldRetype = true; evaluateWithContext(c, t)
+        c.termVariables.get(id) match {
+          case Some(SingletonType(_, t)) =>
+            shouldRetype = true; evaluateWithContext(c, t)
           case _ =>
             // FIXME: This is a somewhat inefficient and arbitrary way of using *some* equality type
             // in scope to rewrite `id`.
@@ -33,10 +34,6 @@ object Interpreter {
               }
               .getOrElse(e)
         }
-        // c.termVariables.get(id) match {
-        //   case Some(SingletonType(_, t)) => shouldRetype = true; evaluateWithContext(c, t)
-        //   case _ => e
-        // }
 
       case Succ(t) => Succ(evaluateWithContext(c, t))
 
