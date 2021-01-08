@@ -24,10 +24,18 @@ case class Context(
     )
   }
 
+  def bindAndFreshen(id: Identifier, ty: Tree, t: Tree)(implicit rc: RunContext): (Context, Tree) = {
+    val c = this.bind(id, ty)
+    (c, c.freshen(t))
+  }
+
   def bindAndDestruct(id: Identifier, ty: Tree): Context =
     ty match {
-      case ExistsType(ty1, Bind(idE, ty2)) => bind(idE, ty1).bindAndDestruct(id, ty2)
-      case _ => bind(id, ty)
+      case ExistsType(ty1, Bind(id1, ty2)) =>
+        val id1Fresh = id1.freshen()
+        bind(id1Fresh, ty1).bindAndDestruct(id, ty2.replace(id1, id1Fresh))
+      case _ =>
+        bind(id, ty)
     }
 
   def addTypeVariable(i: Identifier): Context = copy(typeVariables = typeVariables + i)
@@ -83,12 +91,6 @@ case class Context(
         None
     }
     t.preMap(visit)
-  }
-
-  def bindAndFreshen(id: Identifier, ty: Tree, t: Tree)(implicit rc: RunContext): (Context, Tree) = {
-    // TODO: If anything, we should do this for all bind-s, no?
-    val c = this.bindAndDestruct(id, ty)
-    (c, c.freshen(t))
   }
 
   def replaceBinding(id: Identifier, ty: Tree)(implicit rc: RunContext): Context = {

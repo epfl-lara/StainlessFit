@@ -15,6 +15,6 @@ fun head (xs [List]) = {
   }
 }
 
-val xs = cons true (cons true nil);
+val xs = cons () (cons () nil);
 val res [Nat] = head (listOfLength 3 xs);
 ()

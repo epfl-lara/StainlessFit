@@ -1,0 +1,11 @@
+fun id (makeElem [Unit => Top]) (x [{[Top] makeElem ()}]) [returns {[Top] makeElem ()}] = {
+  x
+}
+
+fun makePair (unused [Unit]) = { cons (choose[Top]) (cons (choose[Top]) nil) }
+
+fun pair (x [Top]) (y [Top]) [returns {[Top] makePair ()}] = {
+  cons x (cons y nil)
+}
+
+id makePair (pair () 1)

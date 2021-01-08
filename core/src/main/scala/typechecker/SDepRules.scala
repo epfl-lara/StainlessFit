@@ -23,6 +23,14 @@ trait SDepRules { self: SDep =>
   def withExistsIfFree(id: Identifier, tpe: Tree, t: Tree): Tree =
     if (id.isFreeIn(t)) ExistsType(tpe, Bind(id, t)) else t
 
+  val InferUnit1 = Rule("InferUnit1", {
+    case g @ InferGoal(c, UnitLiteral) =>
+      TypeChecker.debugs(g, "InferUnit1")
+      Some((List(), _ => (true, InferJudgment("InferUnit1", c, UnitLiteral, SingletonType(UnitType, UnitLiteral)))))
+    case g =>
+      None
+  })
+
   val InferNat1 = Rule("InferNat1", {
     case g @ InferGoal(c, e @ NatLiteral(n)) =>
       TypeChecker.debugs(g, "InferNat1")
@@ -303,8 +311,13 @@ trait SDepRules { self: SDep =>
       }
       !sane
     }
+    def hasEscapedBinding(c: Context, e: Tree): Boolean = {
+      (e.freeVars -- c.termVariables.keySet -- targetVars).nonEmpty
+    }
     def checkBindings(g: Goal, t: Tree) =
-      if (hasBadBinding(g.c, t)) error(g, "Has a bad binding") else None
+      if (hasBadBinding(g.c, t)) error(g, "Has a bad binding")
+      else if (hasEscapedBinding(g.c, t)) error(g, "Has an escaped binding")
+      else None
 
     def checkDepth(g: Goal) =
       if (g.c.level > MaxLevel) error(g, s"Exceeds the maximum level ($MaxLevel)") else None
@@ -910,7 +923,7 @@ trait SDepRules { self: SDep =>
 
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, tyb1, tya1)
-      val g2 = NormalizedSubtypeGoal(c0.bindAndDestruct(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
         case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubPi", c, tya, tyb))
@@ -1016,26 +1029,16 @@ trait SDepRules { self: SDep =>
   })
 
 
-  object ExistsTypes {
-    def unapply(ty: Tree): Some[(List[(Identifier, Tree)], Tree)] =
-      Some(ty match {
-        case ExistsType(ty1, Bind(id, ExistsTypes(bindings, ty2))) =>
-          ((id, ty1) :: bindings, ty2)
-        case _ =>
-          (List.empty, ty)
-      })
-  }
-
   val SubExistsLeft = Rule("SubExistsLeft", {
     case g @ SubtypeGoal(c,
-      tya @ ExistsTypes(bindings1, ty1),
+      tya @ ExistsType(tya1, Bind(id, tya2)),
       tyb
-    ) if bindings1.nonEmpty =>
+    ) =>
       TypeChecker.debugs(g, "SubExistsLeft")
 
       val c0 = c.incrementLevel
-      val c1 = bindings1.foldRight(c0) { case ((id, ty), cAcc) => cAcc.bind(id, ty) }
-      val g1 = SubtypeGoal(c1, ty1, tyb)
+      val c1 = c0.bind(id, tya1)
+      val g1 = SubtypeGoal(c1, tya2, tyb)
       Some((
         List(_ => g1), {
           case SubtypeJudgment(_, _, _, _) :: Nil =>
@@ -1180,6 +1183,36 @@ trait SDepRules { self: SDep =>
       val g2 = SubtypeGoal(c0, ty12, ty22)
       Some((List(_ => g1, _ => g2), _ => {
         (true, SubtypeJudgment("SubCons2", c, tya, tyb))
+      }))
+
+    case _ =>
+      None
+  })
+
+  object DestructableContext {
+    // Only defined when there is something to destruct in `c`
+    def unapply(c: Context): Option[Context] = {
+      val existsIds = c.termVariables.collect {
+        case (id, ExistsType(_, _)) => id
+      }
+      if (existsIds.nonEmpty) {
+        val cNew = c.copy(termVariables = c.termVariables -- existsIds).incrementLevel
+        Some(existsIds.foldLeft(cNew) {
+          case (acc, id) => acc.bindAndDestruct(id, c.termVariables(id))
+        })
+      } else {
+        None
+      }
+    }
+  }
+
+  val SubDestruct = Rule("SubDestruct", {
+    case g @ SubtypeGoal(c @ DestructableContext(cNew), tya, tyb) =>
+      TypeChecker.debugs(g, "SubDestruct")
+
+      val g1 = SubtypeGoal(cNew, tya, tyb)
+      Some((List(_ => g1), _ => {
+        (true, SubtypeJudgment("SubDestruct", c, tya, tyb))
       }))
 
     case _ =>

@@ -24,8 +24,7 @@ class SDep(implicit val rc: RunContext)
     InferSolverVar.t ||
     InferNormalVar.t ||
     InferNat1.t ||
-    InferUnit.t ||
-    InferBool.t ||
+    InferUnit1.t ||
     InferChoose.t ||
     InferFixWithDefault.t ||
     InferFixDep.t ||
@@ -50,6 +49,7 @@ class SDep(implicit val rc: RunContext)
     NormCons.t ||
     NormPi.t ||
     NormSigma.t ||
+    SubDestruct.t ||
     orRecover(SubNormalizeWiden.t, SubNormalize.t) ||
     // SSubForcedMatchRightNil.t ||
     // SSubForcedMatchRightCons.t ||
@@ -125,6 +125,8 @@ class SDep(implicit val rc: RunContext)
     assert(targets.contains(x))
     targets -= x
   }
+
+  protected def targetVars: Set[Identifier] = targets.keySet
 
   protected def interpreterContext(c: Context): Context =
     targets.toSeq.foldLeft(c) { case (acc, (x, ty)) =>

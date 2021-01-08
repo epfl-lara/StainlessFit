@@ -1,6 +1,6 @@
-fun isEmpty(l [List])  [returns Bool] = {
+fun isEmpty(l [List])  [returns Nat] = {
   list_match l {
-    case nil => true
-    case cons x xs => false
+    case nil => 0
+    case cons x xs => 1
   }
 }
