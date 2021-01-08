@@ -1207,6 +1207,14 @@ trait SDepRules { self: SDep =>
   }
 
   val SubDestruct = Rule("SubDestruct", {
+    case g @ NormalizedSubtypeGoal(c @ DestructableContext(cNew), tya, tyb) =>
+      TypeChecker.debugs(g, "SubDestruct")
+
+      val g1 = NormalizedSubtypeGoal(cNew, tya, tyb)
+      Some((List(_ => g1), _ => {
+        (true, SubtypeJudgment("SubDestruct", c, tya, tyb))
+      }))
+
     case g @ SubtypeGoal(c @ DestructableContext(cNew), tya, tyb) =>
       TypeChecker.debugs(g, "SubDestruct")
 
