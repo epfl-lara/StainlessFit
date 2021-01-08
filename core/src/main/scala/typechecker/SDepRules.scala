@@ -818,20 +818,18 @@ trait SDepRules { self: SDep =>
   })
 
   // TODO: See if we can already remove this rule.
-  // FIXME: SubtypeGoal on terms t11/t21 and t12/t22 doesn't make sense. Did this work before?
   val SubSingletonCons = Rule("SubSingletonCons", {
     case g @ SubtypeGoal(c,
-        ty1 @ SingletonType(ty1Underlying, LCons(t11, t12)),
-        ty2 @ SingletonType(ty2Underlying, LCons(t21, t22))) =>
+        ty1 @ SingletonType(ty1Underlying @ LConsType(ty11, ty12), LCons(t11, t12)),
+        ty2 @ SingletonType(ty2Underlying @ LConsType(ty21, ty22), LCons(t21, t22))) =>
       TypeChecker.debugs(g, "SubSingletonCons")
 
       val c0 = c.incrementLevel
-      val g1 = SubtypeGoal(c0, ty1Underlying, ty2Underlying)
-      val g2 = SubtypeGoal(c0, t11, t21)
-      val g3 = SubtypeGoal(c0, t12, t22)
-      Some((List(_ => g1, _ => g2, _ => g3), {
+      // val g1 = SubtypeGoal(c0, ty1Underlying, ty2Underlying)
+      val g2 = SubtypeGoal(c0, SingletonType(ty11, t11), SingletonType(ty21, t21))
+      val g3 = SubtypeGoal(c0, SingletonType(ty12, t12), SingletonType(ty22, t22))
+      Some((List(_ => g2, _ => g3), {
         case SubtypeJudgment(_, _, _, _) ::
-             SubtypeJudgment(_, _, _, _) ::
              SubtypeJudgment(_, _, _, _) ::
              Nil => (true, SubtypeJudgment("SubSingletonCons", c, ty1, ty2))
         case _ => emitErrorWithJudgment("SubSingletonCons", g, None)
@@ -990,6 +988,37 @@ trait SDepRules { self: SDep =>
           (true, SubtypeJudgment("SubListMatch", c, tya, tyb))
         case _ =>
           emitErrorWithJudgment("SubListMatch", g, None)
+      }))
+
+    case g =>
+      None
+  })
+
+  val SubSingletonNatMatch2 = Rule("SubSingletonNatMatch2", {
+    case g @ SubtypeGoal(c,
+      tya @ SingletonType(
+        NatMatchType(_, tyZero, Bind(idPred_, tySucc)),
+        NatMatch(Var(idScrut), tZero, Bind(idPred, tSucc))),
+      tyb
+    ) if idPred_ == idPred =>
+      TypeChecker.debugs(g, "SubSingletonNatMatch2")
+
+      val tyScrut = c.getTypeOf(idScrut).get
+
+      val c1 = c.incrementLevel
+        .replaceBinding(idScrut, SingletonType(tyScrut, NatLiteral(0)))
+      val g1 = NormalizedSubtypeGoal(c1, SingletonType(tyZero, tZero), tyb)
+
+      val c2 = c.incrementLevel
+        .bind(idPred, NatType)
+        .replaceBinding(idScrut, SingletonType(tyScrut, Succ(Var(idPred))))
+      val g2 = NormalizedSubtypeGoal(c2, SingletonType(tySucc, tSucc), tyb)
+
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubSingletonNatMatch2", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubSingletonNatMatch2", g, None)
       }))
 
     case g =>

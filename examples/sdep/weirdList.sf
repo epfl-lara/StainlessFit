@@ -1,27 +1,25 @@
 fun weirdList (n [Nat]) = {
-  fixD(
-    weirdList_ [List] => cons (choose[Nat]) weirdList_,
-    nil
+  fixD( weirdList_ [Unit => List] =>
+    fun of (unused [Unit]) = { cons (choose[Nat]) (weirdList_ ()) },
+    fun of (unused [Unit]) = { nil }
   )(n)
 }
 
-val xs [List] = weirdList (choose[Nat]);
-val xs [{[List] weirdList 0}] = nil;
-val xs [{[List] weirdList 1}] = cons 123 nil;
-val xs [{[List] weirdList (choose[Nat])}] = nil;
+val xs [List] = weirdList (choose[Nat]) ();
+val xs [{[List] weirdList 0 ()}] = nil;
+val xs [{[List] weirdList 1 ()}] = cons 123 nil;
+val xs [{[List] weirdList 2 ()}] = cons 123 (cons 789 nil);
+val xs [{[List] weirdList (choose[Nat]) ()}] = nil;
 
 // TODO: Have to improve rules like SSubFixWithDefaultGuess{Zero,Succ} to also detect guessing opportunities deeper within the stuck term
-// val xs [{[List] weirdList (choose[Nat])}] = cons 0 nil;
+// val xs [{[List] weirdList (choose[Nat]) ()}] = cons 0 nil;
 
 // fun id (fuel [Nat]) = {
-//   fixD(id_ [Pi(n:Nat, {[List] weirdList n} => {[List] weirdList n})] =>
-//     fun of (n [Nat]) (xs [{[List] weirdList n}]) = {
+//   fixD(id_ [Pi(n:Nat, {[List] weirdList n ()} => {[List] weirdList n ()})] =>
+//     fun of (n [Nat]) (xs [{[List] weirdList n ()}]) = {
 //       nat_match n {
 //         case zero =>
-//           list_match xs {
-//             case nil => nil
-//             case cons x ys => ()
-//           }
+//           nil
 //         case succ nn =>
 //           val head = list_match xs {
 //             case nil => ()
@@ -31,14 +29,19 @@ val xs [{[List] weirdList (choose[Nat])}] = nil;
 //             case nil => ()
 //             case cons x ys => ys
 //           };
+//           // TODO: Stuck on
+//           // - widening too soon on the left-hand side, so underlying types get "out-of-sync" (lhs too large)
+//           // - need to instantiate result-type's existential to packaged existential of `(id_ nn tail)`'s underlying type
+//           // To try, we added `SubSingletonCons` and `SubSingletonNatMatch2`.
 //           cons head (id_ nn tail)
+//
 //           // list_match xs {
 //           //   case nil => ()
 //           //   case cons x ys => cons x (id_ nn ys)
 //           // }
 //       }
 //     },
-//     fun of (n [Nat]) (xs [{[List] weirdList n}]) = {
+//     fun of (n [Nat]) (xs [{[List] weirdList n ()}]) = {
 //       xs
 //     }
 //   )(fuel)

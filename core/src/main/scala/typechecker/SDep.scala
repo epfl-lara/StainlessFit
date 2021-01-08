@@ -51,9 +51,8 @@ class SDep(implicit val rc: RunContext)
     NormSigma.t ||
     SubDestruct.t ||
     orRecover(SubNormalizeWiden.t, SubNormalize.t) ||
-    // SSubForcedMatchRightNil.t ||
-    // SSubForcedMatchRightCons.t ||
-    // SubSingletonCons.t ||
+    // SubSingletonCons.t ||      // NOTE: only used with `id` in `weirdList` example
+    // SubSingletonNatMatch2.t || // NOTE: only used with `id` in `weirdList` example
     SubSingletonListMatch1.t ||
     SubSingletonListMatch2.t ||
     SubSingletonReflexive.t ||

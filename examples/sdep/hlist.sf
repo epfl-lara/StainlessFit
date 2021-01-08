@@ -113,7 +113,7 @@ fun nth (fuel [Nat]) = {
 //   fun of (n [Nat]) = { fun of (xs [{[List] listOfN makeNat n}]) = { fun of (z [Nat]) = { fls } } });
 
 
-fun contains (fuel [Nat]) (key [Nat]) = {
+fun contains (fuel [Nat]) (key [Nat]) [returns Pi(n:Nat, {[List] listOfN n makeNat n} => Nat)] = {
   fixD(
     contains_ [Pi(n:Nat, {[List] listOfN n makeNat n} => Nat)] =>
       fun of (n [Nat]) = { fun of (xs [{[List] listOfN n makeNat n}]) = {
