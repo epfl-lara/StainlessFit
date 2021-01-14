@@ -1,5 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
 
+package fit
 package core
 package util
 
@@ -30,6 +31,24 @@ object CoqOutput {
 
   def typeOutput(t: Tree)(implicit rc: RunContext): String =
     shortString(Printer.typeAsString(t))
+
+  def opCoqName(op: Operator): String = op match {
+    case Not => "Not"
+    case And => "And"
+    case Or => "Or"
+    case Plus => "Plus"
+    case Minus => "Minus"
+    case Mul => "Mul"
+    case Div => "Div"
+    case Eq => "Eq"
+    case Neq => "Neq"
+    case Leq => "Leq"
+    case Geq => "Geq"
+    case Lt => "Lt"
+    case Gt => "Gt"
+    case Nop => "Not"
+    case _ => "Unknown_op"
+  }
 
   def goalToCoq(g: Goal)(implicit rc: RunContext): String = g match {
     case EmptyGoal(_) => ""
@@ -164,11 +183,11 @@ object CoqOutput {
   }
 
   def toCoqIndex(id: Identifier): Int = {
-    variablesMap.get(id.toString()) match {
+    variablesMap.get(id.uniqueString) match {
       case Some(intId) => intId
       case None => {
         maxId = maxId + 1; 
-        variablesMap +=  id.toString() -> maxId
+        variablesMap +=  id.uniqueString -> maxId
         maxId
     }
   }
@@ -193,7 +212,7 @@ object CoqOutput {
   def toNamelessRep(t: Tree)(implicit nameless: Map[Identifier, Int]): Tree = t match {
 
     //case Var(Identifier(id, "")) => Var(Identifier(0, s"(fvar ${id} term_var)"))
-    case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)} (* ${id.toString()} *))"))
+    case Var(id) if nameless.contains(id) => Var(Identifier(0, s"(lvar ${nameless(id)} ${toCoqVarType(id.name)} (* ${id.uniqueString} *))"))
     case Var(id) => Var(Identifier(0, s"(fvar ${toCoqIndex(id)} ${toCoqVarType(id.name)}  (* ${id.toString()} *) )"))
 
     // By default, a bind is for term_variables
@@ -277,8 +296,8 @@ object CoqOutput {
     case EitherMatch(t, t1, t2) => s"(sum_match ${treeToCoq(t)} ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case LeftTree(t) => s"(tleft ${treeToCoq(t)})"
     case RightTree(t) => s"(tright ${treeToCoq(t)})"
-    case Primitive(op, arg1::Nil) => s"(unary_primitive ${op.coqName} ${treeToCoq(arg1)})"
-    case Primitive(op, arg1::arg2::Nil) => s"(binary_primitive ${op.coqName} ${treeToCoq(arg1)} ${treeToCoq(arg2)})"
+    case Primitive(op, arg1::Nil) => s"(unary_primitive ${opCoqName(op)} ${treeToCoq(arg1)})"
+    case Primitive(op, arg1::arg2::Nil) => s"(binary_primitive ${opCoqName(op)} ${treeToCoq(arg1)} ${treeToCoq(arg2)})"
     case ErasableApp(t1,t2) => s"(forall_inst ${treeToCoq(t1)} ${treeToCoq(t2)})"
     case Error(_, None) => "notype_err"
     case Error(_, Some(t)) => s"(err ${treeToCoq(t)})" 
