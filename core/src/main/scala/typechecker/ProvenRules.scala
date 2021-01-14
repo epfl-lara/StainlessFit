@@ -1,4 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package typechecker
 
@@ -173,7 +175,7 @@ trait ProvenRules {
   })
 
   val InferErasableLambda = Rule("InferErasableLambda", {
-    case g @ InferGoal(c, e @ ErasableLambda(ty1, Bind(id, body))) if !id.isFreeIn(body.erase) =>
+    case g @ InferGoal(c, e @ ErasableLambda(ty1, Bind(id, body))) if !id.isFreeIn(body.erase()) =>
       TypeChecker.debugs(g, "InferErasableLambda")
 
       val c1 = c.bind(id, ty1).incrementLevel
@@ -356,7 +358,7 @@ trait ProvenRules {
     case g @ InferGoal(c, e @ Fix(Some(Bind(n, ty)), Bind(n1, Bind(y, t)))) =>
       TypeChecker.debugs(g, "InferFix")
 
-      val erased = t.erase
+      val erased = t.erase()
 
       if (n1.isFreeIn(erased)) {
         Some((List(),
@@ -969,7 +971,7 @@ trait ProvenRules {
         c3.incrementLevel.setModifier(
           Append(List(
             (p2, EqualityType(n, Primitive(Plus, List(n2, NatLiteral(1))))),
-            (id, NatType)))), t, Tree.replace(a, nTy, ty))
+            (id, NatType)))), t, ty.replace(a, nTy))
       Some((
         List(_ => checkN, _ => checkBase, _ => check),
         {
@@ -987,7 +989,7 @@ trait ProvenRules {
     case g @ InferGoal(c, e @ Fold(tpe @ IntersectionType(NatType, Bind(n, RecType(Var(m), Bind(a, ty)))), t)) if n == m =>
       TypeChecker.debugs(g, "InferFoldGen")
       val nTy = IntersectionType(NatType, Bind(n, RecType(Var(n), Bind(a, ty))))
-      val check = CheckGoal(c.incrementLevel, t, Tree.replace(a, nTy, ty))
+      val check = CheckGoal(c.incrementLevel, t, ty.replace(a, nTy))
       Some((
         List(_ => check),
         {
@@ -1083,7 +1085,7 @@ trait ProvenRules {
         case InferJudgment(_, _, _, ty, _) :: _ =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
+              val nTy = ty.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)))
               val c2 = c.addEquality(
                 t1,
                 Fold(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), Var(x))
@@ -1150,7 +1152,7 @@ trait ProvenRules {
         case InferJudgment(_, _, _, ty, _) :: _ =>
           dropRefinements(ty) match {
             case RecType(n, Bind(a, ty)) =>
-              val nTy = Tree.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), ty)
+              val nTy = ty.replace(a, RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)))
               val c2 = c.addEquality(
                 t1,
                 Fold(RecType(Primitive(Minus, List(n, NatLiteral(1))), Bind(a, ty)), Var(x))

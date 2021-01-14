@@ -1,3 +1,5 @@
+/* Copyright 2019-2020 EPFL, Lausanne */
+
 
 object OS {
   val osInf = Option(System.getProperty("os.name")).getOrElse("")

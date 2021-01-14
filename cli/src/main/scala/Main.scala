@@ -1,3 +1,5 @@
+/* Copyright 2019-2020 EPFL, Lausanne */
+
 /* Copyright 2019-2020 EPFL IC LARA
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +15,7 @@
  * limitations under the License.
  */
 
-package stainlessfit
+package fit
 package cli
 
 import core.App

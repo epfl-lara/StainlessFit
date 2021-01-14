@@ -1,3 +1,5 @@
+/* Copyright 2019-2020 EPFL, Lausanne */
+
 /* Copyright 2019-2020 EPFL IC LARA
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +15,7 @@
  * limitations under the License.
  */
 
-package stainlessfit
+package fit
 package core
 
 import java.io.File
@@ -36,6 +38,8 @@ class App()(implicit rc: RunContext) {
       case Mode.Eval      => eval()
       case Mode.TypeCheck => typeCheck()
       case Mode.SDep  => sDep()
+      case Mode.Compile   => compile()
+      case Mode.Execute   => execute()
     }
   }
 
@@ -79,6 +83,27 @@ class App()(implicit rc: RunContext) {
       case _ =>
         rc.reporter.error(s"There was an error while typechecking file '$file'.")
         false
+    }
+  }
+
+  def compile(): Unit = FileWatcher.watchable(file) {
+    Core.compileFile(file) match {
+      case Left(error) =>
+        rc.reporter.error(s"Error during compilation: $error")
+        false
+      case Right(value) =>
+        rc.reporter.info(s"Successfully compiled file '$file'.")
+        true
+    }
+  }
+
+  def execute(): Unit = FileWatcher.watchable(file) {
+    Core.executeFile(file) match {
+      case Left(error) =>
+        rc.reporter.error(s"Error during execution: $error")
+        false
+      case Right(value) =>
+        true
     }
   }
 }

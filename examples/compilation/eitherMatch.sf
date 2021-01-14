@@ -1,0 +1,8 @@
+match right 5 {
+  case left a => 1
+  case right b => if(b == 5){
+    b
+  } else {
+    3
+  }
+}

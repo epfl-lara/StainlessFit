@@ -1,4 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package typechecker
 
@@ -21,29 +23,29 @@ object TypeOperators {
         }
       case (PiType(a1, Bind(x, b1)), PiType(a2, Bind(x2, b2))) =>
         unify(a1, a2, f).flatMap { a =>
-          unify(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
+          unify(b1, b2.replace(x2, x), f).map { b =>
             PiType(a, Bind(x, b))
           }
         }
       case (IntersectionType(a1, Bind(x, b1)), IntersectionType(a2, Bind(x2, b2))) =>
         unify(a1, a2, f).flatMap { a =>
-          unify(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
+          unify(b1, b2.replace(x2, x), f).map { b =>
             IntersectionType(a, Bind(x, b))
           }
         }
       case (PolyForallType(Bind(x, b1)), PolyForallType(Bind(x2, b2))) =>
-        unify(b1, Tree.replace(x2, Var(x), b2), f).map(b =>
+        unify(b1, b2.replace(x2, x), f).map(b =>
           PolyForallType(Bind(x, b))
         )
       case (SigmaType(a1, Bind(x, b1)), SigmaType(a2, Bind(x2, b2))) =>
         unify(a1, a2, f).flatMap { a =>
-          unify(b1, Tree.replace(x2, Var(x), b2), f).map { b =>
+          unify(b1, b2.replace(x2, x), f).map { b =>
             SigmaType(a, Bind(x, b))
           }
         }
       case (RefinementType(a1, Bind(x, p1)), RefinementType(a2, Bind(x2, p2))) =>
         unify(a1, a2, f).map { a =>
-          RefinementType(a, Bind(x, f(p1, Tree.replace(x2, Var(x), p2))))
+          RefinementType(a, Bind(x, f(p1, p2.replace(x2, x))))
         }
       case (RefinementType(a1, Bind(x, p1)), t3) =>
         unify(a1, t3, f).map { a =>
@@ -54,7 +56,7 @@ object TypeOperators {
           RefinementType(a, Bind(x, p1))
         }
       case (RecType(n, Bind(x1, b1)), RecType(m, Bind(x2, b2))) =>
-        unify(b1, Tree.replace(x2, Var(x1), b2), f).map { b =>
+        unify(b1, b2.replace(x2, x1), f).map { b =>
           RecType(f(n, m), Bind(x1, b))
         }
       case (EqualityType(t11, t12), EqualityType(t21, t22)) =>

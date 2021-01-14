@@ -1,4 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package typechecker
 
@@ -148,7 +150,8 @@ trait UnprovenRules {
       if (id.isFreeIn(t))
         findEquality(c.termVariables.keys.toList, c.termVariables, id).map(term =>
           // Freshen Binds which bind a variable, free in the term, equivalent to the variable, then expand this variable
-          Tree.replace(id, term, t.preMap(freshen(term, _))))
+          t.preMap(freshen(term, _)).replace(id, term)
+        )
       else None
     )
   }
@@ -178,7 +181,7 @@ trait UnprovenRules {
         case _ => None
       }
 
-    val newt = Tree.preMap(expandSize, t)
+    val newt = t.preMap(expandSize)
     if (expanded)
       Some(newt)
     else
@@ -206,7 +209,7 @@ trait UnprovenRules {
         case _ => None
       }
 
-    val newt = Tree.preMap(eval, t)
+    val newt = t.preMap(eval)
     if (performedEval)
       Some(newt)
     else

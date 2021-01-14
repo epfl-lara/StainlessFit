@@ -1,0 +1,13 @@
+fun apply1(f [Nat  => Nat]) [returns Nat] = {
+  f 1
+}
+
+fun add5(y [Nat]) [returns Nat] = {
+  y + 5
+}
+
+val add2 = fun of (x [Nat]) = {
+  x + 2
+};
+
+apply1 add5

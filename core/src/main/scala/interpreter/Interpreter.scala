@@ -1,4 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package interpreter
 
@@ -116,17 +118,17 @@ object Interpreter {
       case Second(Pair(t1, t2)) => t2
       case Second(t) => Second(smallStep(t))
 
-      case App(Lambda(_, bind), v) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
+      case App(Lambda(_, Bind(id, body)), v) if v.isValue => body.replace(id, v)
       case App(Lambda(tp, bind: Bind), t) => App(Lambda(tp, bind), smallStep(t))
       case App(f, v) => App(smallStep(f), v)
-      case Fix(_, Bind(id, bind)) if bind.isBind => Tree.replaceBind(bind, e)
+      case Fix(_, Bind(_, Bind(y, body))) => body.replace(y, e)
 
       case NatMatch(NatLiteral(`zero`), t0, _) => t0
-      case NatMatch(NatLiteral(n), _, bind) if bind.isBind => Tree.replaceBind(bind, NatLiteral(n - 1))
+      case NatMatch(NatLiteral(n), _, Bind(id, ts)) => ts.replace(id, NatLiteral(n - 1))
       case NatMatch(t, t0, bind) => NatMatch(smallStep(t), t0, bind)
 
-      case EitherMatch(LeftTree(v), bind, _) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
-      case EitherMatch(RightTree(v), _, bind) if v.isValue && bind.isBind => Tree.replaceBind(bind, v)
+      case EitherMatch(LeftTree(v), Bind(id, t), _) if v.isValue  => t.replace(id, v)
+      case EitherMatch(RightTree(v), _, Bind(id, t)) if v.isValue => t.replace(id, v)
       case EitherMatch(t, b1, b2) => EitherMatch(smallStep(t), b1, b2)
 
       case Primitive(Not, BooleanLiteral(b) :: Nil) => BooleanLiteral(!b)
@@ -152,13 +154,15 @@ object Interpreter {
       case LeftTree(e) => LeftTree(smallStep(e))
       case RightTree(e) => RightTree(smallStep(e))
 
-      case _ =>
-        rc.reporter.fatalError(s"Evaluation is stuck on: $e")
+      case Error(msg, _) => Error(msg, None)
+
+      case _ => rc.reporter.fatalError(s"Evaluation is stuck on: $e")
     }
   }
 
-  def evaluate(e: Tree)(implicit rc: RunContext): Tree = {
-    if (e.isValue) e
-    else evaluate(smallStep(e))
+  def evaluate(e: Tree)(implicit rc: RunContext): Tree = e match {
+    case Error(_, _) => e
+    case tree if tree.isValue => tree
+    case _ => evaluate(smallStep(e))
   }
 }

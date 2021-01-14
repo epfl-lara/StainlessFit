@@ -1,4 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package trees
 

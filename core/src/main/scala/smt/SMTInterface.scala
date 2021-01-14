@@ -1,5 +1,10 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
+package smt
+
+import core.util.RunContext
 
 import java.io.{File, PrintWriter, Writer}
 
@@ -8,7 +13,7 @@ import smtlib.theories.Core.{BoolSort, And => TermAnd, Equals => TermEquals, Not
 import smtlib.theories.Ints.{Div => TermDiv, Mul => TermMul, _}
 import smtlib.trees.Commands._
 import smtlib.trees.Terms.{QualifiedIdentifier, SNumeral, SSymbol, SimpleIdentifier, Sort, Term}
-import stainlessfit.core.trees._
+import fit.core.trees._
 
 import scala.language.postfixOps
 import scala.sys.process._
@@ -110,7 +115,7 @@ class SMTInterface(path: String) {
 
   private def declareVar(tree: Tree, tp: Tree): Term = {
     if (!declaredVariables.contains(tree)) {
-      val id = stainlessfit.core.trees.Identifier.fresh("solverVar").toString
+      val id = fit.core.trees.Identifier.fresh("solverVar").uniqueString
       declaredVariables(tree) = t(id)
       tp match {
         case BoolType =>

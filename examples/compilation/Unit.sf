@@ -1,0 +1,6 @@
+fun test(l [Unit]) = {
+  val r = 5;
+  ()
+}
+
+test ()

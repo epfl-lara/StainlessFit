@@ -1,4 +1,6 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package util
 
@@ -15,6 +17,6 @@ class RunContext(val config: Config) {
 }
 
 object RunContext {
-  def testContext = new RunContext(Config.default)
-  def testCoqContext = new RunContext(Config.coqValidation)
+  val testContext = new RunContext(Config.default)
+  val testCoqContext = new RunContext(Config.coqValidation)
 }

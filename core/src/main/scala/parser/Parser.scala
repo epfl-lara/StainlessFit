@@ -1,18 +1,19 @@
-package stainlessfit
+/* Copyright 2019-2020 EPFL, Lausanne */
+
+package fit
 package core
 package parser
 
-import scallion.input._
-import scallion.lexical._
-import scallion.syntactic._
+import scallion._
+import silex._
 
-import core.trees._
-import core.trees.TreeBuilders._
+import fit.core.trees._
+import fit.core.trees.TreeBuilders._
 
-import util.Utils._
-import util.RunContext
-import stainlessfit.core.extraction.BuiltInIdentifiers
-import typechecker.SDepSugar._
+import fit.core.util.Utils._
+import fit.core.util.RunContext
+import fit.core.extraction.BuiltInIdentifiers
+import fit.core.typechecker.SDepSugar._
 
 sealed abstract class Indentation
 object Indentation {
@@ -192,7 +193,9 @@ case object EqualityClass extends TokenClass
 case class KeywordClass(value: String) extends TokenClass
 case class TypeClass(value: String) extends TokenClass
 
-class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with ll1.Parsing with ll1.Debug with PrettyPrinting {
+class FitParser()(implicit rc: RunContext) extends Parsers {
+
+// extends Syntaxes with Operators with ll1.Parsing with ll1.Debug with PrettyPrinting {
 
   type Token = parser.Token
   type Kind = parser.TokenClass
@@ -310,7 +313,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   val geq = opParser(Geq)
 
   lazy val parTypeExpr: Syntax[Tree] = {
-    (lpar ~>~ rep1sep(typeExpr, comma) ~<~ rpar).map(Sigmas.apply, ty => Seq(Sigmas.unapply(ty).get))
+    (lpar ~>~ rep1sep(typeExpr, comma) ~<~ rpar).map(s => Sigmas(s.toList), ty => Seq(Sigmas.unapply(ty).get))
   }
 
   lazy val piType: Syntax[Tree] = {
@@ -549,27 +552,14 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val defFunction: Syntax[Tree] =
     (funK.skip ~ termIdentifier ~ many(argument) ~ opt(retTypeP) ~ equal.skip ~ lbraBlock.skip ~ opt(measureP) ~
     expr ~ rbraBlock2.skip ~ opt(expr)).map({
-      case f ~ args ~ optRet ~ optMeasure ~ e1 ~ e2 =>
+      case f ~ args ~ optRet ~ optMeasure ~ body ~ rest =>
         val ids = args.map(_.id)
-        val followingExpr = e2.getOrElse(Var(f))
-        DefFunction(
-          args,
-          optRet.map(ret => Binds(ids, ret)),
-          optMeasure.map(measure => Binds(ids, measure)),
-          Binds(ids, Bind(f, e1)),
-          Bind(f, followingExpr)
-        )
+        val followingExpr = rest.getOrElse(UnitLiteral)
+        DefFunction(f, args.toList, optRet, optMeasure, body, followingExpr)
       case _ => sys.error("Unreachable")
     }, {
-      case DefFunction(args, optRet, optMeasure, Binds(_, e1), Bind(f, body)) =>
-        Seq(
-          f ~
-          args ~
-          optRet.map(Binds.remove) ~
-          optMeasure.map(Binds.remove) ~
-          e1 ~
-          Some(body)
-        )
+      case DefFunction(f, args, optRet, optMeasure, body, rest) =>
+        Seq(f ~ args ~ optRet ~ optMeasure ~ body ~ Some(rest))
       case _ => Seq()
     })
 
@@ -583,7 +573,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val lambda: Syntax[Tree] =
     (funOfK.skip ~ many(argument) ~ equal.skip ~ bracketExpr).map({
-      case args ~ e => Abstractions(args, e)
+      case args ~ e => Abstractions(args.toList, e)
     }, {
       case Abstractions(args, e) => Seq(args ~ e)
       case _ => Seq()
@@ -686,7 +676,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     })
 
   lazy val parExpr: Syntax[Tree] =
-    (lpar ~>~ repsep(expr, comma) ~<~ rpar).map(Pairs(_),
+    (lpar ~>~ repsep(expr, comma) ~<~ rpar).map(s => Pairs(s.toList),
       e => Seq(Pairs.unapply(e).get)
     )
 
@@ -721,7 +711,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
 
   lazy val application: Syntax[Tree] = {
     (simpleExpr ~ many(appArg)).map({
-      case f ~ args => Applications(f, args)
+      case f ~ args => Applications(f, args.toList)
     }, {
       case LNil()       => Seq(Var(Identifier(0, "nil")) ~ Seq())
       case LCons(x, xs) => Seq(Var(Identifier(0, "cons")) ~ Seq(AppArg(x), AppArg(xs)))
@@ -752,7 +742,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
   lazy val macroTypeInst: Syntax[Tree] =
     (typeIdentifier ~ many(macroTermArg | macroTypeArg)).map({
       case id ~ Nil => Var(id)
-      case id ~ args => MacroTypeInst(Var(id), args)
+      case id ~ args => MacroTypeInst(Var(id), args.toList)
     }, {
       case Var(id) => Seq(id ~ Nil)
       case t if t == typechecker.SDepSugar.LList => Seq(Identifier(0, "List") ~ Nil)
@@ -908,7 +898,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
            (lsbra.skip ~ typeIdentifier ~ rsbra.skip)) ~
       equal.skip ~ typeExpr ~ rsbraNewLines.skip ~ expr).map({
       case id ~ ids ~ ty ~ rest =>
-        MacroTypeDecl(Binds(ids, ty), Bind(id, rest))
+        MacroTypeDecl(Binds(ids.toList, ty), Bind(id, rest))
       case _ =>
         sys.error("Unreachable")
     }, {
@@ -925,7 +915,7 @@ class FitParser()(implicit rc: RunContext) extends Syntaxes with Operators with 
     defFunction | macroTypeDeclaration
   }
 
-  val exprParser = LL1(expr)
+  val exprParser = Parser(expr)
 
-  def apply(it: Iterator[Token]): LL1.ParseResult[Tree] = exprParser(it)
+  def apply(it: Iterator[Token]): ParseResult[Tree] = exprParser(it)
 }

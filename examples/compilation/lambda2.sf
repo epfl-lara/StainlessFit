@@ -1,0 +1,9 @@
+fun test(x [Nat])(y [Nat]) [returns Nat] = {
+  [decreases x]
+  if(x == 0){
+    42
+  } else {
+    test (x - 1) 2
+  }
+}
+test(10)(2)

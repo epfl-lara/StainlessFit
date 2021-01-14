@@ -1,10 +1,12 @@
 project/target
+project/project
 project/metals.sbt
 .bloop
 .metals
 target
 .stainless-cache
 .vscode
+LLVM_out
 *.html
 *.v
 *.aux
@@ -12,3 +14,5 @@ target
 *.vo
 *.vok
 *.vos
+smt-sessions
+.bsp
