@@ -232,18 +232,18 @@ trait UnprovenRules {
 
   def expandVars(g: Goal): Option[Goal] = g match {
     case InferGoal(c, t) =>
-      expand(c, expandVarsInTerm).map(newC => InferGoal(newC, t): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => InferGoal(newC.incrementLevel, t): Goal) orElse
         expandVarsInTerm(c, t).map(newT => InferGoal(c, newT): Goal)
     case CheckGoal(c, t, tp) =>
-      expand(c, expandVarsInTerm).map(newC => CheckGoal(newC, t, tp): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => CheckGoal(newC.incrementLevel, t, tp): Goal) orElse
         expandVarsInTerm(c, t).map(newT => CheckGoal(c, newT, tp): Goal) orElse
         expandInEqType(c, tp, expandVarsInTerm).map(newTp => CheckGoal(c, t, newTp): Goal)
     case EqualityGoal(c, t1, t2) =>
-      expand(c, expandVarsInTerm).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => EqualityGoal(newC.incrementLevel, t1, t2): Goal) orElse
         expandVarsInTerm(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
         expandVarsInTerm(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
     case SynthesisGoal(c, tp) =>
-      expand(c, expandVarsInTerm).map(newC => SynthesisGoal(newC, tp): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => SynthesisGoal(newC.incrementLevel, tp): Goal) orElse
         expandInEqType(c, tp, expandVarsInTerm).map(newTp => SynthesisGoal(c, newTp): Goal)
     case _ => None
   }

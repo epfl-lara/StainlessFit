@@ -767,7 +767,7 @@ trait ProvenRules {
         }
       ))
     case g =>
-      None
+      None  
   })
 
   val CheckIf = Rule("CheckIf", {
