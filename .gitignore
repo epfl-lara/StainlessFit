@@ -8,5 +8,11 @@ target
 .vscode
 LLVM_out
 *.html
+*.v
+*.aux
+*.glob
+*.vo
+*.vok
+*.vos
 smt-sessions
 .bsp

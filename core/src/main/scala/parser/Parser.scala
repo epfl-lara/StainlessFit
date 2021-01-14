@@ -129,7 +129,7 @@ object FitLexer extends Lexers with CharRegExps {
     word("false")
       |> { (_, r) => BooleanToken(false).setPos(r) },
 
-    word("Bool") | word("Unit") | word("Nat") | word("Top")
+    word("Bool") | word("Unit") | word("Nat") | word("Top") | word("Bottom")
       |>  { (cs, r) => TypeToken(cs.mkString).setPos(r) },
 
     // Term identifiers start with a lower case letter
@@ -289,8 +289,9 @@ class FitParser()(implicit rc: RunContext) extends Parsers {
   val boolType = primitiveTypeSyntax("Bool", BoolType)
   val unitType = primitiveTypeSyntax("Unit", UnitType)
   val topType = primitiveTypeSyntax("Top", TopType)
+  val bottomType = primitiveTypeSyntax("Bottom", BottomType)
 
-  val primitiveType: Syntax[Tree] = natType | boolType | unitType | topType
+  val primitiveType: Syntax[Tree] = natType | boolType | unitType | topType | bottomType
 
   def opParser(op: Operator): Syntax[Token] = elem(OperatorClass(op))
 

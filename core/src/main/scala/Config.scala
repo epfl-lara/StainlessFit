@@ -19,6 +19,7 @@ case class Config(
   file: File                       = null,
   watch: Boolean                   = false,
   html: Boolean                    = false,
+  coq: Boolean                     = false,
   refresh: Int                     = 0,
   bench: Boolean                   = false,
   colors: Boolean                  = true,
@@ -32,4 +33,5 @@ case class Config(
 
 object Config {
   def default = Config()
+  def coqValidation = Config(coq=true)
 }

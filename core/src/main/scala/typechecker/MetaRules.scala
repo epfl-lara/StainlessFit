@@ -65,7 +65,7 @@ trait MetaRules {
         case Right(inlined) =>
           Some((
             List(_ => InferGoal(c.incrementLevel, inlined)), {
-              case InferJudgment(_, _, _, ty) :: _ =>
+              case InferJudgment(_, _, _, ty, _) :: _ =>
                 (true, InferJudgment("InferMacroTypeDecl", c, t, ty))
               case _ =>
                 emitErrorWithJudgment("InferMacroTypeDecl", g, None)

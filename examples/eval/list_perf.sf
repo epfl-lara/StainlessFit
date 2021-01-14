@@ -1,0 +1,52 @@
+[type List[X] = Forall(n: Nat, Rec(n)(List => (Unit + (X, List))))]
+
+fun nil[X]  [returns List[X]] = {
+  [fold as List[X]](left ())
+}
+
+fun cons[X] (x [X]) (xs [List[X]])  [returns List[X]] = {
+  [fold as List[X]](right ((x, xs)))
+}
+
+val one = cons () nil;
+val two = cons () one;
+val three = cons () two;
+val four = cons () three;
+val five = cons () four;
+val six = cons () five;
+val seven = cons () six;
+val eight = cons () seven;
+val nine = cons () eight;
+val ten = cons () nine; 
+
+val double = fix(double =>
+    fun of l = {
+        match l {
+            case left u => nil
+            case right p => right ((), (right ((), (double (second p)))))
+        }
+    });
+
+val power = fix(power =>
+    fun of a = {
+        fun of b = {
+            match b {
+                case left u => a
+                case right p => (power (double a) (second p))
+            }
+        }
+    });
+
+val getLast = fix(getLast => 
+    fun of l = {
+        match l {
+            case left u => u
+            case right p => getLast (second p)
+        }
+    });
+
+
+getLast (power six six)
+
+
+

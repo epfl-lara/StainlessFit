@@ -1,0 +1,79 @@
+
+val head = fun of stream = { first (stream ())};
+val tail = fun of stream = { second (stream ())};
+
+val before = 
+    fun of v = { 
+        fun of stream = {
+            fun of y = { 
+                (v, stream)
+            }
+        }
+    };
+
+
+val constant = 
+    fix(constant => 
+        fun of x = {
+            fun of y = {
+                (x, (constant x))
+            }
+        });
+
+val one = before true (constant false);
+val two = before true one;
+val three = before true two;
+val four = before true three;
+val five = before true four;
+val six = before true five;
+val seven = before true six;
+val eight = before true seven;
+val nine = before true eight;
+val ten = before true nine;
+
+val double = fix(double => fun of stream = {
+    fun of y = {
+        val head = (stream ());
+        if (first head) {
+            (true, (before true (double (second head))))
+        } else {
+            (false, stream)
+        }
+    }
+});
+
+val power = fix(power => 
+    fun of st1 = {
+    fun of st2 = {
+        fun of y = {
+            val head = (st2 ());
+            if (first head) {
+                (power (double st1) (second head)) ()
+            } else {
+                (st1 ())
+            }
+        }
+    }
+});
+
+val getLast = fix(getLast => fun of stream = {
+    val head = (stream ());
+    if (first head) {
+        getLast (second head)
+    } else {
+        ()
+    }
+});
+
+val values = fix(values => fun of stream = {
+    val head = (stream ());
+    if (first head) {
+        (true, (values (second head)))
+    } else {
+        false
+    }
+});
+
+getLast (power nine eight)
+
+

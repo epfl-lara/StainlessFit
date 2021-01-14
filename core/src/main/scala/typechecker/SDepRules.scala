@@ -40,7 +40,7 @@ trait SDepRules {
       val gv = InferGoal(c0, v)
       val fgb: List[Judgment] => Goal =
         {
-          case InferJudgment(_, _, _, tyv) :: Nil =>
+          case InferJudgment(_, _, _, tyv, _) :: Nil =>
             val (c1, bodyF) = c0.bindAndFreshen(id, tyv, body)
             InferGoal(c1, bodyF)
           case _ =>
@@ -49,7 +49,7 @@ trait SDepRules {
       Some((
         List(_ => gv, fgb),
         {
-          case InferJudgment(_, _, _, tyv) :: InferJudgment(_, _, _, tyb) :: Nil =>
+          case InferJudgment(_, _, _, tyv, _ ) :: InferJudgment(_, _, _, tyb, _) :: Nil =>
             val ty = withExistsIfFree(id, tyv, tyb)
             (true, InferJudgment("InferLet1", c, e, ty))
           case _ =>
@@ -72,7 +72,7 @@ trait SDepRules {
       Some((
         List(_ => gv, _ => g2),
         {
-          case _ :: InferJudgment(_, _, _, tyb) :: _ =>
+          case _ :: InferJudgment(_, _, _, tyb, _) :: _ =>
             val ty = withExistsIfFree(id, tyv, tyb)
             (true, InferJudgment("InferLet2", c, e, ty))
           case _ =>
@@ -91,7 +91,7 @@ trait SDepRules {
       Some((
         List(_ => gb),
         {
-          case InferJudgment(_, _, _, tyb) :: _ =>
+          case InferJudgment(_, _, _, tyb, _) :: _ =>
             (true, InferJudgment("InferLambda1", c, e,
               SingletonType(PiType(ty1, Bind(id, tyb)), e)))
           case _ =>
@@ -120,7 +120,7 @@ trait SDepRules {
       val c0 = c.incrementLevel
       val g1 = InferGoal(c0, t1)
       val fg2: List[Judgment] => Goal = {
-        case InferJudgment(_, _, _, ty) :: _ =>
+        case InferJudgment(_, _, _, ty, _) :: _ =>
           widen(ty) match {
             case PiType(ty2, Bind(_, _)) => CheckGoal(c0, t2, ty2)
             case wty => ErrorGoal(c0,
@@ -132,8 +132,8 @@ trait SDepRules {
       }
       Some((
         List(_ => g1, fg2), {
-          case  InferJudgment(_, _, _, ty) ::
-                CheckJudgment(_, _, _, _) :: _ =>
+          case  InferJudgment(_, _, _, ty, _) ::
+                CheckJudgment(_, _, _, _, _) :: _ =>
             val PiType(_, Bind(x, tyb)) = widen(ty)
             (true, InferJudgment("InferApp1", c, e, tyb.replace(x, t2)))
 
@@ -166,7 +166,7 @@ trait SDepRules {
       val inferSecond = InferGoal(c.incrementLevel, t2)
       Some((List(_ => inferFirst, _ => inferSecond),
         {
-          case InferJudgment(_, _, _, ty1) :: InferJudgment(_, _, _, ty2) :: Nil =>
+          case InferJudgment(_, _, _, ty1, _) :: InferJudgment(_, _, _, ty2, _) :: Nil =>
             val inferredType = SigmaType(ty1, Bind(Identifier.fresh("X"), ty2))
             (true, InferJudgment("InferPair1", c, e, SingletonType(inferredType, e)))
           case _ =>
@@ -193,13 +193,13 @@ trait SDepRules {
       val g1 = InferGoal(c0, tHead)
       val g2 = InferGoal(c0, tTail)
       val g3: List[Judgment] => Goal = {
-        case _ :: InferJudgment(_, _, _, tyTail) :: Nil =>
+        case _ :: InferJudgment(_, _, _, tyTail, _) :: Nil =>
           NormalizedSubtypeGoal(c0, tyTail, LList)
         case _ =>
           ErrorGoal(c0, None)
       }
       Some((List(_ => g1, _ => g2, g3), {
-        case InferJudgment(_, _, _, tyHead) :: InferJudgment(_, _, _, tyTail) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+        case InferJudgment(_, _, _, tyHead, _) :: InferJudgment(_, _, _, tyTail, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
           (true, InferJudgment("InferCons", c, e, SingletonType(LConsType(tyHead, tyTail), e)))
         case _ =>
           emitErrorWithJudgment("InferCons", g, None)
@@ -224,14 +224,14 @@ trait SDepRules {
       val c0 = c.incrementLevel
       val gInfer = InferGoal(c0, t)
       val fgsub: List[Judgment] => Goal = {
-        case InferJudgment(_, _, _, ty2) :: _ =>
+        case InferJudgment(_, _, _, ty2, _) :: _ =>
           NormalizedSubtypeGoal(c0, ty2, ty)
         case _ =>
           ErrorGoal(c0, None)
       }
       Some((List(_ => gInfer, fgsub),
         {
-          case InferJudgment(_, _, _, ty2) :: SubtypeJudgment(_, _, _, _) :: _ =>
+          case InferJudgment(_, _, _, ty2, _) :: SubtypeJudgment(_, _, _, _, _) :: _ =>
             (true, CheckJudgment("CheckInfer", c, t, ty))
           case _ =>
             emitErrorWithJudgment("CheckInfer", g, None)
@@ -285,7 +285,7 @@ trait SDepRules {
       if (Interpreter.shouldRetype) {
         val g1 = InferGoal(c0, v)
         Some((List(_ => g1), {
-          case InferJudgment(_, _, _, tyV) :: Nil =>
+          case InferJudgment(_, _, _, tyV, _) :: Nil =>
             (true, NormalizationJudgment("NormSingleton", c, ty, tyV))
           case _ =>
             emitErrorWithJudgment("NormSingleton", g, None)
@@ -667,7 +667,7 @@ trait SDepRules {
       }
       Some((List(_ => g1, _ => g2, g3), {
         case NormalizationJudgment(_, _, _, _) :: NormalizationJudgment(_, _, _, _) ::
-          SubtypeJudgment(_, _, _, _) :: Nil => (true, SubtypeJudgment("SubNormalize", c, ty1, ty2))
+          SubtypeJudgment(_, _, _, _, _) :: Nil => (true, SubtypeJudgment("SubNormalize", c, ty1, ty2))
         case _ =>
           emitErrorWithJudgment("SubNormalize", g, None)
       }))
@@ -682,7 +682,7 @@ trait SDepRules {
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, widen(ty1), ty2)
       Some((List(_ => g1), {
-        case SubtypeJudgment(_, _, _, _) :: Nil =>
+        case SubtypeJudgment(_, _, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubNormalizeWiden", c, ty1, ty2))
         case _ =>
           emitErrorWithJudgment("SubNormalizeWiden", g, None)
@@ -708,7 +708,7 @@ trait SDepRules {
       val c0 = c.incrementLevel
       val g1 = SubtypeGoal(c0, ty1Underlying, ty2Underlying)
       Some((List(_ => g1), {
-        case SubtypeJudgment(_, _, _, _) :: Nil => (true, SubtypeJudgment("SubSingletonReflexive", c, ty1, ty2))
+        case SubtypeJudgment(_, _, _, _, _) :: Nil => (true, SubtypeJudgment("SubSingletonReflexive", c, ty1, ty2))
         case _ => emitErrorWithJudgment("SubSingletonReflexive", g, None)
       }))
     case g =>
@@ -729,7 +729,7 @@ trait SDepRules {
 
       val subgoal = SubtypeGoal(c.incrementLevel, ty1, ty2)
       Some((List(_ => subgoal), {
-        case SubtypeJudgment(_, _, _, _) :: _ =>
+        case SubtypeJudgment(_, _, _, _, _) :: _ =>
           (true, SubtypeJudgment("SubSingletonLeft", c, ty, ty2))
         case _ =>
           (false, ErrorJudgment("SubSingletonLeft", g, None))
@@ -773,7 +773,7 @@ trait SDepRules {
       val g1 = SubtypeGoal(c0, tyb1, tya1)
       val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
-        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubPi", c, tya, tyb))
         case _ =>
           emitErrorWithJudgment("SubPi", g, None)
@@ -792,7 +792,7 @@ trait SDepRules {
       val g1 = SubtypeGoal(c0, tya1, tyb1)
       val g2 = NormalizedSubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
       Some((List(_ => g1, _ => g2), {
-        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubSigma", c, tya, tyb))
         case _ =>
           emitErrorWithJudgment("SubSigma", g, None)
@@ -812,7 +812,7 @@ trait SDepRules {
       val g1 = SubtypeGoal(c0, tyZero, tyb)
       val g2 = SubtypeGoal(c0.bind(id, NatType), tySucc, tyb)
       Some((List(_ => g1, _ => g2), {
-        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubNatMatch", c, tya, tyb))
         case _ =>
           emitErrorWithJudgment("SubNatMatch", g, None)
@@ -834,7 +834,7 @@ trait SDepRules {
       val g1 = SubtypeGoal(c0, tyNil, tyb)
       val g2 = SubtypeGoal(c0.bind(idHead, TopType).bind(idTail, LList), tyCons, tyb)
       Some((List(_ => g1, _ => g2), {
-        case SubtypeJudgment(_, _, _, _) :: SubtypeJudgment(_, _, _, _) :: Nil =>
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
           (true, SubtypeJudgment("SubListMatch", c, tya, tyb))
         case _ =>
           emitErrorWithJudgment("SubListMatch", g, None)
@@ -866,7 +866,7 @@ trait SDepRules {
       val g1 = SubtypeGoal(c1, ty1, tyb)
       Some((
         List(_ => g1), {
-          case SubtypeJudgment(_, _, _, _) :: Nil =>
+          case SubtypeJudgment(_, _, _, _, _) :: Nil =>
             (true, SubtypeJudgment("SubExistsLeft", c, tya, tyb))
           case _ => emitErrorWithJudgment("SubExistsLeft", g, None)
         }
@@ -916,16 +916,16 @@ trait SDepRules {
           val g1 = SubtypeGoal(c0, tya, ty22.replace(id2, tSol))
           val g2 = InferGoal(c0, tSol)
           val fg3: List[Judgment] => Goal = {
-            case _ :: InferJudgment(_, _, _, ty) :: Nil =>
+            case _ :: InferJudgment(_, _, _, ty, _) :: Nil =>
               SubtypeGoal(c0, ty, ty21)
             case _ =>
               ErrorGoal(c0, None)
           }
           Some((
             List(_ => g1, _ => g2, fg3), {
-              case SubtypeJudgment(_, _, _, _) ::
-                InferJudgment(_, _, _, _) ::
-                SubtypeJudgment(_, _, _, _) :: Nil =>
+              case SubtypeJudgment(_, _, _, _, _) ::
+                InferJudgment(_, _, _, _, _) ::
+                SubtypeJudgment(_, _, _, _, _) :: Nil =>
                   (true, SubtypeJudgment("SubExistsRight", c, tya, tyb))
 
               case _ => emitErrorWithJudgment("SubExistsRight", g, None)
@@ -955,9 +955,9 @@ trait SDepRules {
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
-          case CheckJudgment(_, _, _, _) ::
-            InferJudgment(_, _, _, ty1) ::
-            InferJudgment(_, _, _, ty2) :: _ =>
+          case CheckJudgment(_, _, _, _, _) ::
+            InferJudgment(_, _, _, ty1, _) ::
+            InferJudgment(_, _, _, ty2, _) :: _ =>
               (true, InferJudgment("InferNatMatch1", c, e,
                 NatMatchType(t, ty1, Bind(id, ty2))))
 
@@ -982,9 +982,9 @@ trait SDepRules {
 
       Some((
         List(_ => inferScrutinee, _ => inferT1, _ => inferT2), {
-          case CheckJudgment(_, _, _, _) ::
-            InferJudgment(_, _, _, ty1) ::
-            InferJudgment(_, _, _, ty2) :: _ =>
+          case CheckJudgment(_, _, _, _, _) ::
+            InferJudgment(_, _, _, ty1, _) ::
+            InferJudgment(_, _, _, ty2, _) :: _ =>
               (true, InferJudgment("InferListMatch", c, e,
                 ListMatchType(t, ty1, Bind(idHead, Bind(idTail, ty2)))))
 

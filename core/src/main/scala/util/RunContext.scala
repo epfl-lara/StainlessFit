@@ -18,4 +18,5 @@ class RunContext(val config: Config) {
 
 object RunContext {
   val testContext = new RunContext(Config.default)
+  val testCoqContext = new RunContext(Config.coqValidation)
 }

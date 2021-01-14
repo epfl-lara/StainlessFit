@@ -32,6 +32,9 @@ object ConfigParser {
       opt[Unit]("html")
         .action((_, c) => c.copy(html = true))
         .text("Enable HTML output with typing derivation"),
+      opt[Unit]("coq")
+        .action((_, c) => c.copy(coq = true))
+        .text("Enable Coq output with typing derivation"),
       opt[Int]("refresh")
         .action((n, c) => c.copy(refresh = n))
         .text("Have the HTML file automatically refresh every <value> seconds"),

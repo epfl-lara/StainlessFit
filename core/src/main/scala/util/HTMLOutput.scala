@@ -46,13 +46,13 @@ object HTMLOutput {
   }
 
   def judgementToHTML(j: Judgment)(implicit rc: RunContext): String = j match {
-    case CheckJudgment(name, context, t, tp) =>
+    case CheckJudgment(name, context, t, tp, _) =>
       "<span class='check'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termOutput(t) + " ⇓ " + typeOutput(tp) +
       "</span>"
 
-    case SubtypeJudgment(name, context, ty1, ty2) =>
+    case SubtypeJudgment(name, context, ty1, ty2, _) =>
       "<span class='sub'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         typeOutput(ty1) + " <: " + typeOutput(ty2) +
@@ -64,13 +64,13 @@ object HTMLOutput {
         typeOutput(ty) + " ⇥ " + typeOutput(tyN) +
       "</span>"
 
-    case InferJudgment(name, context, t, tp) =>
+    case InferJudgment(name, context, t, tp, _) =>
       "<span class='infer'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termOutput(t) + " ⇑ " + typeOutput(tp) +
       "</span>"
 
-    case AreEqualJudgment(name, context, t1, t2, _) =>
+    case AreEqualJudgment(name, context, t1, t2, _, _) =>
       "<span class='equal'>" +
         "(" + headerColor(context.level.toString) + " - " + headerColor(name) + ") ⊢ " +
         termOutput(t1) + " ≡ " + termOutput(t2) +

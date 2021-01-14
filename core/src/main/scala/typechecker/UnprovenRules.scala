@@ -13,6 +13,7 @@ import parser.FitParser
 
 import Derivation._
 import TypeOperators._
+import scala.collection.immutable.SeqMap
 
 trait UnprovenRules {
 
@@ -24,7 +25,7 @@ trait UnprovenRules {
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
-          case InferJudgment(_, _, _, tpe) :: _ =>
+          case InferJudgment(_, _, _, tpe, _) :: _ =>
             (true, InferJudgment("InferSize", c, e, NatType))
           case _ =>
             emitErrorWithJudgment("InferSize", g, None)
@@ -40,8 +41,8 @@ trait UnprovenRules {
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
-          case InferJudgment(_, _, _, tpe) :: _ =>
-            (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType)))
+          case InferJudgment(_, _, _, tpe, _) :: _ =>
+            (true, InferJudgment("InferLeft", c, e, SumType(tpe, BottomType), Some("J_Left", None)))
           case _ =>
             emitErrorWithJudgment("InferLeft", g, None)
         }
@@ -56,8 +57,8 @@ trait UnprovenRules {
       val subgoal = InferGoal(c.incrementLevel, t)
       Some((List(_ => subgoal),
         {
-          case InferJudgment(_, _, _, tpe) :: _ =>
-            (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe)))
+          case InferJudgment(_, _, _, tpe, _) :: _ =>
+            (true, InferJudgment("InferRight", c, e, SumType(BottomType, tpe), Some("J_Right", None)))
           case _ =>
             emitErrorWithJudgment("InferRight", g, None)
         }
@@ -80,8 +81,8 @@ trait UnprovenRules {
       )
       Some((List(_ => subgoal),
         {
-          case CheckJudgment(_, _, _, _) :: _ =>
-            (true, CheckJudgment("CheckSum", c, t, tpe))
+          case CheckJudgment(_, _, _, _, _) :: _ =>
+            (true, CheckJudgment("CheckSum", c, t, tpe, Some("J_SumType", None)))
           case _ =>
             emitErrorWithJudgment("CheckSum", g, None)
         }
@@ -89,6 +90,7 @@ trait UnprovenRules {
     case g =>
       None
   })
+
 
   val NatEqualToEqual = Rule("NatEqualToEqual", {
     case g @ EqualityGoal(c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true)) =>
@@ -101,9 +103,9 @@ trait UnprovenRules {
         ),
         {
           case
-            AreEqualJudgment(_, _, _, _, _) ::
-            CheckJudgment(_, _, _, _) ::
-            CheckJudgment(_, _, _, _) :: _ =>
+            AreEqualJudgment(_, _, _, _, _, _) ::
+            CheckJudgment(_, _, _, _, _) ::
+            CheckJudgment(_, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("NatEqualToEqual", c, Primitive(Eq, t1 ::  t2 ::  Nil), BooleanLiteral(true), ""))
           case _ =>
             emitErrorWithJudgment("NatEqualToEqual", g, None)
@@ -198,6 +200,12 @@ trait UnprovenRules {
         case Second(Pair(t1, t2)) =>
           performedEval = true
           Some(t2)
+        case EitherMatch(RightTree(t), _, Bind(id, tr)) =>
+          performedEval = true
+          Some(tr.replace(id, t))
+        case EitherMatch(LeftTree(t), Bind(id, tl), _) =>
+          performedEval = true
+          Some(tl.replace(id, t))
         case _ => None
       }
 
@@ -227,18 +235,18 @@ trait UnprovenRules {
 
   def expandVars(g: Goal): Option[Goal] = g match {
     case InferGoal(c, t) =>
-      expand(c, expandVarsInTerm).map(newC => InferGoal(newC, t): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => InferGoal(newC.incrementLevel, t): Goal) orElse
         expandVarsInTerm(c, t).map(newT => InferGoal(c, newT): Goal)
     case CheckGoal(c, t, tp) =>
-      expand(c, expandVarsInTerm).map(newC => CheckGoal(newC, t, tp): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => CheckGoal(newC.incrementLevel, t, tp): Goal) orElse
         expandVarsInTerm(c, t).map(newT => CheckGoal(c, newT, tp): Goal) orElse
         expandInEqType(c, tp, expandVarsInTerm).map(newTp => CheckGoal(c, t, newTp): Goal)
     case EqualityGoal(c, t1, t2) =>
-      expand(c, expandVarsInTerm).map(newC => EqualityGoal(newC, t1, t2): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => EqualityGoal(newC.incrementLevel, t1, t2): Goal) orElse
         expandVarsInTerm(c, t1).map(newT1 => EqualityGoal(c, newT1, t2): Goal) orElse
         expandVarsInTerm(c, t2).map(newT2 => EqualityGoal(c, t1, newT2): Goal)
     case SynthesisGoal(c, tp) =>
-      expand(c, expandVarsInTerm).map(newC => SynthesisGoal(newC, tp): Goal) orElse
+      expand(c, expandVarsInTerm).map(newC => SynthesisGoal(newC.incrementLevel, tp): Goal) orElse
         expandInEqType(c, tp, expandVarsInTerm).map(newTp => SynthesisGoal(c, newTp): Goal)
     case _ => None
   }
@@ -297,7 +305,7 @@ trait UnprovenRules {
       expandVars(g).map { sg =>
         TypeChecker.debugs(g, "ExpandVars")
         (List(_ => sg), {
-          case AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("ExpandVars", c, t1, t2, ""))
           case _ =>
             emitErrorWithJudgment("ExpandVars", g, None)
@@ -328,18 +336,18 @@ trait UnprovenRules {
       res.map {
         case (g2, (subgoal, freshId)) =>
           def newGoal(prev: List[Judgment]): Goal = prev match {
-            case InferJudgment(_, _, t, tp) :: Nil =>
+            case InferJudgment(_, _, t, tp, _) :: Nil =>
               val c1 = g2.c.incrementLevel.bind(freshId, tp)
               val c2 = c1.addEquality(Var(freshId), t)
               g2.updateContext(c2)
-            case CheckJudgment(_, _, t, tp) :: Nil =>
+            case CheckJudgment(_, _, t, tp, _) :: Nil =>
               val c1 = g2.c.incrementLevel.bind(freshId, tp)
               val c2 = c1.addEquality(Var(freshId), t)
               g2.updateContext(c2)
             case _ => ErrorGoal(c, Some("Attempted to inline an application or a val, but could not typecheck the argument."))
           }
           (List(_ => subgoal, newGoal), {
-            case _ :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+            case _ :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("InlineApplications", c, t1, t2, ""))
             case _ =>
               emitErrorWithJudgment("InlineApplications", g, None)
@@ -362,7 +370,7 @@ trait UnprovenRules {
         Some((
           List(_ => checkC, _ => equalT1, _ => equalT2),
           {
-            case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+            case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopIf", c, t1, t2, ""))
             case _ =>
               emitErrorWithJudgment("TopIf", EqualityGoal(c, t1, t2), None)
@@ -396,7 +404,7 @@ trait UnprovenRules {
         Some((
           List(_ => checkC, _ => equalT1, _ => equalT2),
           {
-            case CheckJudgment(_, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+            case CheckJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopMatch", c, t1, t2, ""))
             case _ =>
               emitErrorWithJudgment("TopMatch", EqualityGoal(c, t1, t2), None)
@@ -430,7 +438,7 @@ trait UnprovenRules {
         Some((
           List(_ => equalT1, _ => equalT2),
           {
-            case AreEqualJudgment(_, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _) :: _ =>
+            case AreEqualJudgment(_, _, _, _, _, _) :: AreEqualJudgment(_, _, _, _, _, _) :: _ =>
               (true, AreEqualJudgment("TopEitherMatch", c, t1, t2, ""))
             case _ =>
               emitErrorWithJudgment("TopEitherMatch", EqualityGoal(c, t1, t2), None)
@@ -460,7 +468,7 @@ trait UnprovenRules {
       newGoal.map{ sg =>
         TypeChecker.debugs(g, "ExpandSize")
         (List(_ => sg), {
-          case AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("ExpandSize", c, t1, t2, ""))
           case _ =>
             emitErrorWithJudgment("ExpandSize", g, None)
@@ -478,7 +486,7 @@ trait UnprovenRules {
       newGoal.map{ sg =>
         TypeChecker.debugs(g, "PartialEval")
         (List(_ => sg), {
-          case AreEqualJudgment(_, _, _, _, _) :: _ =>
+          case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
             (true, AreEqualJudgment("PartialEval", c, t1, t2, ""))
           case _ =>
             emitErrorWithJudgment("PartialEval", g, None)
@@ -488,22 +496,58 @@ trait UnprovenRules {
   })
 
   val DestructPair = Rule("DestructPair", {
-    case g @ EqualityGoal(c, t1, t2) if c.termVariables.values.exists { case _: SigmaType => true case _ => false } =>
-      val (pairId, SigmaType(ty1, Bind(id, ty2))) = c.termVariables.find{ case (_, SigmaType(_, _: Bind)) => true case _ => false }.get
-      val left = Identifier.fresh(s"${pairId}_left")
-      val right = Identifier.fresh(s"${pairId}_right")
-      val newC = c.copy(termVariables = c.termVariables.removed(pairId).view.mapValues(_.preMap({
-        case Var(id) if id == pairId => Some(Pair(Var(left), Var(right)))
+    case g @ EqualityGoal(c, t1, t2) => 
+      c.termVariables.find{ 
+        case (_, SigmaType(_, _: Bind)) => true 
+        case _ => false 
+      } match {
+        case Some((pairId, SigmaType(ty1, Bind(id, ty2)))) => {
+          // We have the following term context : 
+          // ... :: (paidId, SigmaType(ty1, ty2)) :: ...
+          // We split it into : 
+          // ... :: (left, ty1) :: (right, ty2) :: ...
+          // While replacing all references to pairId by Pair(Var(left), Var(right))
+          val left = Identifier.fresh(s"${pairId.toString}_left")
+          val right = Identifier.fresh(s"${pairId.toString}_right")
+          val newC = c.replace(pairId, Pair(Var(left), Var(right)))
+          val splitContext = newC.termVariables.span(_._1 != pairId)
+          val (termVars1,termVars2) = (splitContext._1 , splitContext._2.tail) // We need to drop the head `(pairId, SigmaType)`
+          val lastC = newC.copy(
+            termVariables = (
+              termVars1 + ((left, ty1)) + 
+              ((right, ty2.replace(id, left))) ++ 
+              termVars2))
+
+          Some(List[List[Judgment] => Goal](_ => g.updateContext(lastC)), {
+            case AreEqualJudgment(_, _, _, _, _, _) :: _ =>
+              (true, AreEqualJudgment("DestructPair", c, t1, t2, ""))
+            case _ =>
+              emitErrorWithJudgment("DestructPair", g, None)
+          })
+        }
         case _ => None
-      })).toMap)
-                  .bind(left, ty1)
-                  .bind(right, ty2.replace(id, ty1))
-      Some(List(_ => g.updateContext(newC)), {
-        case AreEqualJudgment(_, _, _, _, _) :: _ =>
-          (true, AreEqualJudgment("DestructPair", c, t1, t2, ""))
-        case _ =>
-          emitErrorWithJudgment("DestructPair", g, None)
-      })
+      }
     case _ => None
   })
+
+
+  val SubtypeForall = Rule("SubtypeForall", {
+    case g @ SubtypeGoal(c,
+      tya @ IntersectionType(tya1, Bind(ida, tya2)),
+      tyb @ IntersectionType(tyb1, Bind(idb, tyb2))) =>
+      TypeChecker.debugs(g, "SubtypeForall")
+
+      val c0 = c.incrementLevel
+      val g1 = SubtypeGoal(c0, tyb1, tya1)
+      val g2 = SubtypeGoal(c0.bind(ida, tyb1), tya2, tyb2.replace(idb, ida))
+      Some((List(_ => g1, _ => g2), {
+        case SubtypeJudgment(_, _, _, _, _) :: SubtypeJudgment(_, _, _, _, _) :: Nil =>
+          (true, SubtypeJudgment("SubtypeForall", c, tya, tyb))
+        case _ =>
+          emitErrorWithJudgment("SubtypeForall", g, None)
+      }))
+    case g =>
+      None
+  })
+
 }
