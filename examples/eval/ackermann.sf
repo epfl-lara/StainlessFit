@@ -1,4 +1,3 @@
-Include("../assert.sf")
 
 val ackermann = fix(ackermann =>
   fun of m = {
@@ -12,4 +11,4 @@ val ackermann = fix(ackermann =>
   }
 );
 
-assert(ackermann 2 2 == 7)
+ackermann 2 2

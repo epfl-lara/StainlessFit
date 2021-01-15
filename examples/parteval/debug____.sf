@@ -1,0 +1,16 @@
+[type List[X] = Forall(n: Nat, Rec(n)(List => (Unit + (X, List))))]
+fun nil[X]  [returns List[X]] = {
+  [fold as List[X]](left ())
+}
+fun cons[X] (x [X]) (xs [List[X]])  [returns List[X]] = {
+  [fold as List[X]](right ((x, xs)))
+}
+fun fold[X][Y](xs [List[X]]) [returns Y]= {
+  [decreases (size xs)]
+  match xs {
+    case left u => 0
+    case right pair =>
+      fold[X][Y] second(pair)
+  }
+}
+fold [Nat] [Nat]

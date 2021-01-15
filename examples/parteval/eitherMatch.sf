@@ -1,0 +1,4 @@
+match left (c+c+c+c) {
+    case left a => 2*a*a*a*a*a
+    case right a => a
+}

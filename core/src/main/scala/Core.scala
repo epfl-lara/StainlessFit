@@ -20,6 +20,7 @@ import java.io.{File, ByteArrayOutputStream, PrintWriter}
 import scala.sys.process._
 
 import core.util.RunContext
+import stainlessfit.core.partialEvaluator.PartialEvaluator
 
 import scala.sys.process._
 
@@ -78,6 +79,16 @@ object Core {
       case _: Throwable => false
     }
   }
+  def partEvalFile(f: File, disableReferenceCounting: Boolean = false)(implicit rc: RunContext): Either[String, Tree] =
+    parseFile(f) flatMap { src =>
+
+      val pipeline = PartialEvaluator.pipeline()
+
+      val (t, _) = pipeline.transform(src)
+
+      Right(PartialEvaluator.evaluate(t, disableReferenceCounting = disableReferenceCounting))
+      //Can't fail ?
+    }
 
   def typeCheckFile(f: File)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] = {
     if (hasZ3()) {
@@ -206,6 +217,9 @@ object Core {
 
   def evalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
     evalFile(new File(s))
+
+  def partEvalFile(s: String)(implicit rc: RunContext): Either[String, Tree] =
+    partEvalFile(new File(s))
 
   def typeCheckFile(s: String)(implicit rc: RunContext): Either[String, (Boolean, NodeTree[Judgment])] =
     typeCheckFile(new File(s))

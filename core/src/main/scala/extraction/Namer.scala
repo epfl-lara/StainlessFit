@@ -34,10 +34,16 @@ class Namer(implicit val rc: RunContext) extends Phase[Unit] {
           }
 
         case Var(id) =>
+          m.get(id) match {
+            case None => _ => Var(id)
+            case Some(boundId) => _ => Var(boundId)
+          }
+          /* TODO: see how to adapt
           if (m.contains(id)) _ => Var(m(id))
           else rc.reporter.fatalError(
             s"Error in name resolution: undefined variable ${id.asString} at position ${t.pos}"
           )
+          */
 
         case _ => res => res
       }
