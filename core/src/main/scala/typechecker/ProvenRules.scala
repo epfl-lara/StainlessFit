@@ -503,8 +503,9 @@ trait ProvenRules {
   val InferPair = Rule("InferPair", {
     case g @ InferGoal(c, e @ Pair(t1, t2)) =>
       TypeChecker.debugs(g, "InferPair")
-        val inferFirst = InferGoal(c.incrementLevel, t1)
-        val inferSecond = InferGoal(c.incrementLevel, t2)
+      val inferFirst = InferGoal(c.incrementLevel, t1)
+      val inferSecond = InferGoal(c.incrementLevel, t2)
+
       Some((List(_ => inferFirst, _ => inferSecond),
         {
           case InferJudgment(_, _, _, ty1) :: InferJudgment(_, _, _, ty2) :: _ =>
@@ -702,9 +703,9 @@ trait ProvenRules {
     case _ => None
   })
 
-  val CheckPair = Rule("CheckFirst", {
+  val CheckPair = Rule("CheckPair", {
     case g @ CheckGoal(c, e @ Pair(t1, t2), ty @ SigmaType(ty1, Bind(id, ty2))) =>
-      TypeChecker.debugs(g, "CheckFirst")
+      TypeChecker.debugs(g, "CheckPair")
       val letTy2 = ty2.replace(id, t1)
       val subgoal1 = CheckGoal(c.incrementLevel, t1, ty1)
       val subgoal2 = CheckGoal(c.incrementLevel, t2, letTy2)
