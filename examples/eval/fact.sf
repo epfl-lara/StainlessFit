@@ -7,4 +7,4 @@ val fact = fix(fac =>
   }
 );
 
-assert(fact 10 == 3628800)
+assert(fact 4 == 24)

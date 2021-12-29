@@ -231,6 +231,44 @@ sealed abstract class Tree extends Positioned {
     val (children, reconstruct) = this.deconstruct
     reconstruct(children.map(f))
   }
+  /*TODO
+  def map(t: Tree, p: Tree => Option[Tree])(implicit rc: RunContext): Tree = {
+    p(t) getOrElse {
+      val subtrees = t.subTrees()
+      t.newSubTrees(subtrees.map(map(_,p)))
+    }
+  }
+
+  def freshenIdentifiers(t: Tree)(implicit rc: RunContext): Tree = {
+    def discover(t: Tree): List[Identifier] = {
+      t match {
+        case Var(id) => 
+          List(id)
+        case _ =>
+          t.subTrees().flatMap(discover(_))
+      }
+    }
+
+    def update(t: Tree, idMap: Map[Identifier, Identifier]): Option[Tree] = {
+      t match {
+        case Var(id) => 
+          Some( Var(idMap(id)) )
+        case _ =>
+          None 
+      }
+    }
+
+    val ids = discover(t)
+    val idMap = ids.map(id => (id, id.freshen())).toMap
+    map(t, update(_, idMap))
+  }
+}
+
+case class Identifier(id: Int, name: String) extends Positioned {
+  override def toString: String = name + "#" + id
+  // override def toString: String = name
+
+  def asString(implicit rc: RunContext): String = Printer.asString(this)*/
 
   def postMap(p: Tree => Tree => Tree): Tree = {
     val resultTransformer = p(this)
@@ -280,6 +318,22 @@ sealed abstract class Tree extends Positioned {
       else None
     case _ => None
   }).toOption.get
+
+  def replaceAndCount(id: Identifier, t: Tree)(implicit rc: RunContext): (Tree, Int) = {
+    this match {
+      case Var(id2) if id2 == id => (t, 1)
+      case Bind(id2, e) if (id == id2) => (this, 0) //Does this count as a replacement ? it should never happen ....
+      case Bind(id2, e) if (id2.isFreeIn(t)) =>
+        rc.reporter.fatalError(
+          s"""Replacing ${Printer.asString(id)} by ${Printer.asString(t)} in
+          |$this would capture variable ${Printer.asString(id2)}""".stripMargin
+        )
+      case _ => 
+        val (children, reconstruct) = this.deconstruct
+        val (transformed, counts) = children.map(_.replaceAndCount(id, t)).unzip
+        (reconstruct(transformed), counts.fold(0)(_ + _))
+    }
+  }
 
   def replace(id: Identifier, id2: Identifier)(implicit rc: RunContext): Tree = replace(id, Var(id2))
 
